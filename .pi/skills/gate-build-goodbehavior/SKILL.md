@@ -3,11 +3,15 @@ name: gate-build-goodbehavior
 description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Execute one roadmap phase under the gated loop — build each item, verify it live (exercise the real thing per the project's profile), record learnings, and prove the phase with concrete evidence before starting the next. Use to work through a roadmap without drifting or self-declaring done.
 ---
 
+**Loop position:** step 4 — after `/roadmap-goodbehavior`; per item it calls `/verify-goodbehavior` and
+`/learn-goodbehavior`. Done and standing-proceed are defined in the active profile (in your instructions).
+
 Work the **current (NOW) phase** of `docs/plans/ROADMAP.md`, one item at a time, to the real definition of done.
 
 ## Per item
 1. **Build** the smallest change that actually closes the gap (reuse before hand-rolling).
-2. **Produce/run** it the project's real way (note the build/deploy traps — see the project's `build-deploy-gotchas`).
+2. **Produce/run** it the project's real way (note the build/deploy traps recorded in project memory,
+   `.blitz/goodbehavior/memory/MEMORY.md`).
 3. **Verify live** — run `/verify-goodbehavior`: exercise the real thing the way its consumer would, per the project's
    **profile** (software driven like a user through UI + backend; a dataset validated on real input; claims re-checked
    against sources; a delivered artifact walked + fact-checked), and capture that profile's evidence. A passing test

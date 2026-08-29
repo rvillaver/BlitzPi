@@ -5,8 +5,8 @@ description: Manual skill — run ONLY when the user explicitly asks for it by n
 
 Produce and keep current a **human-followable UAT plan** — the durable counterpart to automated tests and to the one-shot
 `/verify-goodbehavior` drive. Where verify proves *one* change live, the UAT plan is the *standing map* of what to test
-across the whole product and whether each case currently passes. Output: `docs/qa/UAT-PLAN.md` (start from
-`templates/UAT-PLAN.md`) — a **default, not a prescription**: if the project already keeps a manual test catalog
+across the whole product and whether each case currently passes. Output: `docs/qa/UAT-PLAN.md` (sections per feature
+area, a case table per section, the reporting protocol at the foot) — a **default, not a prescription**: if the project already keeps a manual test catalog
 (whatever it's named), maintain THAT instead of creating a parallel one. Kept in sync with the feature set as it grows.
 
 ## Organize by feature set (cross-referenced to journeys/personas)

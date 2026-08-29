@@ -25,7 +25,9 @@ Once the user has watched the gates hold (verify → learn → gate), they can g
 
 ## Record learnings
 
-Write non-obvious traps, corrections, hard-won facts about how this project builds/runs/behaves to `.claude/goodbehavior/memory/` so the next session doesn't relearn them.
+Write non-obvious traps, corrections, hard-won facts about how this project builds/runs/behaves to `.blitz/goodbehavior/memory/` (index `MEMORY.md`) so the next session doesn't relearn them.
+
+The loop above is the *development profile* — its single source of truth is `.pi/goodbehavior/profiles/development.md` (what adopted projects receive and what BlitzPi injects into the agent). Change doctrine there, not here or in code.
 
 ## Reuse before you build
 

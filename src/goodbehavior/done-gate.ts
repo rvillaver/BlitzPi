@@ -16,8 +16,12 @@ interface DoneGateResult {
 }
 
 export class DoneGate {
-  private buildTools = new Set(["edit", "write", "bash"]);
-  private observeTools = new Set(["bash", "webfetch"]);
+  private buildTools: Set<string>;
+  private observeTools: Set<string>;
+  constructor(buildTools: string[] = ["edit", "write", "bash"], observeTools: string[] = ["bash", "webfetch"]) {
+    this.buildTools = new Set(buildTools.map((t) => t.toLowerCase()));
+    this.observeTools = new Set(observeTools.map((t) => t.toLowerCase()));
+  }
   private docExtensions = new Set([".md", ".markdown", ".txt", ".rst", ".adoc"]);
 
   private claimPattern = /✅|\bit'?s (now )?(done|complete|working)\b|\b(all )?(done|complete|completed|finished|shipped)\b/i;
@@ -57,6 +61,6 @@ export class DoneGate {
   }
 }
 
-export function createDoneGate(): DoneGate {
-  return new DoneGate();
+export function createDoneGate(buildTools?: string[], observeTools?: string[]): DoneGate {
+  return new DoneGate(buildTools, observeTools);
 }

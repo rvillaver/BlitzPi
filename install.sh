@@ -15,17 +15,18 @@
 # Updates install the next release as a whole into a new versions/<version> and switch `current`
 # atomically; the previous version is kept for rollback. Nothing is installed system-wide.
 #
-# Options:  --update  --uninstall  --yes  --version vX.Y.Z  --print-paths
+# Options:  --update  --uninstall [--purge]  --yes  --version vX.Y.Z  --print-paths
 # Env:      BLITZPI_HOME (app dir override), BLITZPI_SOURCE (local dir or .tar.gz instead of GitHub)
 set -eu
 
 REPO="rvillaver/BlitzPi"
 BUN_VERSION="1.4.0"
-MODE="install"; YES=0; WANT_VERSION=""
+MODE="install"; YES=0; WANT_VERSION=""; PURGE=0
 for a in "$@"; do
   case "$a" in
     --update) MODE="update"; YES=1 ;;
     --uninstall) MODE="uninstall" ;;
+    --purge) PURGE=1 ;;
     --yes|-y) YES=1 ;;
     --print-paths) MODE="print-paths" ;;
     --version=*) WANT_VERSION="${a#--version=}" ;;
@@ -105,9 +106,11 @@ remove_path_line() {
 # ---- uninstall -----------------------------------------------------------------------------
 if [ "$MODE" = "uninstall" ]; then
   say "This removes BlitzPi:"; say "  app directory : $APP"; say "  command       : $SHIM"
-  say "Your logins (~/.pi) and audit trail (~/.blitz) are kept."
+  if [ "$PURGE" = 1 ]; then say "  audit + global config : $HOME/.blitz  (--purge)"; fi
+  say "Kept: your Pi logins in $HOME/.pi (remove yourself with: rm -rf \"$HOME/.pi\")$( [ "$PURGE" = 1 ] || printf ', your audit trail in %s/.blitz (add --purge to remove)' "$HOME")."
   confirm "Uninstall BlitzPi?" || { say "Cancelled."; exit 0; }
   rm -rf "$APP"; rm -f "$SHIM"; remove_path_line
+  [ "$PURGE" = 1 ] && rm -rf "$HOME/.blitz"
   say "BlitzPi has been uninstalled."; exit 0
 fi
 

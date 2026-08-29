@@ -3,7 +3,10 @@ name: learn-goodbehavior
 description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Capture a durable learning so it isn't relearned — a non-obvious trap, a user correction, or a hard-won build/deploy/behavior fact. Writes one fact per memory with a recall-friendly description + an index pointer. Use right after hitting (or being corrected on) something the next session would otherwise rediscover the hard way.
 ---
 
-Write a durable learning to project memory. One fact per file; check for an existing file on the same topic and
+**Loop position:** called per item by `/gate-build-goodbehavior`, or whenever something non-obvious was learned.
+
+Write a durable learning to project memory — `.blitz/goodbehavior/memory/` (index `MEMORY.md`), unless the project
+already keeps learnings elsewhere. One fact per file; check for an existing file on the same topic and
 **update it rather than duplicate**.
 
 ## What's worth recording
@@ -13,7 +16,7 @@ Write a durable learning to project memory. One fact per file; check for an exis
 - **project** — ongoing goals/decisions/constraints not derivable from the code or git history.
 - **reference** — a pointer to an external resource (URL, dashboard, ticket).
 
-Don't record what the repo already states (code structure, past fixes, git history, CLAUDE.md). If asked to "remember"
+Don't record what the repo already states (code structure, past fixes, git history, AGENTS.md). If asked to "remember"
 something obvious, ask what was *non-obvious* about it and record that.
 
 ## Format (one file)
@@ -25,7 +28,7 @@ metadata: { type: feedback | gotcha | project | reference }
 ---
 <the fact. For feedback/gotcha, add **Why:** and **How to detect / apply:**. Link related learnings with [[their-name]].>
 ```
-Then add a one-line pointer to the memory index (`MEMORY.md` or `docs/learnings/INDEX.md`): `- [Title](file.md) — hook`.
+Then add a one-line pointer to the memory index (`.blitz/goodbehavior/memory/MEMORY.md`): `- [Title](file.md) — hook`.
 
 ## Recall
 At the start of real work, skim the index. A recorded learning that names a file/flag/endpoint reflects what was true

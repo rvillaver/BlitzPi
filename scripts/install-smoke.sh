@@ -41,7 +41,9 @@ readlink "$APP/current" | grep -q -- "-next" && ok "current switched to $(readli
 "$SHIM" --version </dev/null 2>&1 | grep -q -- "-next" && ok "new version runs" || no "new version does not run"
 
 echo "== uninstall"
-"$SHIM" uninstall --yes >/dev/null 2>&1 </dev/null && ok "blitzpi uninstall --yes exit 0" || no "uninstall failed"
+mkdir -p "$HOME/.blitz/audit"; touch "$HOME/.blitz/audit/x.jsonl"
+"$SHIM" uninstall --yes --purge >/dev/null 2>&1 </dev/null && ok "blitzpi uninstall --yes --purge exit 0" || no "uninstall failed"
+[ ! -e "$HOME/.blitz" ] && ok "--purge removed ~/.blitz" || no "~/.blitz still there after --purge"
 [ ! -e "$APP" ] && ok "app dir removed" || no "app dir still there"
 [ ! -e "$SHIM" ] && ok "command removed" || no "command still there"
 grep -q "BlitzPi" "$HOME/.zshrc" && no "PATH line still in ~/.zshrc" || ok "PATH line removed"

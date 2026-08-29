@@ -40,14 +40,14 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     fs.mkdirSync(path.join(cwd, ".blitz"), { recursive: true });
     const cfg = path.join(cwd, ".blitz", "blitz.config.yaml");
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n");
-    const n = adoptGoodBehavior(cwd);
+    const n = adoptGoodBehavior(cwd).installed.filter((f) => f.endsWith("SKILL.md")).length;
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt
     // A persistent chat message (not a toast) so the restart step can't be missed.
     pi.sendMessage({
       customType: "blitz-setup",
       content:
         `BlitzPi project set up in ${cwd}\n` +
-        `- ${n} GoodBehavior skills installed in .pi/skills\n` +
+        `- ${n} GoodBehavior skills installed in .pi/skills; doctrine in .blitz/goodbehavior/profiles/\n` +
         `- security config in .blitz/\n\n` +
         `ACTION NEEDED: the skills load at startup, so RESTART BlitzPi in this folder to activate them ` +
         `(press ctrl+d to quit, then run 'blitzpi' again). After that, /skill:audit-goodbehavior and the rest are available.`,

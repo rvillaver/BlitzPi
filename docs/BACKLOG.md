@@ -23,3 +23,7 @@ Root scripts superseded by `tests/` + `scripts/smoke-test.sh`: `test-governance.
 `test-sandbox-runtime.ts`, `verify-governance.sh`, `verify-implementation.js`,
 `mock-governance-server.js` (keep `mock-governance-server.ts` if you use the `custom` governance
 provider). Left in place as code, not docs.
+- **Pi's system prompt points the agent at the install dir** — Pi's built-in "Pi documentation" section lists
+  `<install>/node_modules/@earendil-works/pi-coding-agent/{README.md,docs,examples}` as places to read ("when the user
+  asks about pi itself"). That is BlitzPi's own program directory (zone `install` → reads ask). Consider stripping that
+  section in `before_agent_start` via `systemPromptOptions` so the agent has no reason to look outside the workspace.

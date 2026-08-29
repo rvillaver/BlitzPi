@@ -42,6 +42,7 @@ provider (stored in `~/.pi/agent/auth.json`).
 ```bash
 blitzpi update      # installs the newest release as a whole (previous version kept for rollback)
 blitzpi uninstall   # removes the app directory + command; keeps your logins (~/.pi) and audit (~/.blitz)
+blitzpi uninstall --purge   # …and also removes ~/.blitz (audit trail, global config)
 blitzpi --version   # blitzpi x.y.z (pi 0.84.3, bun 1.4.0)
 ```
 
@@ -69,12 +70,16 @@ blitzpi audit           # query the audit trail from the shell
 blitzpi demo            # capability demo (writes it from real runs)
 ```
 
-Inside the session: `/login`, `/model`, `/theme`, `/ccstyle`, `/agents`, `/mcp`, `/adopt-goodbehavior`.
+Inside the session: `/login`, `/model`, `/theme`, `/ccstyle`, `/agents`, `/mcp`, `/adopt-goodbehavior`, `/unadopt-goodbehavior`.
 
 On first run in a new folder, BlitzPi asks to **set it up as a project** (trust + `.blitz/` marker); the
 current directory is then your workspace (the security anchor). BlitzPi's own install directory is
-off-limits infrastructure. GoodBehavior is not baked in — run `/adopt-goodbehavior` to scaffold the
-gated workflow into *this* project (`.pi/skills/`), then reload.
+off-limits infrastructure. Saying yes also **adopts GoodBehavior** into the project: six skills in `.pi/skills/`
+and the doctrine — the active *profile* (`.blitz/goodbehavior/profiles/development.md`: the loop, what "done" means,
+verify level, audit lenses, where files live) — which BlitzPi injects into the agent's instructions on every turn.
+Edit the profile to change how the agent works in that project. `/adopt-goodbehavior` again = update from the
+installed version (files you edited are kept and listed); `/unadopt-goodbehavior` removes it (memory kept unless
+you choose otherwise).
 
 ## Security layers
 

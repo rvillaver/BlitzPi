@@ -43,8 +43,8 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     setupSandbox(pi, config, auditLogger, gate);
     setupSandboxedBash(pi, config, auditLogger, gate);
 
-    // Phase 3: Setup GoodBehavior (pre-installed skills + done-gate hook)
-    setupGoodBehavior(pi);
+    // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)
+    setupGoodBehavior(pi, config);
     setupWorkspaceInit(pi);
 
     // Phase 4: Setup UI & Branding (BlitzPi identity + live status commands)

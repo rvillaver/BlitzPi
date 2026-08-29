@@ -3,6 +3,13 @@ name: audit-goodbehavior
 description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Produce an honest, reference-cross-checked gap register — the concrete delta between what exists and what's wanted, grouped and severity-tagged, built in gated batches (not all at once). Use before building, when the user wants to know "what are ALL the gaps" against a reference (design, spec, competitor, demo).
 ---
 
+**Loop position:** step 2 — after *Understand*, before `/roadmap-goodbehavior`. The doctrine (loop, done rule, lenses) is
+the project's active profile (`.blitz/goodbehavior/profiles/`), already in your instructions — don't restate it, apply it.
+
+**Nothing built yet?** If the workspace has no code to compare against the reference, the audit is one line — "0% built;
+reference = <doc>" — and the next step is `/roadmap-goodbehavior` from the reference's own sections. Don't hunt for a
+build elsewhere on the machine and don't interrogate the user.
+
 Catalog the gaps between the current build and the reference, concretely and honestly. The output is a gap register
 under `docs/audit/` (a **default, not a prescription** — if the project keeps findings elsewhere per its recorded
 conventions, write there), which `/roadmap-goodbehavior` later rolls into a plan.
@@ -20,7 +27,7 @@ conventions, write there), which `/roadmap-goodbehavior` later rolls into a plan
 
 ## Adversarial, multi-lens
 A single read only finds what it was looking for. Pass each area through **independent lenses** and surface where they
-*contradict*, not just what each turns up. Pick lenses that fit the project's **profile** — the development set below is
+*contradict*, not just what each turns up. Use the lenses listed in the active **profile** — the development set below is
 one instance. At minimum: **coverage vs the intended reference/spec** and **completeness/wiring** (is it actually
 reachable/usable end to end, or a dead surface?); for software add **security** and **flow/UX**; for analysis add
 **data correctness/lineage**; for research add **source provenance**; for creative add **factual integrity & internal

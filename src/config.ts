@@ -27,6 +27,9 @@ export interface BlitzConfig {
     openai_api_key?: string;
     guardrails_endpoint?: string;
   };
+  goodbehavior: {
+    profile: string; // active GoodBehavior profile name (.blitz/goodbehavior/profiles/<name>.md)
+  };
   threat_api: {
     enabled: boolean;
     api_endpoint: string;
@@ -62,6 +65,9 @@ const DEFAULT_CONFIG: BlitzConfig = {
     api_endpoint: process.env.BLITZ_GOVERNANCE_API,
     openai_api_key: process.env.OPENAI_API_KEY,
     guardrails_endpoint: process.env.BLITZ_GUARDRAILS_ENDPOINT,
+  },
+  goodbehavior: {
+    profile: "development",
   },
   threat_api: {
     enabled: false,
@@ -145,6 +151,9 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
       api_endpoint: (config.governance?.api_endpoint as string) ?? DEFAULT_CONFIG.governance.api_endpoint,
       openai_api_key: (config.governance?.openai_api_key as string) ?? DEFAULT_CONFIG.governance.openai_api_key,
       guardrails_endpoint: (config.governance?.guardrails_endpoint as string) ?? DEFAULT_CONFIG.governance.guardrails_endpoint,
+    },
+    goodbehavior: {
+      profile: (config.goodbehavior?.profile as string) ?? DEFAULT_CONFIG.goodbehavior.profile,
     },
     threat_api: {
       enabled: config.threat_api?.enabled ?? DEFAULT_CONFIG.threat_api.enabled,

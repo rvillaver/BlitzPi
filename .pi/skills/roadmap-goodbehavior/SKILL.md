@@ -3,11 +3,14 @@ name: roadmap-goodbehavior
 description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Roll a gap register (or a pile of asks) into a sequenced, gated, phased plan in docs/plans/ROADMAP.md, parking low-ROI/blocked work in PRODUCTION-BACKLOG.md. Use after audit-goodbehavior, or when work needs ordering before building.
 ---
 
+**Loop position:** step 3 — after `/audit-goodbehavior` (or straight from a reference/design when nothing is built),
+before `/gate-build-goodbehavior`.
+
 Turn gaps/asks into an ordered plan that the gated loop can execute. Be honest about size and value — don't let a
 big-but-invisible item sit ahead of cheap high-visibility wins just because it was listed first.
 
 > Paths below are **defaults, not prescriptions**. If adoption mapped planning onto an existing structure (a roadmap,
-> handoff "next steps", an issue tracker — check CLAUDE.md conventions / project memory), work THERE instead.
+> handoff "next steps", an issue tracker — check AGENTS.md conventions / project memory), work THERE instead.
 
 ## Produce
 - **`docs/plans/ROADMAP.md`** — the source of truth for what's next. Group into **phases**, sequenced by leverage:
