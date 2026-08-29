@@ -17,13 +17,13 @@ export type Action = "read" | "write";
 export function decide(action: Action, zone: Zone): Level {
   if (action === "read") {
     switch (zone) {
-      case "project": case "goodbehavior": case "project-config": case "plumbing": return "silent";
+      case "project": case "goodbehavior": case "project-config": case "plumbing": case "scratch": return "silent";
       default: return "ask"; // system / install / global / other — reading outside the project asks
     }
   }
   // write
   switch (zone) {
-    case "plumbing": return "silent";        // writing /dev/null is fine
+    case "plumbing": case "scratch": return "silent";  // /dev/null and the temp dir are fine
     case "project": case "goodbehavior": return "ask";
     case "project-config": return "ask-noalways";
     default: return "dangerous";             // install / global / system / other

@@ -1,7 +1,7 @@
 import { classifyZone } from "../src/zones";
 import { decide } from "../src/permissions";
 
-const roots = { project: "/home/u/app-stack", install: "/home/u/BlitzPi", home: "/home/u" };
+const roots = { project: "/home/u/app-stack", install: "/home/u/BlitzPi", home: "/home/u", scratch: ["/tmp", "/private/tmp"] };
 const z = (p: string) => classifyZone(p, roots);
 
 describe("zone classification", () => {
@@ -21,6 +21,10 @@ describe("zone classification", () => {
     expect(z("/usr/lib/x.so")).toBe("system");
     expect(z("/dev/null")).toBe("plumbing");
     expect(z("/dev/stderr")).toBe("plumbing");
+    expect(z("/tmp/build.log")).toBe("scratch");
+    expect(z("/private/tmp/x")).toBe("scratch");
+    expect(decide("read", "scratch")).toBe("silent");
+    expect(decide("write", "scratch")).toBe("silent");
     expect(z("/home/u/other-project/secret")).toBe("other");
     expect(z("/home/u/.ssh/id_rsa")).toBe("other");
   });

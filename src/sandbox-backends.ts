@@ -6,6 +6,8 @@
  *                workspace. NOT hardened (a computed path can still escape); the guard is the scope
  *                control here. This is where a future sandbox-exec/AppContainer backend slots in.
  */
+import { dirname } from "node:path";
+import { defaultScratchDirs } from "./zones";
 import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
@@ -47,6 +49,8 @@ function pump(child: ReturnType<typeof spawn>, options: ExecOptions): Promise<{ 
 }
 
 const RO_SYSTEM_DIRS = ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt", "/run"];
+/** The runtime running BlitzPi (the private Bun when installed) must be reachable inside the sandbox. */
+const RUNTIME_DIR = dirname(process.execPath);
 
 class BwrapBackend implements SandboxBackend {
   name = "bwrap";
@@ -55,7 +59,9 @@ class BwrapBackend implements SandboxBackend {
   exec(command: string, runDir: string, options: ExecOptions) {
     const args: string[] = [];
     for (const d of RO_SYSTEM_DIRS) args.push("--ro-bind-try", d, d);
-    args.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+    args.push("--ro-bind-try", RUNTIME_DIR, RUNTIME_DIR);
+    for (const d of defaultScratchDirs()) args.push("--bind-try", d, d); // scratch: the host temp dir, shared with the file tools
+    args.push("--proc", "/proc", "--dev", "/dev",
       "--bind", runDir, runDir, "--chdir", runDir,
       "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
       "--die-with-parent", "--setenv", "HOME", runDir,
@@ -68,12 +74,12 @@ class BwrapBackend implements SandboxBackend {
 class PinnedBackend implements SandboxBackend {
   name = "pinned";
   hardened = false;
-  describe(runDir: string) { return `cwd/HOME/TMPDIR pinned to ${runDir} (scope guard active; not OS-isolated)`; }
+  describe(runDir: string) { return `cwd/HOME pinned to ${runDir} (scope guard active; not OS-isolated)`; }
   exec(command: string, runDir: string, options: ExecOptions) {
     const isWin = process.platform === "win32";
     const shell = isWin ? "powershell.exe" : "/bin/bash";
     const shellArgs = isWin ? ["-NoProfile", "-Command", command] : ["-c", command];
-    const env = { ...process.env, ...options.env, HOME: runDir, TMPDIR: runDir, TEMP: runDir, TMP: runDir };
+    const env = { ...process.env, ...options.env, HOME: runDir };
     const child = spawn(shell, shellArgs, { cwd: runDir, env, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);
   }
@@ -84,14 +90,15 @@ class SandboxExecBackend implements SandboxBackend {
   hardened = true;
   describe(runDir: string) { return `macOS Seatbelt — file writes confined to ${runDir} (reads gated by the guard; network kept)`; }
   private profile(runDir: string): string {
-    // SBPL: allow by default, then deny all writes, then re-allow writes only inside the workspace
-    // plus the char devices a shell needs. TMPDIR is pinned to the workspace so temp writes stay inside.
+    // SBPL: allow by default, then deny all writes, then re-allow writes only inside the workspace,
+    // the scratch (temp) dirs, plus the char devices a shell needs.
     const esc = (p: string) => p.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return [
       "(version 1)",
       "(allow default)",
       "(deny file-write*)",
       `(allow file-write* (subpath "${esc(runDir)}"))`,
+      ...defaultScratchDirs().map((d) => `(allow file-write* (subpath "${esc(d)}"))`),
       '(allow file-write* (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (literal "/dev/dtracehelper") (literal "/dev/random") (literal "/dev/urandom"))',
     ].join("\n");
   }
@@ -99,7 +106,7 @@ class SandboxExecBackend implements SandboxBackend {
     // Seatbelt matches the REAL path; on macOS /var→/private/var, /tmp→/private/tmp, so resolve symlinks
     // before building the profile or an in-workspace write under a symlinked dir is wrongly denied.
     let real = runDir; try { real = realpathSync(runDir); } catch { /* keep runDir */ }
-    const env = { ...process.env, ...options.env, HOME: real, TMPDIR: real, TEMP: real, TMP: real };
+    const env = { ...process.env, ...options.env, HOME: real };
     const args = ["-p", this.profile(real), "/bin/bash", "-c", command];
     const child = spawn("/usr/bin/sandbox-exec", args, { cwd: real, env, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);

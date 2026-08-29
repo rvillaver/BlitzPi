@@ -39,7 +39,7 @@ export class PermissionGate {
   /** Core resolver. `confined` = the action stays inside the project. */
   async resolve(action: Action, zone: Zone, target: string, label: string, ctx: ExtensionContext | undefined): Promise<GateResult> {
     const level = decide(action, zone);
-    const confined = zone === "project" || zone === "goodbehavior" || zone === "project-config" || zone === "plumbing";
+    const confined = zone === "project" || zone === "goodbehavior" || zone === "project-config" || zone === "plumbing" || zone === "scratch";
     // Zone-wide memory, except `other`: remembered per directory root (one "Always" must not unlock the whole disk).
     const key = permissionKey(action, zone, target, this.roots.home);
     const base = { zone, level, confined };

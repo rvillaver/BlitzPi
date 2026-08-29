@@ -54,7 +54,8 @@ describe("PermissionGate (interactive) — Always is per directory root", () => 
   const audit: any = { log: () => {} };
   const asked: string[] = [];
   const ctx: any = { hasUI: true, ui: { notify: () => {}, select: async (q: string, opts: string[]) => { asked.push(q); return opts.find((o) => o.startsWith("Always this session")) ?? "Yes"; } } };
-  const gate = new PermissionGate({ project, install: path.join(tmp, "inst"), home }, new PermissionMemory(path.join(project, ".blitz", "permissions.json")), audit);
+  // scratch: [] — this fake home lives under the OS temp dir, which is the scratch zone by default
+  const gate = new PermissionGate({ project, install: path.join(tmp, "inst"), home, scratch: [] }, new PermissionMemory(path.join(project, ".blitz", "permissions.json")), audit);
 
   test("approve proj once → proj's other files silent; a different folder asks again; / asks every time with Yes/No", async () => {
     expect((await gate.resolvePath("read", path.join(proj, "src", "a.ts"), "read", ctx)).reason).toMatch(/approved/);

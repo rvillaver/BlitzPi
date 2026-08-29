@@ -17,6 +17,7 @@ Every path an action touches is classified into one zone:
 | **global** | `~/.blitz/` | the cross-project **audit trail** + global defaults |
 | **system** | `/usr`, `/bin`, `/etc`, `/lib`, … | the OS and tools the agent legitimately reads |
 | **plumbing** | `/dev/null`, `/dev/stdout`, `/dev/stderr`, `/dev/tty`, … | I/O plumbing, not data |
+| **scratch** | the OS temp dir (`/tmp`, `$TMPDIR`; macOS `/private/tmp`) | throwaway working space — logs, pids, build output |
 | **other** | everything else (`~/.ssh`, other projects) | not yours, not BlitzPi |
 
 The **project anchor** is the folder you launched in. If it has no `.blitz/`, it's the root of a new
@@ -30,7 +31,7 @@ Each (action, zone) resolves to one level:
 |---|---|---|
 | project / goodbehavior | silent | **ask** |
 | project-config | silent | **ask (no "Always")** — the agent can't blanket-loosen its own rules |
-| plumbing | silent | silent |
+| plumbing / scratch | silent | silent |
 | system / install / global / other | **ask** | **dangerous** |
 
 - **silent** — no prompt.
@@ -51,6 +52,10 @@ Every decision is written to the audit trail.
 
 ## The two-layer rule
 
+- **Scratch is shared, not isolated.** The bash sandbox binds the host temp dir (bwrap) / allows writes there
+  (Seatbelt), so `cmd > /tmp/out.log` followed by `read /tmp/out.log` works. Don't put secrets in `/tmp`.
+- **Threat detection scans instructions, not output**: a tool call's `command`, `path`/`file`, and `url` fields.
+  File content and edit text are never pattern-scanned — they are governed by zones + the sandbox.
 - The **sandbox confines the coding flow** to the project. Approved out-of-project actions run
   unconfined (you allowed the escape); in-project actions run under the OS backend
   (bwrap on Linux, Seatbelt on macOS).

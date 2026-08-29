@@ -119,17 +119,20 @@ describe('Command Injection Heuristics', () => {
   });
 
   test('should detect path traversal patterns', () => {
-    const patterns = [/\.\.\//g, /\.\.\\/, /\?/, /%2e%2e/i];
+    const patterns = [/%2e%2e/i, /\.\.%2f/i];
+    const deep = (t: string) => (t.match(/\.\.[\/\\]/g) || []).length > 2;
 
     const testCases = [
-      { text: '../../etc/passwd', expected: true },
-      { text: '..\\..\\windows\\system32', expected: true },
+      { text: '../../../etc/passwd', expected: true },
+      { text: '..%2f..%2fetc', expected: true },
+      { text: '../src/app.ts', expected: false }, // one level up inside a project is normal
+      { text: 'const port = Bun.env.PORT ?? 3000', expected: false }, // '?' is not traversal
       { text: '/etc/passwd', expected: false },
       { text: 'file.txt', expected: false },
     ];
 
     for (const { text, expected } of testCases) {
-      const matches = patterns.some(p => p.test(text));
+      const matches = patterns.some(p => p.test(text)) || deep(text);
       expect(matches).toBe(expected);
     }
   });

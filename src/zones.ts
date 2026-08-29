@@ -5,6 +5,7 @@
  */
 import path from "node:path";
 import os from "node:os";
+import fs from "node:fs";
 
 export type Zone =
   | "project"         // the user's project folder (the launch/anchor dir)
@@ -14,6 +15,7 @@ export type Zone =
   | "global"          // ~/.blitz — global audit trail + defaults
   | "system"          // /usr /bin /etc /lib ... (+ macOS/Windows equivalents)
   | "plumbing"        // /dev/null and friends — I/O plumbing, not data
+  | "scratch"         // the OS temp dir (/tmp, $TMPDIR) — throwaway working space, writable in the sandbox
   | "other";          // anything else (other projects, ~/.ssh, documents)
 
 const PLUMBING = new Set([
@@ -38,6 +40,17 @@ export interface ZoneRoots {
   project: string;       // the project/anchor dir
   install: string;       // BlitzPi install dir
   home?: string;         // user home (for ~/.blitz)
+  scratch?: string[];    // temp dirs (default: os.tmpdir() + /tmp, symlinks resolved)
+}
+
+/** Temp directories that count as scratch space, with symlinks resolved (macOS: /tmp → /private/tmp). */
+export function defaultScratchDirs(): string[] {
+  const out = new Set<string>();
+  for (const d of [os.tmpdir(), "/tmp"]) {
+    out.add(path.resolve(d));
+    try { out.add(fs.realpathSync(d)); } catch { /* absent */ }
+  }
+  return [...out];
 }
 
 export function classifyZone(target: string, roots: ZoneRoots): Zone {
@@ -50,6 +63,8 @@ export function classifyZone(target: string, roots: ZoneRoots): Zone {
   if (gbDirs.some((d) => under(abs, d))) return "goodbehavior";
   if (under(abs, path.join(roots.project, ".blitz"))) return "project-config";
   if (under(abs, roots.project)) return "project";
+
+  if ((roots.scratch ?? defaultScratchDirs()).some((d) => under(abs, d))) return "scratch";
 
   if (under(abs, path.join(home, ".blitz"))) return "global";
   if (roots.install && under(abs, roots.install)) return "install";

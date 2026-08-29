@@ -35,6 +35,31 @@ const THREAT_PATTERNS = {
 };
 
 /**
+ * What the detectors look at. Tool inputs carry two very different things: the agent's INSTRUCTIONS to the
+ * tool (a shell command, a path, a URL) and the agent's OUTPUT (file content, edit text). Injection / traversal
+ * heuristics only make sense on the former — scanning file content blocked every write containing `??`, an
+ * email address or a 9-digit number. Content is governed by zones + sandbox, not by regexes.
+ */
+const COMMAND_FIELDS = ["command", "cmd", "script", "args"];
+const PATH_FIELDS = ["path", "file", "filePath", "file_path", "paths", "oldPath", "newPath", "directory", "dir", "cwd", "pattern"];
+const URL_FIELDS = ["url", "urls", "uri", "href", "endpoint"];
+function pick(input: Record<string, unknown>, fields: string[]): string {
+  const out: string[] = [];
+  for (const f of fields) {
+    const v = input[f];
+    if (typeof v === "string") out.push(v);
+    else if (Array.isArray(v)) for (const x of v) if (typeof x === "string") out.push(x);
+  }
+  return out.join("\n");
+}
+export function scannableText(input: Record<string, unknown>): { command: string; paths: string; urls: string; all: string } {
+  const command = pick(input, COMMAND_FIELDS);
+  const paths = pick(input, PATH_FIELDS);
+  const urls = pick(input, URL_FIELDS);
+  return { command, paths, urls, all: [command, paths, urls].filter(Boolean).join("\n") };
+}
+
+/**
  * Tier 1 threat detector (fast pattern matching)
  */
 class Tier1Detector {
@@ -43,8 +68,10 @@ class Tier1Detector {
     reason?: string;
     threatType?: string;
     threatContent?: string;
+    piiObserved?: string;
   } {
-    const text = JSON.stringify(input).toLowerCase();
+    const scoped = scannableText(input);
+    const text = scoped.all.toLowerCase();
 
     // Check prompt injection patterns
     for (const pattern of THREAT_PATTERNS.prompt_injection) {
@@ -58,16 +85,9 @@ class Tier1Detector {
       }
     }
 
-    // Check for PII patterns
+    // PII in a command/URL is observed (audited), never blocked: the agent's own tool input is not exfiltration.
     for (const [piiType, pattern] of Object.entries(THREAT_PATTERNS.pii_patterns)) {
-      if (pattern.test(JSON.stringify(input))) {
-        return {
-          blocked: true,
-          reason: `PII detected: ${piiType}`,
-          threatType: "pii",
-          threatContent: piiType,
-        };
-      }
+      if (pattern.test(scoped.all)) return { blocked: false, piiObserved: piiType };
     }
 
     return { blocked: false };
@@ -85,11 +105,12 @@ class Tier2Detector extends Tier1Detector {
       return tier1Result;
     }
 
-    // Additional Tier 2 heuristics
-    const text = JSON.stringify(input);
+    // Additional Tier 2 heuristics — command fields for injection, path fields for traversal
+    const scoped = scannableText(input);
+    const text = scoped.all;
 
     // Check for suspicious shell metacharacters in command-like fields
-    if (this.hasCommandInjectionHints(text)) {
+    if (this.hasCommandInjectionHints(scoped.command)) {
       return {
         blocked: true,
         reason: "Command injection pattern detected",
@@ -98,8 +119,8 @@ class Tier2Detector extends Tier1Detector {
       };
     }
 
-    // Check for path traversal attempts
-    if (this.hasPathTraversalHints(text)) {
+    // Check for path traversal attempts (path fields only; zones resolve real escapes, this catches encoded ones)
+    if (this.hasPathTraversalHints(scoped.paths)) {
       return {
         blocked: true,
         reason: "Path traversal pattern detected",
@@ -108,7 +129,7 @@ class Tier2Detector extends Tier1Detector {
       };
     }
 
-    return { blocked: false };
+    return tier1Result; // not blocked; carries piiObserved
   }
 
   private hasCommandInjectionHints(text: string): boolean {
@@ -123,10 +144,11 @@ class Tier2Detector extends Tier1Detector {
     return patterns.some((p) => p.test(text));
   }
 
-  private hasPathTraversalHints(text: string): boolean {
-    const patterns = [/\.\.\//g, /\.\.\\/, /\?/, /%2e%2e/i];
-    const count = (text.match(/\.\.\//g) || []).length;
-    return patterns.some((p) => p.test(text)) || count > 2;
+  private hasPathTraversalHints(paths: string): boolean {
+    // `../` inside a project is normal; flag URL-encoded traversal and deep escapes (3+ segments) only.
+    const encoded = /%2e%2e/i.test(paths) || /\.\.%2f/i.test(paths);
+    const deep = (paths.match(/\.\.[\/\\]/g) || []).length > 2;
+    return encoded || deep;
   }
 }
 
@@ -141,7 +163,7 @@ class Tier3Detector extends Tier2Detector {
       return tier2Result;
     }
 
-    const text = JSON.stringify(input);
+    const text = scannableText(input).all;
 
     // Analyze context for suspicious combinations
     if (this.hasSuspiciousCombinations(text, input)) {
@@ -153,7 +175,7 @@ class Tier3Detector extends Tier2Detector {
       };
     }
 
-    return { blocked: false };
+    return tier2Result;
   }
 
   private hasSuspiciousCombinations(
@@ -205,7 +227,7 @@ class Tier4Detector extends Tier3Detector {
       };
     }
 
-    return { blocked: false };
+    return tier3Result;
   }
 
   private hasAggressiveThreats(text: string): boolean {
@@ -304,8 +326,11 @@ export function setupThreatDetection(
   // Register the tool_call event handler
   pi.on("tool_call", async (event: ToolCallEvent): Promise<ToolCallEventResult | void> => {
     try {
-      // Check for threats in the tool input
+      // Check for threats in the tool input (commands / paths / URLs — never file content)
       const detection = detector.detect(event.input);
+      if (detection.piiObserved) {
+        auditLogger.log({ type: "threat_detection_check", allowed: true, action: "pii_observed", tier: config.threat_detection.tier, tool_name: event.toolName, tool_call_id: event.toolCallId, pii_type: detection.piiObserved });
+      }
 
       if (detection.blocked) {
         // Log the threat detection
