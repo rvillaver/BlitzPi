@@ -203,6 +203,11 @@ RC_TOUCHED=""; add_path_line
 OUT="$("$SHIM" --version </dev/null 2>&1)" || die "installed but 'blitzpi --version' failed: $OUT"
 say ""
 say "Installed: $OUT"
+for rc in "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+  [ -f "$rc" ] && grep -qE '^[[:space:]]*alias[[:space:]]+blitzpi=' "$rc" || continue
+  say "WARNING: $rc defines an 'alias blitzpi=...' from an older setup; it will shadow this install."
+  say "         Delete that line, then run:  unalias blitzpi; hash -r"
+done
 if [ -n "$RC_TOUCHED" ]; then say "Open a NEW terminal window, then run:  blitzpi"; else say "Run:  blitzpi"; fi
 [ "$MODE" = "install" ] && say "First time: type /login inside BlitzPi to sign in to a provider."
 exit 0
