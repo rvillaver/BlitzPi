@@ -50,6 +50,13 @@ what a library provides?). Run them as separate passes; a contradiction between 
 ## Gate rules
 No unverified claims · evidence before "done" · learnings recorded per phase · a `⚠` never advances a phase.
 
+## The governed shell (facts, so you don't rediscover them)
+- Bash runs in a sandbox confined to this workspace; `/tmp` is scratch space you may use and read back.
+- Background processes end when the command returns: start a server and probe it **in the same command**
+  (`bun index.ts & sleep 1; curl -s localhost:3000/health; kill $!`).
+- `bun` (the runtime BlitzPi ships) is on PATH; network is available for package installs.
+- A blocked action shows `[BLOCKED]`/`[THREAT DETECTED]` — report it as a blocker, don't work around it with tricks.
+
 ## Where things live (defaults — use the project's existing structure if it has one)
 - learnings: `.blitz/goodbehavior/memory/` (index `MEMORY.md`, one fact per file)
 - audit register: `docs/audit/` (index `00-index.md`, one file per batch)
