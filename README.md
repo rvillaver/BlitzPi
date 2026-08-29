@@ -1,0 +1,129 @@
+# BlitzPi
+
+BlitzPi is the [Pi](https://github.com/earendil-works/pi) coding agent with a security-governance
+layer baked in. It is Pi (rebranded to `blitzpi`) launched with the Blitz extension plus a curated set
+of Pi packages, so every tool call, LLM call, and shell command runs through access profiles, a
+governance gate, a workspace sandbox, threat detection, and an audit trail.
+
+- **No build step.** Pi loads the extension from TypeScript source.
+- **Cross-platform bash confinement.** OS isolation on Linux (bubblewrap) and macOS (Seatbelt), with a
+  pure-JS scope guard as the fallback everywhere.
+- **Credentials via Pi `/login` only** — never API keys in the environment.
+
+## Requirements
+
+- **[Bun](https://bun.sh)** (runtime + package manager; no Node build needed).
+- **git**.
+- **Git Bash** on Windows (Pi's default shell there).
+- Optional: **bubblewrap** (`bwrap`) on Linux for OS-level bash isolation. macOS uses built-in
+  `sandbox-exec` (nothing to install). Without an OS sandbox, bash falls back to the scope guard.
+
+## Install & run
+
+One command. It installs BlitzPi **and everything it needs** (a private Bun runtime, Pi, all bundled
+packages) into one app directory — nothing else on your machine is touched, no developer tools required:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rvillaver/BlitzPi/master/install.sh | sh
+```
+
+It shows you where things go and asks before installing:
+
+| | app directory (runtime + versions) | the `blitzpi` command |
+|---|---|---|
+| macOS | `~/Library/Application Support/BlitzPi` | `~/.local/bin/blitzpi` |
+| Linux | `~/.local/share/blitzpi` (`$XDG_DATA_HOME`) | `~/.local/bin/blitzpi` |
+
+(`BLITZPI_HOME=<dir>` picks another app directory. Windows: not yet — a PowerShell installer is planned.)
+
+Then open a new terminal and run `blitzpi`. First time: `/login` inside the session to sign in to a
+provider (stored in `~/.pi/agent/auth.json`).
+
+```bash
+blitzpi update      # installs the newest release as a whole (previous version kept for rollback)
+blitzpi uninstall   # removes the app directory + command; keeps your logins (~/.pi) and audit (~/.blitz)
+blitzpi --version   # blitzpi x.y.z (pi 0.84.3, bun 1.4.0)
+```
+
+### Developers (from source)
+
+```bash
+git clone https://github.com/rvillaver/BlitzPi && cd BlitzPi
+bun install            # installs Pi + packages AND applies the rebrand patch (patches/)
+bun link               # puts `blitzpi` on PATH (~/.bun/bin)
+blitzpi                # interactive agent (Pi TUI + Blitz security layer)
+```
+
+Release = tag + GitHub release: `git tag vX.Y.Z && git push --tags && gh release create vX.Y.Z --generate-notes`
+(the installer reads `releases/latest`; the tag's source tarball is what users install, so `bun.lock` and
+`patches/` must be committed). `bash scripts/install-smoke.sh` tests install → run → update → uninstall
+in a throwaway HOME.
+
+## Commands
+
+```bash
+blitzpi                 # interactive
+blitzpi -p "prompt"     # print mode (one answer, exit)
+blitzpi --help          # all Pi flags/subcommands pass through
+blitzpi audit           # query the audit trail from the shell
+blitzpi demo            # capability demo (writes it from real runs)
+```
+
+Inside the session: `/login`, `/model`, `/theme`, `/ccstyle`, `/agents`, `/mcp`, `/adopt-goodbehavior`.
+
+On first run in a new folder, BlitzPi asks to **set it up as a project** (trust + `.blitz/` marker); the
+current directory is then your workspace (the security anchor). BlitzPi's own install directory is
+off-limits infrastructure. GoodBehavior is not baked in — run `/adopt-goodbehavior` to scaffold the
+gated workflow into *this* project (`.pi/skills/`), then reload.
+
+## Security layers
+
+| Layer | Enforced by | What it does |
+|---|---|---|
+| Access profiles | `tool_call` hook → block | allow/deny tools per `.blitz/profiles/*.yaml` |
+| File sandbox | `tool_call` hook → block | confine read/write/edit/grep/find/ls to the workspace |
+| Bash sandbox | `bash` tool override + guard | confine shell — see below |
+| Governance gate | `input` event → block | stop a prompt (injection / disallowed model) before a turn; audit every provider call |
+| Threat detection | `tool_call` hook → block | pattern-based injection/PII detection on tool inputs |
+| Audit trail | all layers | JSONL decisions in `.blitz/audit/` |
+
+### Bash confinement per OS
+
+`config.sandbox.backend: auto` selects the best available:
+
+| OS | Backend | Isolation |
+|---|---|---|
+| Linux | `bwrap` | OS-level (workspace = only writable path) |
+| macOS | `sandbox-exec` (built-in) | OS-level (writes confined to workspace) |
+| any / fallback | `pinned` + guard | scope guard: classify allow / confirm / deny + audit (not OS-isolated) |
+| Windows | *guard only today* | AppContainer backend planned (see docs/BACKLOG.md) |
+
+The guard runs on every OS regardless of backend: it classifies each command and prompts the user
+(`confirm`) or blocks (`deny`) for out-of-scope actions. It is scope enforcement + approval + audit, not
+adversarial isolation — that is what the OS backends provide.
+
+## Configuration
+
+`.blitz/blitz.config.yaml` — threat tier, audit path, default profile, `sandbox.run_dir` / `backend`,
+governance provider (`local` default, no server). `.blitz/profiles/*.yaml` — access profiles.
+
+## Test
+
+```bash
+bun run test               # jest unit/integration suite
+BLITZ_E2E=1 bun run test   # + real `blitzpi -p` enforcement tests (needs a login)
+bash scripts/smoke-test.sh # end-to-end install check (prints PASS/FAIL + the commit it ran)
+```
+
+## Security model
+
+BlitzPi is the normal Pi coding flow plus an invisible security layer. Every file/shell action is
+classified into a **zone** (project / system / other / …) and resolved on a **permission ladder**
+(silent / ask [Yes / No / Always-session / Always] / dangerous-with-red-warning). Audit is global
+(`~/.blitz/audit`); project policy lives in `<project>/.blitz`. See **docs/SECURITY-ZONES.md**.
+
+## Enhance
+
+- Architecture, key files, extension points, and contributor gotchas: **docs/ARCHITECTURE.md**.
+- What's next and deferred work: **docs/BACKLOG.md**.
+- Development workflow / operating principles: **CLAUDE.md**.

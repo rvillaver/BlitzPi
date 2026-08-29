@@ -1,0 +1,72 @@
+{
+  "name": "@blitz/pi-coding-agent",
+  "version": "1.0.0",
+  "description": "BlitzPi — the Pi coding agent with Blitz security governance (access profiles, sandbox, threat detection, governance gate, audit trail)",
+  "main": "src/index.ts",
+  "bin": {
+    "blitzpi": "bin/blitzpi.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rvillaver/BlitzPi"
+  },
+  "homepage": "https://github.com/rvillaver/BlitzPi",
+  "bugs": {
+    "url": "https://github.com/rvillaver/BlitzPi/issues"
+  },
+  "author": "Blitz Contributors",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "bun bin/blitzpi.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "pi",
+    "blitz",
+    "security",
+    "governance"
+  ],
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.4.0",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.3",
+    "@promptshield/core": "^1.0.0",
+    "@promptshield/sanitizer": "^1.0.0",
+    "@tintinweb/pi-subagents": "^0.18.0",
+    "@types/js-yaml": "^4.0.9",
+    "arcjet": "^1.11.0",
+    "js-yaml": "^5.4.1",
+    "minimatch": "^10.2.6",
+    "pi-cc-extensions": "^0.8.68",
+    "pi-commandcode-provider": "^0.6.0",
+    "pi-mcp-adapter": "^2.27.0",
+    "pi-web-access": "^0.26.0"
+  },
+  "patchedDependencies": {
+    "@earendil-works/pi-coding-agent@0.84.3": "patches/@earendil-works%2Fpi-coding-agent@0.84.3.patch"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ],
+    "themes": [
+      "./.pi/themes/blitzpi-dark.json",
+      "./.pi/themes/blitzpi-light.json"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

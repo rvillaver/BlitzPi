@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+bin/*
+!bin/blitzpi.ts
+*.js.map
+*.d.ts.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Blitz runtime
+runs/
+.blitz/audit/*.jsonl
+
+# Pi runtime
+.pi/audit/*.jsonl
+.pi/goodbehavior/memory/*
+
+# Temporary files
+*.tmp
+*.log
+npm-debug.log*
+.claude/
+/~

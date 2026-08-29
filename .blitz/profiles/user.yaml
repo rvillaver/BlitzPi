@@ -1,0 +1,5 @@
+name: user
+description: Default user profile - allow all tools
+rules:
+  - tool: "*"
+    allowed: true

@@ -1,0 +1,163 @@
+import fs from "fs";
+import path from "path";
+import { load } from "js-yaml";
+
+export interface BlitzConfig {
+  threat_detection: {
+    enabled: boolean;
+    tier: 1 | 2 | 3 | 4;
+  };
+  audit: {
+    enabled: boolean;
+    path: string;
+  };
+  profiles: {
+    default: string;
+  };
+  sandbox: {
+    enabled: boolean;
+    run_dir: string;
+    backend?: "auto" | "bwrap" | "sandbox-exec" | "pinned" | "none";
+  };
+  governance: {
+    enabled: boolean;
+    provider: "local" | "custom" | "openai-moderation" | "guardrails";
+    model_whitelist?: string[];
+    api_endpoint?: string;
+    openai_api_key?: string;
+    guardrails_endpoint?: string;
+  };
+  threat_api: {
+    enabled: boolean;
+    api_endpoint: string;
+  };
+}
+
+function getDefaultRunDir(): string {
+  // The workspace is the project the user launched BlitzPi in. File tools and the bash sandbox
+  // are confined to it (audit gap 12.4: the old timestamped ./runs dir blocked reading the project).
+  return process.env.BLITZ_RUN_DIR || process.cwd();
+}
+
+const DEFAULT_CONFIG: BlitzConfig = {
+  threat_detection: {
+    enabled: true,
+    tier: 2, // command-injection tier; 3-4 add aggressive heuristics (more false positives on normal bash)
+  },
+  audit: {
+    enabled: true,
+    path: process.env.BLITZ_AUDIT_PATH || getDefaultAuditPath(),
+  },
+  profiles: {
+    default: "user",
+  },
+  sandbox: {
+    enabled: true,
+    run_dir: getDefaultRunDir(),
+    backend: (process.env.BLITZ_SANDBOX_BACKEND as any) || "auto",
+  },
+  governance: {
+    enabled: true,
+    provider: (process.env.BLITZ_GOVERNANCE_PROVIDER as any) || "local",
+    api_endpoint: process.env.BLITZ_GOVERNANCE_API,
+    openai_api_key: process.env.OPENAI_API_KEY,
+    guardrails_endpoint: process.env.BLITZ_GUARDRAILS_ENDPOINT,
+  },
+  threat_api: {
+    enabled: false,
+    api_endpoint: process.env.BLITZ_THREAT_API || "http://localhost:9001/threat/check",
+  },
+};
+
+function expandTilde(p: string): string {
+  if (p === "~") return process.env.HOME || os.homedir();
+  if (p.startsWith("~/")) return path.join(process.env.HOME || os.homedir(), p.slice(2));
+  return p;
+}
+
+function getDefaultAuditPath(): string {
+  // Audit trail is GLOBAL (cross-project security record), in the user's home — not the project.
+  return path.join(process.env.HOME || os.homedir(), ".blitz", "audit");
+}
+
+function detectInstallTypeForConfig(): "global" | "local" {
+  const scriptDir = __dirname;
+  return scriptDir.includes("/usr/") || scriptDir.includes("/.npm/") ? "global" : "local";
+}
+
+export function loadConfig(): BlitzConfig {
+  let config: BlitzConfig;
+
+  // Check project-local config first
+  const localConfigPath = path.join(process.cwd(), ".blitz", "blitz.config.yaml");
+  if (fs.existsSync(localConfigPath)) {
+    config = loadYamlConfig(localConfigPath);
+  } else {
+    // Check global config
+    const globalConfigPath = path.join(process.env.HOME || os.homedir(), ".blitz", "blitz.config.yaml");
+    if (fs.existsSync(globalConfigPath)) {
+      config = loadYamlConfig(globalConfigPath);
+    } else {
+      // Use defaults
+      config = DEFAULT_CONFIG;
+    }
+  }
+
+  // Ensure run directory exists
+  if (config.sandbox.enabled) {
+    if (!fs.existsSync(config.sandbox.run_dir)) {
+      fs.mkdirSync(config.sandbox.run_dir, { recursive: true });
+    }
+  }
+
+  return config;
+}
+
+function loadYamlConfig(filePath: string): BlitzConfig {
+  const content = fs.readFileSync(filePath, "utf-8");
+  const parsed = load(content) as unknown;
+  return validateConfig(parsed as Partial<BlitzConfig>);
+}
+
+function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
+  // Merge with defaults
+  return {
+    threat_detection: {
+      enabled: config.threat_detection?.enabled ?? DEFAULT_CONFIG.threat_detection.enabled,
+      tier: validateTier(config.threat_detection?.tier ?? DEFAULT_CONFIG.threat_detection.tier),
+    },
+    audit: {
+      enabled: config.audit?.enabled ?? DEFAULT_CONFIG.audit.enabled,
+      path: expandTilde((config.audit?.path as string) ?? DEFAULT_CONFIG.audit.path),
+    },
+    profiles: {
+      default: (config.profiles?.default as string) ?? DEFAULT_CONFIG.profiles.default,
+    },
+    sandbox: {
+      enabled: config.sandbox?.enabled ?? DEFAULT_CONFIG.sandbox.enabled,
+      run_dir: expandTilde((config.sandbox?.run_dir as string) ?? DEFAULT_CONFIG.sandbox.run_dir),
+      backend: (config.sandbox?.backend as any) ?? DEFAULT_CONFIG.sandbox.backend,
+    },
+    governance: {
+      enabled: config.governance?.enabled ?? DEFAULT_CONFIG.governance.enabled,
+      provider: (config.governance?.provider as any) ?? DEFAULT_CONFIG.governance.provider,
+      model_whitelist: (config.governance?.model_whitelist as string[]) ?? DEFAULT_CONFIG.governance.model_whitelist,
+      api_endpoint: (config.governance?.api_endpoint as string) ?? DEFAULT_CONFIG.governance.api_endpoint,
+      openai_api_key: (config.governance?.openai_api_key as string) ?? DEFAULT_CONFIG.governance.openai_api_key,
+      guardrails_endpoint: (config.governance?.guardrails_endpoint as string) ?? DEFAULT_CONFIG.governance.guardrails_endpoint,
+    },
+    threat_api: {
+      enabled: config.threat_api?.enabled ?? DEFAULT_CONFIG.threat_api.enabled,
+      api_endpoint: (config.threat_api?.api_endpoint as string) ?? DEFAULT_CONFIG.threat_api.api_endpoint,
+    },
+  };
+}
+
+function validateTier(tier: unknown): 1 | 2 | 3 | 4 {
+  if (tier === 1 || tier === 2 || tier === 3 || tier === 4) {
+    return tier;
+  }
+  return DEFAULT_CONFIG.threat_detection.tier;
+}
+
+import os from "os";

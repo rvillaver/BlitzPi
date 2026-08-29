@@ -1,0 +1,17 @@
+{
+  "source": "blitzpi",
+  "sourceVersion": "1.0.0",
+  "installedAt": "2026-08-29T02:09:01.297Z",
+  "skills": [
+    "audit-goodbehavior",
+    "roadmap-goodbehavior",
+    "gate-build-goodbehavior",
+    "verify-goodbehavior",
+    "learn-goodbehavior",
+    "uatplan-goodbehavior",
+    "update-goodbehavior"
+  ],
+  "hooks": [
+    "done-gate"
+  ]
+}

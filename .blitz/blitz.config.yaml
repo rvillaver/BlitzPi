@@ -1,0 +1,28 @@
+# Blitz Global Configuration (local)
+threat_detection:
+  enabled: true
+  tier: 2   # 1=basic 2=+command-injection (default) 3=+context 4=+aggressive (false-positives on normal bash)
+
+audit:
+  enabled: true
+  # audit trail defaults to the global ~/.blitz/audit (resolved to your home) — leave path unset
+
+profiles:
+  default: user
+
+sandbox:
+  enabled: true
+  # backend: auto   # auto = bwrap (Linux) → sandbox-exec (macOS, built-in) → pinned (cross-platform guard)
+  #   bwrap | sandbox-exec | pinned | none
+  run_dir: "."  # workspace = project cwd; file tools + bash confined here
+
+governance:
+  enabled: true
+  provider: local            # no server needed; enforces injection block + optional model_whitelist
+  # provider: custom         # route decisions to an external API instead:
+  # api_endpoint: http://localhost:9000/governance/check
+  # model_whitelist: []      # empty = allow all models; add substrings to restrict
+
+threat_api:
+  enabled: false
+  api_endpoint: http://localhost:9001/threat/check

@@ -1,0 +1,23 @@
+name: strict
+description: Strict testing profile - deny bash, limit file access
+rules:
+  # Deny bash completely
+  - tool: bash
+    denied: true
+
+  # Allow read only in specific paths
+  - tool: read
+    allowed_paths:
+      - ./src/**
+      - ./docs/**
+      - ./.blitz/**
+
+  # Allow write only in run directory
+  - tool: write
+    allowed_paths:
+      - ./runs/**
+      - ./.blitz/audit/**
+
+  # Deny all other tools
+  - tool: "*"
+    denied: true
