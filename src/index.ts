@@ -13,6 +13,8 @@ import { setupAudit } from "./audit";
 import { setupGoodBehavior } from "./goodbehavior";
 import { setupWorkspaceInit } from "./workspace-init";
 import { setupBlitzPiBranding } from "./ui/blitzpi-branding";
+import { setupCompaction } from "./compaction";
+import { setupProjectRegistry } from "./projects-hook";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -46,6 +48,8 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)
     setupGoodBehavior(pi, config);
     setupWorkspaceInit(pi);
+    setupProjectRegistry(pi, config);
+    setupCompaction(pi, auditLogger);
 
     // Phase 4: Setup UI & Branding (BlitzPi identity + live status commands)
     setupBlitzPiBranding(pi, config, auditLogger);

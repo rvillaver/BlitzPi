@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { adoptGoodBehavior } from "./adopt-goodbehavior";
+import { touchProject } from "./projects";
 
 function trustProject(cwd: string): void {
   try {
@@ -60,6 +61,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     const n = adoptGoodBehavior(cwd).installed.filter((f) => f.endsWith("SKILL.md")).length;
     pinPackageManager(cwd);
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt
+    try { touchProject(cwd, { version: require("../package.json").version }); } catch { /* registry is best-effort */ }
     // A persistent chat message (not a toast) so the restart step can't be missed.
     pi.sendMessage({
       customType: "blitz-setup",

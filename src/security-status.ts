@@ -84,13 +84,22 @@ export function summaryLine(config: BlitzConfig, backendName: string | null): st
 /** Steady status-bar text. Only changes on an event (denial / unreachable). */
 export function governanceStatus(config: BlitzConfig): string {
   const g = stats.governance;
-  if (!config.governance.enabled) return "🛡 governance off";
+  const b = stats.blocked;
+  const blocked = b.profile + b.sandbox + b.bash + b.threat + b.input;
+  const tail = blocked > 0 ? ` · ${blocked} blocked → /blitz-security` : "";
+  if (!config.governance.enabled) return `🛡 governance off${tail}`;
   if (g.lastDenial) return `🛡 ${config.governance.mode === "enforce" ? "STOPPED" : "DENIED"} — ${g.lastDenial}`;
-  if (g.unreachable > 0 && g.checked === 0) return `🛡 governance ${config.governance.provider} unreachable`;
-  return `🛡 ${config.governance.provider} · ${config.governance.mode}`;
+  if (g.unreachable > 0 && g.checked === 0) return `🛡 governance ${config.governance.provider} unreachable${tail}`;
+  return `🛡 ${config.governance.provider} · ${config.governance.mode}${tail}`;
 }
 
-export function panel(config: BlitzConfig, backendName: string | null, lastAudit: string[]): string {
+/** Total blocked this session across every layer. */
+export function blockedTotal(): number {
+  const b = stats.blocked;
+  return b.profile + b.sandbox + b.bash + b.threat + b.input;
+}
+
+export function panel(config: BlitzConfig, backendName: string | null, lastAudit: string[], sessionFile?: string): string {
   const rows = layers(config, backendName).map((l) => `  ${l.mode === "enforce" ? "●" : l.mode === "monitor" ? "◐" : "○"} ${l.name.padEnd(20)} ${l.mode.padEnd(8)} ${l.detail}\n      ${l.configured}`);
   const g = stats.governance;
   const b = stats.blocked;
@@ -106,6 +115,8 @@ export function panel(config: BlitzConfig, backendName: string | null, lastAudit
     lastAudit.length ? "  Last decisions:" : "  No audit entries yet.",
     ...lastAudit.map((l) => `    ${l}`),
     "",
-    "  Shell: blitzpi audit --help   ·   Zones & ladder: docs/SECURITY-ZONES.md in the BlitzPi repo",
+    "  Inspect: /blitz-security files | bash | governance | all   ·   this project: /blitz-report   ·   usage: /session",
+    ...(sessionFile ? [`  This session's audit file: ${sessionFile}`] : []),
+    "  Shell: blitzpi audit --help · blitzpi report · blitzpi projects   ·   Zones & ladder: docs/SECURITY-ZONES.md in the BlitzPi repo",
   ].join("\n");
 }

@@ -2,6 +2,21 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.0 — 2026-08-30
+
+### Governance
+- **A URL in a command no longer escapes the sandbox.** The bash guard read `https://example.com` as the path `//example.com` (zone *other*), so any command naming a URL was classified out-of-project and — once approved, automatically in print mode — ran **unconfined**, outside bwrap/Seatbelt. URLs are stripped before path extraction; `curl … https://…` now runs confined like every other in-project command (verified live: `bash_exec … confined: true, backend: bwrap`).
+- `bash_exec` audit entries record the **whole command** (was cut at 200 chars) plus best-effort facts from the command line: `deletes` (rm/rmdir/unlink/shred, `git rm`, `find … -delete` targets) and `urls`. Pi has no delete or fetch tool, so bash is the only place either can be seen.
+- `permission_check` entries carry `tool` (`bash command` vs the file tool), so blocked bash and blocked file ops can be told apart after the fact.
+- **Compaction is audited.** Pi already extracts the files read / modified from the messages it is about to summarise away; that list is now written as a `compaction` audit entry (`reason`, `tokens_before`, `read_files`, `modified_files`) so a project report still knows what was touched after the context is gone. Failed compactions are recorded too. Pi's summary itself is untouched.
+
+### Diagnostics
+- **The counters are inspectable.** `/blitz-security files | bash | governance | all` lists this session's decisions behind the numbers (which files, which commands with their deletes/URLs, which denials), with a files summary (read / written / blocked). The panel names this session's audit file. The status bar says `· N blocked → /blitz-security` once anything was blocked.
+- **`/blitz-report` and `blitzpi report [PATH] [--since ISO] [--format json]`**: one project across sessions — files read / written / blocked / deleted, URLs, commands (confined vs not), governance checks and denials, threats, compactions, plus Pi's usage (sessions, messages, tool calls, tokens, cached share, cost estimate, models). Folds `~/.blitz/audit` and `~/.pi/agent/sessions`; nothing new is collected.
+- **Projects registry** `~/.blitz/projects.json`: a project is registered when BlitzPi sets it up and touched on every session start (sessions, last seen, version, GoodBehavior profile). `blitzpi projects` lists them with their state (ok / +goodbehavior / no .blitz / missing); `prune` drops the missing ones; `forget PATH` drops one.
+- **Audit housekeeping**: `blitzpi audit --project PATH` filters to one project; `--prune [--dry-run]` removes empty session files (headless probes) and files whose project directory is gone. The table's Details column now says what happened (`read src/x.ts`, `confined: bun test`, `threshold: 3 read, 2 modified`), not just the type.
+- `/session` (Pi's built-in usage / cost view) is advertised in the banner and panel.
+
 ## 1.1.4 — 2026-08-30
 
 ### Governance

@@ -66,11 +66,19 @@ in a throwaway HOME.
 blitzpi                 # interactive
 blitzpi -p "prompt"     # print mode (one answer, exit)
 blitzpi --help          # all Pi flags/subcommands pass through
-blitzpi audit           # query the audit trail from the shell
+blitzpi audit           # query the audit trail (--project PATH, --type, --prune for housekeeping)
+blitzpi report [PATH]   # one project across sessions: files read/written/deleted, URLs, commands, governance, usage
+blitzpi projects        # projects managed by BlitzPi (prune | forget PATH)
 blitzpi demo            # capability demo (writes it from real runs)
 ```
 
-Inside the session: `/login`, `/model`, `/theme`, `/ccstyle`, `/agents`, `/mcp`, `/adopt-goodbehavior`, `/unadopt-goodbehavior`.
+Inside the session: `/blitz-security` (every layer, its mode, this session's counters — `/blitz-security files | bash |
+governance | all` lists what the counters count), `/blitz-report` (this project's diagnostics), `/session` (Pi's usage and
+cost for this session), `/login`, `/model`, `/theme`, `/adopt-goodbehavior`, `/unadopt-goodbehavior`.
+
+**Where the diagnostics live** — all per user, in your home, never in the project: `~/.blitz/audit/` (one `.jsonl` per
+session, every security decision, tagged with the project), `~/.blitz/projects.json` (the projects BlitzPi has set up),
+`~/.pi/agent/sessions/` (Pi's own session logs, with token usage). `blitzpi report` folds the three together.
 
 On first run in a new folder, BlitzPi asks to **set it up as a project** (trust + `.blitz/` marker); the
 current directory is then your workspace (the security anchor). BlitzPi's own install directory is

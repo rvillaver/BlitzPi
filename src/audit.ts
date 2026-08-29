@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { Caller } from "./caller";
 import { BlitzConfig } from "./config";
+import { recordSessionEvent } from "./session-events";
 
 export interface AuditEntry {
   timestamp: string;
@@ -14,6 +15,8 @@ export interface AuditLogger {
   log(entry: Record<string, unknown>): void;
   close(): Promise<void>;
   getPath(): string;
+  /** This session's own .jsonl file. */
+  getSessionFile(): string;
 }
 
 /**
@@ -41,6 +44,7 @@ export function setupAudit(caller: Caller, config: BlitzConfig): AuditLogger {
         ...entry,
       };
       stream.write(JSON.stringify(logEntry) + "\n");
+      recordSessionEvent(logEntry);
     },
     async close(): Promise<void> {
       return new Promise((resolve, reject) => {
@@ -50,6 +54,9 @@ export function setupAudit(caller: Caller, config: BlitzConfig): AuditLogger {
     },
     getPath(): string {
       return auditPath;
+    },
+    getSessionFile(): string {
+      return sessionFile;
     },
   };
 }

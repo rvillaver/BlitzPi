@@ -18,8 +18,13 @@ export interface CmdTarget { path: string; write: boolean; }
 const WRITE_REDIR = /(^|[^0-9<>&])>>?\s*("?~?\/?[^\s"';|&]+)/g;
 const WRITE_VERB = /(^|[\s;|&(])(rm|mv|cp|tee|dd|truncate|ln|touch|mkdir|rmdir|chmod|chown)\s+([^\n]*)/g;
 
+/** URLs are not paths: `https://example.com` must not read as the path `//example.com` (zone other → the command
+ *  would be approved as out-of-project and run UNCONFINED). Strip them before looking for paths. */
+const URL_TOKEN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`;|&)<>]*/gi;
+
 /** Absolute or ~ paths, plus relative paths containing a ".." escape. */
-export function extractTargets(command: string): CmdTarget[] {
+export function extractTargets(rawCommand: string): CmdTarget[] {
+  const command = rawCommand.replace(URL_TOKEN, (u) => " ".repeat(u.length));
   const targets = new Map<string, boolean>(); // path -> write
   const add = (p: string, w: boolean) => { targets.set(p, (targets.get(p) ?? false) || w); };
 

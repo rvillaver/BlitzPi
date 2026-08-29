@@ -50,7 +50,7 @@ export class PermissionGate {
     const interactive = !!ctx?.hasUI;
     if (!interactive) {
       const allow = level !== "dangerous";
-      this.log(action, zone, target, allow, interactive ? "prompt" : "auto");
+      this.log(action, zone, target, allow, interactive ? "prompt" : "auto", label);
       return { allow, reason: allow ? "auto-approved (non-interactive)" : "dangerous, refused (non-interactive)", ...base };
     }
 
@@ -73,11 +73,11 @@ export class PermissionGate {
     if (choice === "Yes") allow = true;
     else if (choice?.startsWith("Always this session")) { allow = true; if (key) this.memory.rememberSession(key); }
     else if (choice?.startsWith("Always")) { allow = true; if (key) this.memory.rememberAlways(key); }
-    this.log(action, zone, target, allow, "prompt");
+    this.log(action, zone, target, allow, "prompt", label);
     return { allow, reason: allow ? `approved (${choice})` : "declined", ...base };
   }
 
-  private log(action: Action, zone: Zone, target: string, allowed: boolean, via: string): void {
-    this.audit.log({ type: "permission_check", action, zone, target: String(target).slice(0, 300), allowed, via });
+  private log(action: Action, zone: Zone, target: string, allowed: boolean, via: string, tool?: string): void {
+    this.audit.log({ type: "permission_check", action, zone, target: String(target).slice(0, 300), allowed, via, tool });
   }
 }

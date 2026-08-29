@@ -12,12 +12,14 @@ import type { AuditLogger } from "../audit";
 
 import { activeBackendName } from "../sandbox-bash";
 import { panel, summaryLine } from "../security-status";
+import { renderEvents, type EventKind } from "../session-events";
+import { buildReport, renderReport } from "../report";
 
 const banner = (config: BlitzConfig) => [
   "",
   "  ⚡ BLITZ PI  —  Pi with security governance",
   `     ${summaryLine(config, activeBackendName())}`,
-  "     /blitz-security shows every layer, its mode and this session's decisions",
+  "     /blitz-security shows every layer, its mode and this session's decisions · /blitz-report this project · /session usage",
   "",
 ].join("\n");
 
@@ -59,13 +61,23 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
   console.log(banner(config)); // renders in startup scrollback (setHeader does not replace Pi's mascot in 0.84.3)
+  const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", all: "all" };
   pi.registerCommand("blitz-security", {
-    description: "Security layers: mode (enforce / monitor / off), configuration, and this session's decisions",
-    handler: async (_args: string, ctx) => {
+    description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | all",
+    handler: async (args: string, ctx) => {
+      const kind = KINDS[(args ?? "").trim().toLowerCase()];
+      if (kind) { show(pi, ctx, renderEvents(kind)); return; }
       const recent = lastAuditLines(audit.getPath(), 5).map((l) => {
         try { const e = JSON.parse(l); return `${String(e.timestamp ?? "").slice(11, 19)} ${e.type}${e.tool ? " " + e.tool : ""}${e.zone ? " " + e.zone : ""}${e.allowed === false || e.approved === false ? " ✗" : " ✓"}${e.reason ? " — " + String(e.reason).slice(0, 60) : ""}`; } catch { return l.slice(0, 100); }
       });
-      show(pi, ctx, panel(config, activeBackendName(), recent));
+      show(pi, ctx, panel(config, activeBackendName(), recent, audit.getSessionFile()));
+    },
+  });
+  pi.registerCommand("blitz-report", {
+    description: "This project across sessions: files read/written/deleted, URLs, commands, governance, usage (from the audit trail + Pi's session logs)",
+    handler: async (args: string, ctx) => {
+      const since = (args ?? "").trim() || undefined;
+      show(pi, ctx, renderReport(buildReport(process.cwd(), { since, auditPath: audit.getPath() })));
     },
   });
   // Replace Pi's startup header and the terminal title (TUI only).
@@ -79,7 +91,7 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
             theme.fg("accent", "  ⚡ BLITZ PI"),
             theme.fg("dim", "  Pi with security governance · sandbox · governance · audit"),
             theme.fg("dim", `  ${summaryLine(config, activeBackendName())}`),
-            theme.fg("dim", "  /blitz-security · /adopt-goodbehavior"),
+            theme.fg("dim", "  /blitz-security · /blitz-report · /session · /adopt-goodbehavior"),
             "",
           ];
         },

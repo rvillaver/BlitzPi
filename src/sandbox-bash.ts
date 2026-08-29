@@ -15,6 +15,7 @@ import { dangerousShape, extractTargets } from "./bash-guard";
 import { selectBackend, type SandboxBackend, type BackendPref } from "./sandbox-backends";
 import type { PermissionGate } from "./permission-gate";
 import { debug } from "./log";
+import { bashFacts } from "./bash-facts";
 
 let activeBackend: string | null = null;
 /** Name of the bash sandbox backend in use this session (bwrap | sandbox-exec | pinned), or null. */
@@ -47,7 +48,7 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         const confined = confinedByCommand.get(command) ?? true;
         confinedByCommand.delete(command);
         if (confined && backend) {
-          audit.log({ type: "bash_exec", confined: true, backend: backend.name, command: command.slice(0, 200) });
+          audit.log({ type: "bash_exec", confined: true, backend: backend.name, command, ...bashFacts(command) });
           const t0 = Date.now();
           return backend.exec(command, runDir, options).then((r) => {
             audit.log({ type: "bash_exit", backend: backend.name, exit_code: r.exitCode, aborted: !!options.signal?.aborted, ms: Date.now() - t0, command: command.slice(0, 120) });
@@ -55,7 +56,7 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
           });
         }
         // unconfined: user approved an out-of-project command (or no backend). Run in the project cwd.
-        audit.log({ type: "bash_exec", confined: false, command: command.slice(0, 200) });
+        audit.log({ type: "bash_exec", confined: false, command, ...bashFacts(command) });
         debug("bash (unconfined, approved) :", command);
         const child = spawn("/bin/bash", ["-c", command], { cwd: runDir, env: { ...process.env, ...options.env }, stdio: ["ignore", "pipe", "pipe"] });
         child.stdout.on("data", (d: Buffer) => options.onData(d));

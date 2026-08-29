@@ -14,7 +14,7 @@ Every path an action touches is classified into one zone:
 | **project-config** | `<project>/.blitz/` | this project's security policy (profiles, permissions) |
 | **goodbehavior** | `<project>/.blitz/goodbehavior/`, `<project>/.pi/skills/` | adopted GoodBehavior data & skills |
 | **install** | wherever BlitzPi is installed | BlitzPi's own program — the tool, not your project |
-| **global** | `~/.blitz/` | the cross-project **audit trail** + global defaults |
+| **global** | `~/.blitz/` | the cross-project **audit trail**, the **projects registry** (`projects.json`) + global defaults |
 | **system** | `/usr`, `/bin`, `/etc`, `/lib`, … | the OS and tools the agent legitimately reads |
 | **plumbing** | `/dev/null`, `/dev/stdout`, `/dev/stderr`, `/dev/tty`, … | I/O plumbing, not data |
 | **scratch** | the OS temp dir (`/tmp`, `$TMPDIR`; macOS `/private/tmp`) | throwaway working space — logs, pids, build output |

@@ -9,3 +9,4 @@ Durable learnings for developing BlitzPi itself (one fact per file; skim before 
 - [GoodBehavior: profile is the doctrine](goodbehavior-profile-doctrine.md) — one source of truth injected per adopted project; why the old `.claude/` tree and Python update flow were removed.
 - [bwrap --die-with-parent kills under Bun](bwrap-die-with-parent-kills-under-bun.md) — PDEATHSIG is per-thread; sandbox died ~130 ms in; children are tracked + killed on exit instead
 - [Per-call governance enforcement](per-call-governance-enforcement.md) — ctx.abort() in before_provider_request enforces; never sendMessage a notice (loops) — appendEntry instead
+- [Diagnostics sources & URL-as-path trap](diagnostics-sources-and-url-path-trap.md) — audit + Pi sessions + projects.json are the report sources; URLs must be stripped before path extraction or commands run unconfined; no click handlers in pi-tui
