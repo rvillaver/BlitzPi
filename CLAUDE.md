@@ -44,7 +44,7 @@ Label every claim **verified or unverified**. "I wrote it" ≠ "the constraint w
 - **Language:** TypeScript
 - **Package manager / build:** Bun; **no build step** — Pi loads `src/index.ts` natively
 - **Local dev loop:** `bun link` once, then `blitzpi` (= Pi 0.84.3 + `-e <repo>` + bundled packages); `blitzpi -p "…" </dev/null` for headless probes
-- **Deploy / release:** npm package `@blitz/pi-coding-agent` (pending) + GitHub releases; Pi is rebranded via a committed `bun patch` (`patches/`)
+- **Deploy / release:** npm package `@blitz/pi-coding-agent` (pending) + GitHub releases; Pi is rebranded via a committed `bun patch` (`patches/`). A push is not released until it is tagged **and** `gh release create vX.Y.Z` has run (`blitzpi update` reads `releases/latest`). **Versioning:** every push is a patch bump (1.2.1, 1.2.2, …); the minor moves only for a real feature jump; CHANGELOG entry per release.
 - **Credentials:** Pi `/login` only (`~/.pi/agent/auth.json`); never API keys in env
 - **Verify target:** Local Pi instance running with Blitz extension + live governance API
 - **CI / test framework:** Jest + GitHub Actions

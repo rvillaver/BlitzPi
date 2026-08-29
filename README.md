@@ -40,7 +40,10 @@ Then open a new terminal and run `blitzpi`. First time: `/login` inside the sess
 provider (stored in `~/.pi/agent/auth.json`).
 
 ```bash
-blitzpi update      # installs the newest release as a whole (previous version kept for rollback)
+blitzpi update      # installs the newest release as a whole; the previous one stays installed
+blitzpi versions    # what is installed (current + previous marked)   ·   BLITZPI_KEEP=3 keeps more
+blitzpi rollback    # switch back to the previous version — instant, offline (run again to return)
+blitzpi use 1.2.0   # switch to any installed version; `blitzpi update --version v1.2.0` fetches one that isn't
 blitzpi uninstall   # removes the app directory + command; keeps your logins (~/.pi) and audit (~/.blitz)
 blitzpi uninstall --purge   # …and also removes ~/.blitz (audit trail, global config)
 blitzpi --version   # blitzpi x.y.z (pi 0.84.3, bun 1.4.0)

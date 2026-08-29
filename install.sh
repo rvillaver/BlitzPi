@@ -11,30 +11,40 @@
 #   macOS   app: ~/Library/Application Support/BlitzPi     command: ~/.local/bin/blitzpi
 #   Linux   app: $XDG_DATA_HOME/blitzpi (~/.local/share)   command: ~/.local/bin/blitzpi
 #
-# Layout:  <app>/bun/bin/bun   <app>/versions/<version>/   <app>/current -> versions/<version>
+# Layout:  <app>/bun/bin/bun   <app>/versions/<version>/   <app>/current -> versions/<version>   <app>/previous
 # Updates install the next release as a whole into a new versions/<version> and switch `current`
-# atomically; the previous version is kept for rollback. Nothing is installed system-wide.
+# atomically; the newest BLITZPI_KEEP (default 2) versions stay installed, so `blitzpi rollback` /
+# `blitzpi use <version>` switch instantly and offline. Nothing is installed system-wide.
 #
-# Options:  --update  --uninstall [--purge]  --yes  --version vX.Y.Z  --print-paths
-# Env:      BLITZPI_HOME (app dir override), BLITZPI_SOURCE (local dir or .tar.gz instead of GitHub)
+# Options:  --update  --uninstall [--purge]  --yes  --version vX.Y.Z [--reinstall]  --print-paths
+#           --list  --rollback  --use <version>
+# Env:      BLITZPI_HOME (app dir override), BLITZPI_SOURCE (local dir or .tar.gz instead of GitHub),
+#           BLITZPI_KEEP (installed versions to keep, default 2)
 set -eu
 
 REPO="rvillaver/BlitzPi"
 BUN_VERSION="1.4.0"
-MODE="install"; YES=0; WANT_VERSION=""; PURGE=0
+MODE="install"; YES=0; WANT_VERSION=""; PURGE=0; REINSTALL=0; USE_VERSION=""
+KEEP="${BLITZPI_KEEP:-2}"; case "$KEEP" in ''|*[!0-9]*) KEEP=2 ;; esac; [ "$KEEP" -ge 1 ] || KEEP=1
 for a in "$@"; do
   case "$a" in
     --update) MODE="update"; YES=1 ;;
     --uninstall) MODE="uninstall" ;;
     --purge) PURGE=1 ;;
     --yes|-y) YES=1 ;;
+    --reinstall) REINSTALL=1 ;;
     --print-paths) MODE="print-paths" ;;
+    --list) MODE="list" ;;
+    --rollback) MODE="rollback" ;;
+    --use=*) MODE="use"; USE_VERSION="${a#--use=}" ;;
+    --use) MODE="use"; USE_VERSION="__next__" ;;
     --version=*) WANT_VERSION="${a#--version=}" ;;
     --version) WANT_VERSION="__next__" ;;
-    *) if [ "$WANT_VERSION" = "__next__" ]; then WANT_VERSION="$a"; else echo "unknown option: $a" >&2; exit 2; fi ;;
+    *) if [ "$WANT_VERSION" = "__next__" ]; then WANT_VERSION="$a"; elif [ "$USE_VERSION" = "__next__" ]; then USE_VERSION="$a"; else echo "unknown option: $a" >&2; exit 2; fi ;;
   esac
 done
 [ "$WANT_VERSION" = "__next__" ] && { echo "--version needs a value" >&2; exit 2; }
+[ "$USE_VERSION" = "__next__" ] && { echo "--use needs a version (see --list)" >&2; exit 2; }
 
 say()  { printf '%s\n' "$*"; }
 die()  { printf 'BlitzPi: %s\n' "$*" >&2; exit 1; }
@@ -103,6 +113,58 @@ remove_path_line() {
   done
 }
 
+# ---- installed versions: list / switch / rollback (offline, instant) ---------------------------
+current_version() { [ -L "$APP/current" ] && basename "$(readlink "$APP/current")" || true; }
+installed() { [ -d "$APP/versions/$1/node_modules/@earendil-works/pi-coding-agent" ] && [ -f "$APP/versions/$1/bin/blitzpi.ts" ]; }
+list_versions() {  # newest first (by install time)
+  [ -d "$APP/versions" ] || return 0
+  ls -1t "$APP/versions" 2>/dev/null | while read -r n; do [ -d "$APP/versions/$n" ] && [ "${n%.partial}" = "$n" ] && printf '%s\n' "$n"; done
+}
+write_shim() {
+  mkdir -p "$BIN_DIR"
+  cat >"$SHIM" <<SHIM
+#!/bin/sh
+# BlitzPi — written by install.sh. App directory: $APP
+APP="\${BLITZPI_HOME:-$APP}"
+export BUN_RUNTIME_TRANSPILER_CACHE_PATH="\$APP/cache/transpiler"   # Bun's runtime cache stays inside the app dir, not ~/.bun
+export PATH="\$APP/bun/bin:\$PATH"   # the private Bun is available to the agent's shell (bun init / bun install / bun run)
+exec "\$APP/bun/bin/bun" "\$APP/current/bin/blitzpi.ts" "\$@"
+SHIM
+  chmod +x "$SHIM"
+}
+switch_to() {  # switch_to <version>: point `current` at an installed version, remember the one we left
+  installed "$1" || die "version $1 is not installed (installed: $(list_versions | tr '\n' ' '))"
+  prev="$(current_version)"
+  [ "$prev" = "$1" ] && { say "BlitzPi $1 is already current."; return 0; }
+  ln -sfn "versions/$1" "$APP/current"   # -n: replace the link itself, never write inside the old target (GNU + BSD ln)
+  [ -n "$prev" ] && printf '%s\n' "$prev" >"$APP/previous"
+  [ -x "$SHIM" ] || write_shim
+  OUT="$("$SHIM" --version </dev/null 2>&1)" || die "switched to $1 but 'blitzpi --version' failed: $OUT"
+  say "Now current: $OUT${prev:+  (was $prev — 'blitzpi rollback' returns to it)}"
+}
+if [ "$MODE" = "list" ]; then
+  cur="$(current_version)"; prev="$(cat "$APP/previous" 2>/dev/null || true)"
+  [ -n "$(list_versions)" ] || die "nothing installed under $APP/versions"
+  say "Installed BlitzPi versions ($APP/versions, newest first; keeping $KEEP):"
+  list_versions | while read -r n; do
+    mark="  "; [ "$n" = "$cur" ] && mark="* "
+    note=""; [ "$n" = "$prev" ] && note="   (previous — blitzpi rollback)"
+    installed "$n" || note="   (incomplete)"
+    say "  $mark$n$note"
+  done
+  say "  * = current.   Switch: blitzpi use <version>   Roll back: blitzpi rollback   Newer: blitzpi update"
+  exit 0
+fi
+if [ "$MODE" = "use" ]; then switch_to "${USE_VERSION#v}"; exit 0; fi
+if [ "$MODE" = "rollback" ]; then
+  cur="$(current_version)"; target="$(cat "$APP/previous" 2>/dev/null || true)"
+  if [ -z "$target" ] || [ "$target" = "$cur" ] || ! installed "$target"; then
+    target="$(list_versions | grep -vx "$cur" | head -1 || true)"   # no record: newest other installed version
+  fi
+  [ -n "$target" ] || die "no other version installed to roll back to (blitzpi versions)"
+  switch_to "$target"; exit 0
+fi
+
 # ---- uninstall -----------------------------------------------------------------------------
 if [ "$MODE" = "uninstall" ]; then
   say "This removes BlitzPi:"; say "  app directory : $APP"; say "  command       : $SHIM"
@@ -131,8 +193,11 @@ else
   [ -n "$VERSION" ] || die "no release found for $REPO (publish one with: gh release create vX.Y.Z)"
 fi
 DEST="$APP/versions/$VERSION"
-CURRENT_VERSION=""
-[ -L "$APP/current" ] && CURRENT_VERSION="$(basename "$(readlink "$APP/current")")"
+CURRENT_VERSION="$(current_version)"
+if [ -n "$WANT_VERSION" ] && [ "$REINSTALL" = 0 ] && installed "$VERSION"; then
+  say "BlitzPi $VERSION is already installed — switching to it (add --reinstall to download it again)."
+  switch_to "$VERSION"; exit 0
+fi
 
 if [ "$MODE" = "update" ] && [ "$CURRENT_VERSION" = "$VERSION" ] && [ -z "$SOURCE" ]; then
   say "BlitzPi $VERSION is already the latest version."; exit 0
@@ -186,20 +251,15 @@ PI_NAME="$(cd "$STAGE" && "$BUN" -e 'process.stdout.write(require("./node_module
 [ "$PI_NAME" = "blitzpi" ] || die "rebrand patch was not applied (piConfig.name='$PI_NAME')"
 rm -rf "$DEST"; mv "$STAGE" "$DEST"
 
-# ---- switch `current` atomically, write the command, keep one previous version ---------------
+# ---- switch `current` atomically, write the command, keep the newest $KEEP versions -----------
 ln -sfn "versions/$VERSION" "$APP/current"   # -n: replace the link itself, never write inside the old target (GNU + BSD ln)
-cat >"$SHIM" <<SHIM
-#!/bin/sh
-# BlitzPi — written by install.sh. App directory: $APP
-APP="\${BLITZPI_HOME:-$APP}"
-export BUN_RUNTIME_TRANSPILER_CACHE_PATH="\$APP/cache/transpiler"   # Bun's runtime cache stays inside the app dir, not ~/.bun
-export PATH="\$APP/bun/bin:\$PATH"   # the private Bun is available to the agent's shell (bun init / bun install / bun run)
-exec "\$APP/bun/bin/bun" "\$APP/current/bin/blitzpi.ts" "\$@"
-SHIM
-chmod +x "$SHIM"
-for v in "$APP"/versions/*; do
-  n="$(basename "$v")"
-  [ "$n" = "$VERSION" ] || [ "$n" = "$CURRENT_VERSION" ] || rm -rf "$v"
+[ -n "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$VERSION" ] && printf '%s\n' "$CURRENT_VERSION" >"$APP/previous"
+write_shim
+i=0
+list_versions | while read -r n; do
+  i=$((i+1))
+  [ "$n" = "$VERSION" ] || [ "$n" = "$CURRENT_VERSION" ] && continue   # the new one and the one we left always stay
+  [ "$i" -le "$KEEP" ] || rm -rf "$APP/versions/$n"
 done
 RC_TOUCHED=""; add_path_line
 

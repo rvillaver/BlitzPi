@@ -40,6 +40,21 @@ BLITZPI_SOURCE="$SRC2" "$SHIM" update >"$HOME/update.log" 2>&1 && ok "blitzpi up
 readlink "$APP/current" | grep -q -- "-next" && ok "current switched to $(readlink "$APP/current")" || no "current not switched: $(readlink "$APP/current")"
 [ "$(ls "$APP/versions" | wc -l)" -eq 2 ] && ok "previous version kept for rollback ($(ls "$APP/versions" | tr '\n' ' '))" || no "versions dir: $(ls "$APP/versions")"
 "$SHIM" --version </dev/null 2>&1 | grep -q -- "-next" && ok "new version runs" || no "new version does not run"
+ORIG="$(ls "$APP/versions" | grep -v -- "-next")"; NEXT="$(ls "$APP/versions" | grep -- "-next")"
+
+echo "== versions / rollback / use (offline, instant)"
+L="$("$SHIM" versions </dev/null 2>&1)"
+printf '%s' "$L" | grep -q "^  \* $NEXT" && ok "blitzpi versions marks current (* $NEXT)" || { no "versions output"; printf '%s\n' "$L"; }
+printf '%s' "$L" | grep -q "$ORIG.*previous" && ok "versions marks the previous ($ORIG)" || no "previous not marked: $L"
+"$SHIM" rollback </dev/null >"$HOME/rollback.log" 2>&1 && ok "blitzpi rollback exit 0" || { no "rollback failed"; cat "$HOME/rollback.log"; }
+[ "$(readlink "$APP/current")" = "versions/$ORIG" ] && ok "rollback switched current -> $ORIG" || no "current after rollback: $(readlink "$APP/current")"
+"$SHIM" --version </dev/null 2>&1 | grep -qv -- "-next" && ok "rolled-back version runs" || no "rolled-back version does not run"
+"$SHIM" rollback </dev/null 2>&1 | grep -q "Now current" && [ "$(readlink "$APP/current")" = "versions/$NEXT" ] && ok "rollback again returns to $NEXT" || no "second rollback: $(readlink "$APP/current")"
+"$SHIM" use "$ORIG" </dev/null >/dev/null 2>&1 && [ "$(readlink "$APP/current")" = "versions/$ORIG" ] && ok "blitzpi use $ORIG" || no "use failed: $(readlink "$APP/current")"
+"$SHIM" use "$ORIG" </dev/null 2>&1 | grep -q "already current" && ok "use of the current version is a no-op" || no "use current not a no-op"
+"$SHIM" use 0.0.0 </dev/null >/dev/null 2>&1 && no "use of a missing version succeeded" || ok "use of a missing version fails"
+BLITZPI_SOURCE="$SRC2" "$SHIM" update --version "$NEXT" </dev/null >"$HOME/uselocal.log" 2>&1 && grep -q "already installed" "$HOME/uselocal.log" && [ "$(readlink "$APP/current")" = "versions/$NEXT" ] && ok "update --version <installed> switches without downloading" || { no "update --version local"; cat "$HOME/uselocal.log"; }
+[ "$(ls "$APP/versions" | wc -l)" -eq 2 ] && ok "still 2 versions installed" || no "versions dir: $(ls "$APP/versions")"
 
 echo "== uninstall"
 mkdir -p "$HOME/.blitz/audit"; touch "$HOME/.blitz/audit/x.jsonl"

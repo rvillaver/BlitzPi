@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-/** BlitzPi — the one command. `audit`, `report`, `projects`, `demo`, `update`, `uninstall` and `--version` are handled
+/** BlitzPi — the one command. `audit`, `report`, `projects`, `demo`, `update`, `versions`, `rollback`, `use`, `uninstall` and `--version` are handled
  *  here; everything else (including Pi's own subcommands) passes through to Pi. */
 import { launchBlitzPi, REPO_ROOT, selfServiceCommand } from "../src/launcher";
 
@@ -21,7 +21,8 @@ if (sub === "demo") {
   await handleDemoCommand();
   process.exit(0);
 }
-if (sub === "update" || sub === "uninstall") {
+if (sub === "update" || sub === "uninstall" || sub === "versions" || sub === "rollback" || sub === "use") {
+  if (sub === "use" && !args[1]) { console.error("Usage: blitzpi use <version>   (blitzpi versions lists what is installed)"); process.exit(2); }
   process.exit(await selfServiceCommand(sub, args.slice(1)));
 }
 if (sub === "--version" || sub === "-v") {

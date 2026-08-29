@@ -25,13 +25,21 @@ export const BUNDLED_PI_PACKAGES = [
 const PI_SUBCOMMANDS = new Set(["install", "remove", "list", "config", "auth"]);
 
 /** `blitzpi update` / `blitzpi uninstall`: run the bundled install.sh against the installed copy. */
-export function selfServiceCommand(cmd: "update" | "uninstall", extra: string[] = []): Promise<number> {
+export type SelfServiceCommand = "update" | "uninstall" | "versions" | "rollback" | "use";
+const INSTALLER_FLAG: Record<SelfServiceCommand, string> = { update: "--update", uninstall: "--uninstall", versions: "--list", rollback: "--rollback", use: "--use" };
+const SOURCE_HINT: Record<SelfServiceCommand, string> = {
+  update: "Update it with: git pull && bun install",
+  uninstall: "Nothing to uninstall; delete the checkout instead.",
+  versions: "Releases: git tag --sort=-v:refname   ·   installed copies live under the app directory (blitzpi --help)",
+  rollback: "Roll back with: git checkout v<previous> && bun install",
+  use: "Switch with: git checkout v<version> && bun install",
+};
+
+/** `blitzpi update | uninstall | versions | rollback | use <version>` → install.sh of the installed copy. */
+export function selfServiceCommand(cmd: SelfServiceCommand, extra: string[] = []): Promise<number> {
   const paths = blitzPaths();
   if (!isInstalledCopy(REPO_ROOT, paths)) {
-    console.error(
-      `[BlitzPi] this is a source checkout (${REPO_ROOT}), not an installed copy.\n` +
-        (cmd === "update" ? "  Update it with: git pull && bun install" : `  Nothing to uninstall; delete the checkout instead.`),
-    );
+    console.error(`[BlitzPi] this is a source checkout (${REPO_ROOT}), not an installed copy.\n  ${SOURCE_HINT[cmd]}`);
     return Promise.resolve(1);
   }
   const script = join(paths.current, "install.sh");
@@ -39,7 +47,7 @@ export function selfServiceCommand(cmd: "update" | "uninstall", extra: string[] 
     console.error(`[BlitzPi] installer not found: ${script}`);
     return Promise.resolve(1);
   }
-  const child = spawn("sh", [script, `--${cmd}`, ...extra], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
+  const child = spawn("sh", [script, INSTALLER_FLAG[cmd], ...extra], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
   return new Promise((done) => {
     child.on("error", (err) => {
       console.error("[BlitzPi] Failed to run installer:", err.message);
