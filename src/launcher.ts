@@ -2,7 +2,7 @@
  * BlitzPi launcher — runs the real Pi coding agent with the Blitz extension loaded from source.
  * `blitzpi <args>` == `pi -e <repo>/src/index.ts <args>`; every Pi flag/command passes through.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -43,7 +43,13 @@ export function selfServiceCommand(cmd: SelfServiceCommand, extra: string[] = []
     return Promise.resolve(1);
   }
   // The app-level installer is the newest one that ran (kept outside versions/ so it survives a rollback).
-  const script = [join(paths.home, "install.sh"), join(paths.current, "install.sh")].find((f) => existsSync(f)) ?? join(paths.current, "install.sh");
+  // Missing = this copy was installed by an older installer: place ours there and rewrite the command first.
+  const appScript = join(paths.home, "install.sh");
+  const ownScript = join(REPO_ROOT, "install.sh");
+  if (!existsSync(appScript) && existsSync(ownScript)) {
+    spawnSync("sh", [ownScript, "--refresh"], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
+  }
+  const script = existsSync(appScript) ? appScript : join(paths.current, "install.sh");
   if (!existsSync(script)) {
     console.error(`[BlitzPi] installer not found: ${script}`);
     return Promise.resolve(1);

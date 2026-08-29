@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.3 — 2026-08-30
+
+### Install
+- **Bootstrap for copies installed by an older installer.** Updating 1.2.1 → 1.2.2 ran 1.2.1's installer, which does not place the app-level installer or the routing command, so 1.2.2's fix would only have landed on the *following* update. Now the first self-service command (`versions`, `rollback`, `use`, `update`, `uninstall`) run from a version whose app directory lacks `<app>/install.sh` performs `install.sh --refresh` first: copies its installer to the app level and rewrites the command. `--use`/`--rollback` also rewrite the command every time (idempotent).
+
 ## 1.2.2 — 2026-08-30
 
 ### Install

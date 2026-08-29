@@ -19,7 +19,7 @@
 # `blitzpi use <version>` switch instantly and offline. Nothing is installed system-wide.
 #
 # Options:  --update  --uninstall [--purge]  --yes  --version vX.Y.Z [--reinstall]  --print-paths
-#           --list  --rollback  --use <version>
+#           --list  --rollback  --use <version>  --refresh (re-place the app-level installer + command)
 # Env:      BLITZPI_HOME (app dir override), BLITZPI_SOURCE (local dir or .tar.gz instead of GitHub),
 #           BLITZPI_KEEP (installed versions to keep, default 2)
 set -eu
@@ -37,6 +37,7 @@ for a in "$@"; do
     --reinstall) REINSTALL=1 ;;
     --print-paths) MODE="print-paths" ;;
     --list) MODE="list" ;;
+    --refresh) MODE="refresh" ;;
     --rollback) MODE="rollback" ;;
     --use=*) MODE="use"; USE_VERSION="${a#--use=}" ;;
     --use) MODE="use"; USE_VERSION="__next__" ;;
@@ -150,10 +151,15 @@ switch_to() {  # switch_to <version>: point `current` at an installed version, r
   [ "$prev" = "$1" ] && { say "BlitzPi $1 is already current."; return 0; }
   ln -sfn "versions/$1" "$APP/current"   # -n: replace the link itself, never write inside the old target (GNU + BSD ln)
   [ -n "$prev" ] && printf '%s\n' "$prev" >"$APP/previous"
-  [ -x "$SHIM" ] || write_shim
+  write_shim   # idempotent; keeps the command in step with this installer
   OUT="$("$SHIM" --version </dev/null 2>&1)" || die "switched to $1 but 'blitzpi --version' failed: $OUT"
   say "Now current: $OUT${prev:+  (was $prev — 'blitzpi rollback' returns to it)}"
 }
+refresh_self() {  # this script (when run from a version dir) becomes the app-level installer; the command is rewritten
+  case "$0" in */versions/*/install.sh|*/install.sh) [ -f "$0" ] && cp "$0" "$APP/install.sh.new" && mv "$APP/install.sh.new" "$APP/install.sh" ;; esac
+  write_shim
+}
+if [ "$MODE" = "refresh" ]; then mkdir -p "$APP"; refresh_self; say "BlitzPi command refreshed: $SHIM (installer: $APP/install.sh)"; exit 0; fi
 if [ "$MODE" = "list" ]; then
   cur="$(current_version)"; prev="$(cat "$APP/previous" 2>/dev/null || true)"
   [ -n "$(list_versions)" ] || die "nothing installed under $APP/versions"

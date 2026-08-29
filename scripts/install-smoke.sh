@@ -58,6 +58,9 @@ BLITZPI_SOURCE="$SRC2" "$SHIM" update --version "$NEXT" </dev/null >"$HOME/uselo
 
 echo "== self-service commands survive a rollback to a version that does not have them"
 [ -f "$APP/install.sh" ] && ok "app-level installer kept at $APP/install.sh" || no "no app-level installer"
+# installed by an older installer (no app-level copy, old shim): the first self-service command must self-heal
+rm -f "$APP/install.sh"; printf '#!/bin/sh\nexec "%s" "%s/current/bin/blitzpi.ts" "$@"\n' "$APP/bun/bin/bun" "$APP" >"$SHIM"
+"$SHIM" versions </dev/null >/dev/null 2>&1 && [ -f "$APP/install.sh" ] && grep -q 'rollback)' "$SHIM" && ok "first self-service command re-places the app installer and rewrites the command (bootstrap)" || no "bootstrap: installer=$([ -f "$APP/install.sh" ] && echo yes || echo no) shim-has-rollback=$(grep -q 'rollback)' "$SHIM" && echo yes || echo no)"
 OLD="$APP/versions/0.9.0-old"; mkdir -p "$OLD/bin" "$OLD/node_modules/@earendil-works/pi-coding-agent"
 printf 'console.log("PASSTHROUGH " + process.argv.slice(2).join(" "))\n' >"$OLD/bin/blitzpi.ts"   # an old bin: no subcommands, everything goes to Pi
 "$SHIM" use 0.9.0-old </dev/null >/dev/null 2>&1 && [ "$(readlink "$APP/current")" = "versions/0.9.0-old" ] && ok "switched to the fake old version" || no "could not switch to old: $(readlink "$APP/current")"
