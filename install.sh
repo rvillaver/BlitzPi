@@ -189,6 +189,7 @@ cat >"$SHIM" <<SHIM
 #!/bin/sh
 # BlitzPi — written by install.sh. App directory: $APP
 APP="\${BLITZPI_HOME:-$APP}"
+export BUN_RUNTIME_TRANSPILER_CACHE_PATH="\$APP/cache/transpiler"   # Bun's runtime cache stays inside the app dir, not ~/.bun
 exec "\$APP/bun/bin/bun" "\$APP/current/bin/blitzpi.ts" "\$@"
 SHIM
 chmod +x "$SHIM"

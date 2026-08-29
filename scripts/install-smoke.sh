@@ -29,6 +29,7 @@ printf '%s' "$V" | grep -q "^blitzpi .* (pi 0.84.3, bun " && ok "blitzpi --versi
 Hh="$(cd "$D" && env -i HOME="$HOME" PATH=/usr/bin:/bin "$SHIM" --help </dev/null 2>&1)"
 printf '%s' "$Hh" | grep -q "^blitzpi - " && ok "blitzpi --help shows the blitzpi banner (Pi + rebrand loaded)" || { no "--help banner"; printf '%s\n' "$Hh" | head -5; }
 [ -e "$D/.pi" ] && no ".pi litter in cwd" || ok "no cwd litter"
+[ -e "$HOME/.bun" ] && no "~/.bun created at runtime (transpiler cache leaked)" || ok "runtime writes nothing outside the app dir"
 
 echo "== update to the same local source (installs a second copy, switches current)"
 # bump the version in a copy so it looks like a new release
