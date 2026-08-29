@@ -12,6 +12,8 @@
 #   Linux   app: $XDG_DATA_HOME/blitzpi (~/.local/share)   command: ~/.local/bin/blitzpi
 #
 # Layout:  <app>/bun/bin/bun   <app>/versions/<version>/   <app>/current -> versions/<version>   <app>/previous
+#          <app>/install.sh — the newest installer that ran; the command routes update / versions / rollback /
+#          use / uninstall to it, so they work whichever version is current (an older one has no such commands).
 # Updates install the next release as a whole into a new versions/<version> and switch `current`
 # atomically; the newest BLITZPI_KEEP (default 2) versions stay installed, so `blitzpi rollback` /
 # `blitzpi use <version>` switch instantly and offline. Nothing is installed system-wide.
@@ -126,6 +128,16 @@ write_shim() {
 #!/bin/sh
 # BlitzPi — written by install.sh. App directory: $APP
 APP="\${BLITZPI_HOME:-$APP}"
+# Self-service commands go to the newest installer, not to the version that happens to be current.
+if [ -f "\$APP/install.sh" ]; then
+  case "\${1:-}" in
+    update)    shift; exec sh "\$APP/install.sh" --update "\$@" ;;
+    uninstall) shift; exec sh "\$APP/install.sh" --uninstall "\$@" ;;
+    versions)  shift; exec sh "\$APP/install.sh" --list "\$@" ;;
+    rollback)  shift; exec sh "\$APP/install.sh" --rollback "\$@" ;;
+    use)       shift; exec sh "\$APP/install.sh" --use "\$@" ;;
+  esac
+fi
 export BUN_RUNTIME_TRANSPILER_CACHE_PATH="\$APP/cache/transpiler"   # Bun's runtime cache stays inside the app dir, not ~/.bun
 export PATH="\$APP/bun/bin:\$PATH"   # the private Bun is available to the agent's shell (bun init / bun install / bun run)
 exec "\$APP/bun/bin/bun" "\$APP/current/bin/blitzpi.ts" "\$@"
@@ -250,6 +262,7 @@ PI_NAME="$(cd "$STAGE" && "$BUN" -e 'process.stdout.write(require("./node_module
 # Bun applies patches/ when installing from a lockfile; verify rather than assume.
 [ "$PI_NAME" = "blitzpi" ] || die "rebrand patch was not applied (piConfig.name='$PI_NAME')"
 rm -rf "$DEST"; mv "$STAGE" "$DEST"
+[ -f "$DEST/install.sh" ] && cp "$DEST/install.sh" "$APP/install.sh.new" && mv "$APP/install.sh.new" "$APP/install.sh"   # app-level installer = newest
 
 # ---- switch `current` atomically, write the command, keep the newest $KEEP versions -----------
 ln -sfn "versions/$VERSION" "$APP/current"   # -n: replace the link itself, never write inside the old target (GNU + BSD ln)

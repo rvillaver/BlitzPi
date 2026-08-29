@@ -56,6 +56,16 @@ printf '%s' "$L" | grep -q "$ORIG.*previous" && ok "versions marks the previous 
 BLITZPI_SOURCE="$SRC2" "$SHIM" update --version "$NEXT" </dev/null >"$HOME/uselocal.log" 2>&1 && grep -q "already installed" "$HOME/uselocal.log" && [ "$(readlink "$APP/current")" = "versions/$NEXT" ] && ok "update --version <installed> switches without downloading" || { no "update --version local"; cat "$HOME/uselocal.log"; }
 [ "$(ls "$APP/versions" | wc -l)" -eq 2 ] && ok "still 2 versions installed" || no "versions dir: $(ls "$APP/versions")"
 
+echo "== self-service commands survive a rollback to a version that does not have them"
+[ -f "$APP/install.sh" ] && ok "app-level installer kept at $APP/install.sh" || no "no app-level installer"
+OLD="$APP/versions/0.9.0-old"; mkdir -p "$OLD/bin" "$OLD/node_modules/@earendil-works/pi-coding-agent"
+printf 'console.log("PASSTHROUGH " + process.argv.slice(2).join(" "))\n' >"$OLD/bin/blitzpi.ts"   # an old bin: no subcommands, everything goes to Pi
+"$SHIM" use 0.9.0-old </dev/null >/dev/null 2>&1 && [ "$(readlink "$APP/current")" = "versions/0.9.0-old" ] && ok "switched to the fake old version" || no "could not switch to old: $(readlink "$APP/current")"
+"$SHIM" --version </dev/null 2>&1 | grep -q "PASSTHROUGH --version" && ok "old bin is really in charge (passes args through)" || no "old bin not active"
+V2="$("$SHIM" versions </dev/null 2>&1)"; printf '%s' "$V2" | grep -q "^  \* 0.9.0-old" && ok "blitzpi versions still works (shim → app installer, not the old bin)" || { no "versions went to the old bin: $V2"; }
+"$SHIM" rollback </dev/null >/dev/null 2>&1 && [ "$(readlink "$APP/current")" = "versions/$NEXT" ] && ok "blitzpi rollback still works from the old version (-> $NEXT)" || no "rollback from old: $(readlink "$APP/current")"
+rm -rf "$OLD"
+
 echo "== uninstall"
 mkdir -p "$HOME/.blitz/audit"; touch "$HOME/.blitz/audit/x.jsonl"
 "$SHIM" uninstall --yes --purge >/dev/null 2>&1 </dev/null && ok "blitzpi uninstall --yes --purge exit 0" || no "uninstall failed"

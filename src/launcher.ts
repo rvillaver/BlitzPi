@@ -42,7 +42,8 @@ export function selfServiceCommand(cmd: SelfServiceCommand, extra: string[] = []
     console.error(`[BlitzPi] this is a source checkout (${REPO_ROOT}), not an installed copy.\n  ${SOURCE_HINT[cmd]}`);
     return Promise.resolve(1);
   }
-  const script = join(paths.current, "install.sh");
+  // The app-level installer is the newest one that ran (kept outside versions/ so it survives a rollback).
+  const script = [join(paths.home, "install.sh"), join(paths.current, "install.sh")].find((f) => existsSync(f)) ?? join(paths.current, "install.sh");
   if (!existsSync(script)) {
     console.error(`[BlitzPi] installer not found: ${script}`);
     return Promise.resolve(1);

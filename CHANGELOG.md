@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.2 — 2026-08-30
+
+### Install
+- **`rollback` / `versions` / `use` / `update` / `uninstall` work whichever version is current.** Found live: after `blitzpi rollback` to 1.2.0, a second `blitzpi rollback` reached 1.2.0's own command, which does not know the word — it went to Pi as a prompt and the model answered it. The command now routes self-service subcommands to an app-level copy of the newest installer (`<app>/install.sh`, refreshed on every install/update, kept outside `versions/`), so an older version being current cannot take them away. Covered by the install smoke test with a fake old version.
+
 ## 1.2.1 — 2026-08-30
 
 ### Install
