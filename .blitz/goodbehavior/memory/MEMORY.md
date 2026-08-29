@@ -7,3 +7,4 @@ Durable learnings for developing BlitzPi itself (one fact per file; skim before 
 - [Pi hook & bundle traps](pi-hook-and-bundle-traps.md) — `before_provider_request` can't block; don't bundle the extension; scan only user/tool text.
 - [Self-contained installer](self-contained-installer.md) — private Bun + `versions/` + `current` symlink; `ln -sfn` trap; needs a GitHub release; `BLITZPI_SOURCE` for local tests.
 - [GoodBehavior: profile is the doctrine](goodbehavior-profile-doctrine.md) — one source of truth injected per adopted project; why the old `.claude/` tree and Python update flow were removed.
+- [bwrap --die-with-parent kills under Bun](bwrap-die-with-parent-kills-under-bun.md) — PDEATHSIG is per-thread; sandbox died ~130 ms in; children are tracked + killed on exit instead

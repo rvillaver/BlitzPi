@@ -35,7 +35,28 @@ export function sandboxExecAvailable(): boolean {
   catch { return false; }
 }
 
+/**
+ * Sandbox children are tracked and killed when Pi exits or is signalled. We deliberately do NOT use
+ * bwrap's die-with-parent option: it relies on PR_SET_PDEATHSIG, which fires when the *thread* that spawned the
+ * child exits — and Bun spawns from pool threads that get reaped, so sandboxes were randomly SIGKILLed
+ * ~130 ms in (2 of 4 `bun add` runs died before downloading). With --unshare-pid, killing bwrap kills
+ * everything inside it.
+ */
+const liveChildren = new Set<ReturnType<typeof spawn>>();
+let exitHooksInstalled = false;
+function trackChild(child: ReturnType<typeof spawn>): void {
+  liveChildren.add(child);
+  child.on("close", () => liveChildren.delete(child));
+  if (!exitHooksInstalled) {
+    exitHooksInstalled = true;
+    const killAll = () => { for (const c of liveChildren) { try { c.kill("SIGKILL"); } catch { /* gone */ } } };
+    process.on("exit", killAll);
+    for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(sig, () => { killAll(); process.exit(128); });
+  }
+}
+
 function pump(child: ReturnType<typeof spawn>, options: ExecOptions): Promise<{ exitCode: number | null }> {
+  trackChild(child);
   child.stdout?.on("data", (d: Buffer) => options.onData(d));
   child.stderr?.on("data", (d: Buffer) => options.onData(d));
   let timer: NodeJS.Timeout | undefined;
@@ -64,7 +85,7 @@ class BwrapBackend implements SandboxBackend {
     args.push("--proc", "/proc", "--dev", "/dev",
       "--bind", runDir, runDir, "--chdir", runDir,
       "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
-      "--die-with-parent", "--setenv", "HOME", runDir,
+      "--setenv", "HOME", runDir,
       "/bin/bash", "-c", command);
     const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir }, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);

@@ -42,7 +42,11 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         confinedByCommand.delete(command);
         if (confined && backend) {
           audit.log({ type: "bash_exec", confined: true, backend: backend.name, command: command.slice(0, 200) });
-          return backend.exec(command, runDir, options);
+          const t0 = Date.now();
+          return backend.exec(command, runDir, options).then((r) => {
+            audit.log({ type: "bash_exit", backend: backend.name, exit_code: r.exitCode, aborted: !!options.signal?.aborted, ms: Date.now() - t0, command: command.slice(0, 120) });
+            return r;
+          });
         }
         // unconfined: user approved an out-of-project command (or no backend). Run in the project cwd.
         audit.log({ type: "bash_exec", confined: false, command: command.slice(0, 200) });
