@@ -175,9 +175,10 @@ else
   tar -C "$STAGE" --strip-components=1 -xzf "$TARBALL"
 fi
 say "Installing Pi and bundled packages (this takes a minute)..."
-(cd "$STAGE" && "$BUN" install --frozen-lockfile --production >"$STAGE/.install.log" 2>&1) \
+# Bun's download cache goes inside the app dir (not ~/.bun): nothing is written outside it.
+(cd "$STAGE" && BUN_INSTALL_CACHE_DIR="$APP/cache" "$BUN" install --frozen-lockfile --production >"$STAGE/.install.log" 2>&1) \
   || { tail -20 "$STAGE/.install.log" >&2; die "dependency install failed (log: $STAGE/.install.log)"; }
-PI_NAME="$("$BUN" -e 'process.stdout.write(require("./node_modules/@earendil-works/pi-coding-agent/package.json").piConfig?.name||"")' 2>/dev/null || true)"
+PI_NAME="$(cd "$STAGE" && "$BUN" -e 'process.stdout.write(require("./node_modules/@earendil-works/pi-coding-agent/package.json").piConfig?.name||"")' 2>/dev/null || true)"
 # Bun applies patches/ when installing from a lockfile; verify rather than assume.
 [ "$PI_NAME" = "blitzpi" ] || die "rebrand patch was not applied (piConfig.name='$PI_NAME')"
 rm -rf "$DEST"; mv "$STAGE" "$DEST"

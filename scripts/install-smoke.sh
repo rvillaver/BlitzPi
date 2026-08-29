@@ -11,6 +11,7 @@ export BLITZPI_HOME="$HOME/App Dir/BlitzPi"   # space in the path, like macOS "A
 export SHELL=/bin/zsh   # deterministic rc file: ~/.zshrc
 echo "install-smoke — HOME=$HOME — app=$BLITZPI_HOME — source=$ROOT"
 
+cd "$(mktemp -d)"   # foreign cwd: the installer must never rely on the repo's own node_modules
 echo "== install (local source, --yes)"
 BLITZPI_SOURCE="$ROOT" sh "$ROOT/install.sh" --yes >"$HOME/install.log" 2>&1 && ok "install.sh exit 0" || { no "install.sh failed"; tail -30 "$HOME/install.log"; }
 P="$(sh "$ROOT/install.sh" --print-paths)"; APP="$(printf '%s' "$P" | sed -n 's/^home=//p')"; SHIM="$(printf '%s' "$P" | sed -n 's/^shim=//p')"
@@ -20,6 +21,7 @@ P="$(sh "$ROOT/install.sh" --print-paths)"; APP="$(printf '%s' "$P" | sed -n 's/
 [ -d "$APP/current/node_modules/jest" ] && no "devDependencies were installed" || ok "production install (no devDependencies)"
 [ -x "$SHIM" ] && ok "command at $SHIM" || no "no command"
 grep -q "BlitzPi" "$HOME/.zshrc" 2>/dev/null && ok "PATH line added to ~/.zshrc" || no "no PATH line in ~/.zshrc"
+[ -e "$HOME/.bun" ] && no "~/.bun was created (cache leaked outside the app dir)" || ok "nothing outside the app dir (no ~/.bun)"
 
 echo "== run it (no PATH, no bun on PATH, from a foreign cwd)"
 D="$(mktemp -d)"; V="$(cd "$D" && env -i HOME="$HOME" PATH=/usr/bin:/bin "$SHIM" --version </dev/null 2>&1)"
