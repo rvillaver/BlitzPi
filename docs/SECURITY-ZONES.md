@@ -38,6 +38,13 @@ Each (action, zone) resolves to one level:
 - **dangerous** — shown **in red with a warning**; prompt **Yes / No**. You can still allow it.
 - Dangerous command *shapes* (`sudo`, `curl | sh`, reverse shells, `rm -rf /`) are always dangerous.
 
+### What "Always" remembers
+- For **system / install / global**: the whole zone (`read:system`).
+- For **other**: only the **directory you approved** — the nearest enclosing project (`.git`, `package.json`, …) or the
+  path's own directory (`read:other:/Users/you/work/some-project`). Reading a *different* folder asks again. `/`, your
+  home directory, its ancestors and top-level directories (`/Users`, `/tmp`) are too broad to remember: they ask every time
+  (Yes/No only). A legacy zone-wide `read:other` entry in `.blitz/permissions.json` is ignored.
+
 **Non-interactive runs** (`-p`, unattended): silent/ask auto-allow; **dangerous is refused** (no human to warn).
 
 Every decision is written to the audit trail.

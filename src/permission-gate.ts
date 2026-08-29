@@ -5,7 +5,7 @@
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { classifyZone, type Zone, type ZoneRoots } from "./zones";
-import { decide, severity, type Action, type Level, PermissionMemory } from "./permissions";
+import { decide, severity, permissionKey, type Action, type Level, PermissionMemory } from "./permissions";
 import type { CmdTarget } from "./bash-guard";
 import type { AuditLogger } from "./audit";
 
@@ -40,11 +40,12 @@ export class PermissionGate {
   async resolve(action: Action, zone: Zone, target: string, label: string, ctx: ExtensionContext | undefined): Promise<GateResult> {
     const level = decide(action, zone);
     const confined = zone === "project" || zone === "goodbehavior" || zone === "project-config" || zone === "plumbing";
-    const key = `${action}:${zone}`;
+    // Zone-wide memory, except `other`: remembered per directory root (one "Always" must not unlock the whole disk).
+    const key = permissionKey(action, zone, target, this.roots.home);
     const base = { zone, level, confined };
 
     if (level === "silent") return { allow: true, reason: "in-scope", ...base };
-    if (this.memory.isAllowed(key)) return { allow: true, reason: "remembered", ...base };
+    if (this.memory.isAllowedFor(action, zone, target)) return { allow: true, reason: "remembered", ...base };
 
     const interactive = !!ctx?.hasUI;
     if (!interactive) {
@@ -61,14 +62,17 @@ export class PermissionGate {
       choice = choice?.startsWith("Yes") ? "Yes" : "No";
     } else if (level === "ask-noalways") {
       choice = await ctx!.ui.select(`BlitzPi: allow ${action} to project security config?`, ["No", "Yes"]);
+    } else if (!key) {
+      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone} — too broad to remember; asks every time)`, ["Yes", "No"]);
     } else {
-      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone})`, ["Yes", "No", "Always this session", "Always"]);
+      const scope = zone === "other" ? ` for ${key.slice(`${action}:${zone}:`.length)}` : "";
+      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone})`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);
     }
 
     let allow = false;
     if (choice === "Yes") allow = true;
-    else if (choice === "Always this session") { allow = true; this.memory.rememberSession(key); }
-    else if (choice === "Always") { allow = true; this.memory.rememberAlways(key); }
+    else if (choice?.startsWith("Always this session")) { allow = true; if (key) this.memory.rememberSession(key); }
+    else if (choice?.startsWith("Always")) { allow = true; if (key) this.memory.rememberAlways(key); }
     this.log(action, zone, target, allow, "prompt");
     return { allow, reason: allow ? `approved (${choice})` : "declined", ...base };
   }
