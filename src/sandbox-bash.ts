@@ -5,6 +5,7 @@
  * escape). Blocked commands don't run.
  */
 import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { stats } from "./security-status";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
@@ -15,10 +16,15 @@ import { selectBackend, type SandboxBackend, type BackendPref } from "./sandbox-
 import type { PermissionGate } from "./permission-gate";
 import { debug } from "./log";
 
+let activeBackend: string | null = null;
+/** Name of the bash sandbox backend in use this session (bwrap | sandbox-exec | pinned), or null. */
+export const activeBackendName = () => activeBackend;
+
 export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, gate: PermissionGate): void {
   if (!config.sandbox.enabled) { console.log("[Blitz:BashSandbox] disabled"); return; }
   const runDir = resolve(config.sandbox.run_dir);
   const backend: SandboxBackend | null = selectBackend((config.sandbox.backend ?? "auto") as BackendPref);
+  activeBackend = backend ? backend.name : null;
   const confinedByCommand = new Map<string, boolean>(); // command -> run under OS backend?
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
@@ -30,7 +36,7 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
       ? await gate.resolveDangerousCommand(command, shape, ctx)
       : await (async () => { const w = gate.worst(extractTargets(command), command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx); })();
 
-    if (!res.allow) return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` };
+    if (!res.allow) { stats.blocked.bash++; return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` }; }
     confinedByCommand.set(command, res.confined); // out-of-project approved → run unconfined
   });
 

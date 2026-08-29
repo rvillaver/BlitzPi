@@ -10,11 +10,14 @@ import { load } from "js-yaml";
 import type { BlitzConfig } from "../config";
 import type { AuditLogger } from "../audit";
 
-const BANNER = [
+import { activeBackendName } from "../sandbox-bash";
+import { panel, summaryLine } from "../security-status";
+
+const banner = (config: BlitzConfig) => [
   "",
   "  ⚡ BLITZ PI  —  Pi with security governance",
-  "     access profiles · file sandbox (bwrap) · governance gate · threat detection · audit trail",
-  "     /blitz-security   /blitz-profile   /blitz-audit",
+  `     ${summaryLine(config, activeBackendName())}`,
+  "     /blitz-security shows every layer, its mode and this session's decisions",
   "",
 ].join("\n");
 
@@ -55,7 +58,16 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 }
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
-  console.log(BANNER); // renders in startup scrollback (setHeader does not replace Pi's mascot in 0.84.3)
+  console.log(banner(config)); // renders in startup scrollback (setHeader does not replace Pi's mascot in 0.84.3)
+  pi.registerCommand("blitz-security", {
+    description: "Security layers: mode (enforce / monitor / off), configuration, and this session's decisions",
+    handler: async (_args: string, ctx) => {
+      const recent = lastAuditLines(audit.getPath(), 5).map((l) => {
+        try { const e = JSON.parse(l); return `${String(e.timestamp ?? "").slice(11, 19)} ${e.type}${e.tool ? " " + e.tool : ""}${e.zone ? " " + e.zone : ""}${e.allowed === false || e.approved === false ? " ✗" : " ✓"}${e.reason ? " — " + String(e.reason).slice(0, 60) : ""}`; } catch { return l.slice(0, 100); }
+      });
+      show(pi, ctx, panel(config, activeBackendName(), recent));
+    },
+  });
   // Replace Pi's startup header and the terminal title (TUI only).
   pi.on("session_start", async (_event, ctx) => {
     if (ctx.mode !== "tui") return;
@@ -66,7 +78,8 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
             "",
             theme.fg("accent", "  ⚡ BLITZ PI"),
             theme.fg("dim", "  Pi with security governance · sandbox · governance · audit"),
-            theme.fg("dim", "  /blitz-security  /blitz-profile  /blitz-audit"),
+            theme.fg("dim", `  ${summaryLine(config, activeBackendName())}`),
+            theme.fg("dim", "  /blitz-security · /adopt-goodbehavior"),
             "",
           ];
         },

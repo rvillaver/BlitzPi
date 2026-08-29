@@ -4,6 +4,7 @@ import type {
   ToolCallEventResult,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { stats } from "./security-status";
 import fs from "fs";
 import path from "path";
 import { load } from "js-yaml";
@@ -200,6 +201,7 @@ export function setupAccessProfiles(
     // Block if not allowed
     if (!decision.allowed) {
       debug(`AccessProfiles BLOCKED ${event.toolName}: ${decision.reason}`);
+      stats.blocked.profile++;
       return {
         block: true,
         reason: `[PROFILE DENIED] ${decision.reason}`,

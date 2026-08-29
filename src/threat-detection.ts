@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ToolCallEvent, ToolCallEventResult } from "@earendil-works/pi-coding-agent";
+import { stats } from "./security-status";
 import { BlitzConfig } from "./config";
 import { AuditLogger } from "./audit";
 import { debug } from "./log";
@@ -349,6 +350,7 @@ export function setupThreatDetection(
         debug(`ThreatDetection BLOCKED ${detection.threatType} in ${event.toolName} call`);
 
         // Block the tool execution
+        stats.blocked.threat++;
         return {
           block: true,
           reason: `[THREAT DETECTED] ${detection.reason} (Tier ${config.threat_detection.tier})`,

@@ -3,6 +3,7 @@
  * write/edit/delete = write. The gate classifies the target's zone and asks/allows/denies.
  */
 import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { stats } from "./security-status";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
 import type { PermissionGate } from "./permission-gate";
@@ -28,6 +29,6 @@ export function setupSandbox(pi: ExtensionAPI, config: BlitzConfig, audit: Audit
     const action = WRITE_TOOLS.has(tool) ? "write" : "read";
     const res = await gate.resolvePath(action, target, tool, ctx);
     audit.log({ type: "file_operation", tool, requested_path: target, zone: res.zone, allowed: res.allow, reason: res.reason });
-    if (!res.allow) return { block: true, reason: `[BLOCKED] ${tool} ${res.zone}: ${res.reason}` };
+    if (!res.allow) { stats.blocked.sandbox++; return { block: true, reason: `[BLOCKED] ${tool} ${res.zone}: ${res.reason}` }; }
   });
 }

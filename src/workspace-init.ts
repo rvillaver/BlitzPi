@@ -20,6 +20,23 @@ function trustProject(cwd: string): void {
   } catch { /* best effort */ }
 }
 
+/**
+ * Pi resolves `npm:` packages with `npm root -g` unless `npmCommand` is set; BlitzPi users need not have npm.
+ * Point Pi's package operations at the runtime running BlitzPi (the private Bun when installed) — in the
+ * PROJECT's .pi/settings.json (the user just consented to set this folder up), never in user settings.
+ */
+export function pinPackageManager(cwd: string): void {
+  try {
+    const f = path.join(cwd, ".pi", "settings.json");
+    let cur: Record<string, unknown> = {};
+    try { cur = JSON.parse(fs.readFileSync(f, "utf-8")); } catch { /* new */ }
+    if (cur.npmCommand) return;
+    cur.npmCommand = [process.execPath];
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, JSON.stringify(cur, null, 2) + "\n");
+  } catch { /* best effort */ }
+}
+
 export function setupWorkspaceInit(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
@@ -41,6 +58,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     const cfg = path.join(cwd, ".blitz", "blitz.config.yaml");
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n");
     const n = adoptGoodBehavior(cwd).installed.filter((f) => f.endsWith("SKILL.md")).length;
+    pinPackageManager(cwd);
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt
     // A persistent chat message (not a toast) so the restart step can't be missed.
     pi.sendMessage({

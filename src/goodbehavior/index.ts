@@ -12,6 +12,7 @@ import type { ExtensionAPI, ExtensionContext, ToolCallEvent } from "@earendil-wo
 import type { BlitzConfig } from "../config";
 import { adoptGoodBehavior, isAdopted, loadProfile, unadoptGoodBehavior } from "../adopt-goodbehavior";
 import { createDoneGate, DoneGate } from "./done-gate";
+import { stripInstallDocs } from "../prompt-hygiene";
 
 export interface GoodBehaviorContext { doneGate: DoneGate; toolsCalled: string[] }
 let gbContext: GoodBehaviorContext | null = null;
@@ -33,8 +34,9 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   console.log(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"` : "not adopted in this project (/adopt-goodbehavior)"}`);
 
   pi.on("before_agent_start", async (event: any) => {
-    const extra = profilePrompt(cwd, profileName);
-    return extra ? { systemPrompt: `${event.systemPrompt}${extra}` } : undefined;
+    const base = stripInstallDocs(event.systemPrompt ?? "");
+    const extra = profilePrompt(cwd, profileName) ?? "";
+    return { systemPrompt: `${base}${extra}` };
   });
 
   pi.on("tool_call", (event: ToolCallEvent) => {

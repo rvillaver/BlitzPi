@@ -1,3 +1,4 @@
+import { governanceStatus, stats } from "./security-status";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { BlitzConfig } from "./config";
 import { AuditLogger } from "./audit";
@@ -171,7 +172,8 @@ export function setupGovernance(
     if (!verdict.approved) {
       if (ctx.hasUI) ctx.ui.notify(`Blocked by governance: ${verdict.reason}`, "error");
       else console.error(`[BLOCKED] governance: ${verdict.reason}`);
-      return { action: "handled" as const };
+      stats.blocked.input++;
+    return { action: "handled" as const };
     }
     return { action: "continue" as const };
   });
@@ -200,6 +202,11 @@ export function setupGovernance(
       },
     };
     const decision: GovernanceResponse = await governanceProvider.check(governanceRequest);
+    stats.governance.checked++;
+    if (!decision.approved) {
+      if (decision.threat_category === "api_error") stats.governance.unreachable++;
+      else { stats.governance.denied++; stats.governance.lastDenial = decision.reason; }
+    }
     auditLogger.log({
       type: "governance_check",
       run_id: runId,
@@ -210,10 +217,23 @@ export function setupGovernance(
       threat_category: decision.threat_category,
     });
     debug("governance decision:", decision);
-    status(
-      decision.approved
-        ? `governance: ${governanceProvider.name} ok (audit-only)`
-        : `governance: ${decision.threat_category === "api_error" ? "unreachable" : "DENIED"} (audit-only) — ${decision.reason}`,
-    );
+    // Quiet when fine (steady text), loud on an event; a denial is also posted to the chat because the
+    // status bar is easy to miss — and it says what would have happened under `enforce`.
+    status(governanceStatus(config));
+    if (!decision.approved && decision.threat_category !== "api_error" && ctx.hasUI) {
+      ctx.ui.notify(`Governance (${governanceProvider.name}) denied this model call: ${decision.reason}`, "error");
+      pi.sendMessage({
+        customType: "blitz-governance",
+        content: `⚠ Governance denied a model call (${governanceProvider.name}): ${decision.reason}\nMode is monitor — the call went through and was audited. Under enforce it would have been stopped.`,
+        display: true,
+      });
+    }
+  });
+
+  // A rejected credential is not a governance event, but it is the most confusing failure a user meets.
+  pi.on("after_provider_response", async (event: any, ctx) => {
+    if (event.status !== 401 && event.status !== 403) return;
+    auditLogger.log({ type: "provider_auth_error", run_id: runId, status: event.status });
+    if (ctx.hasUI) ctx.ui.notify(`The model provider rejected your credential (HTTP ${event.status}). Run /login to sign in again, or pick another provider with /model.`, "error");
   });
 }

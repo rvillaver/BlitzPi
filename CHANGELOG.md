@@ -2,6 +2,15 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.1.3 — 2026-08-30
+
+### Governance
+- **One vocabulary, one source**: every layer reports a mode — `enforce` (the runtime blocks), `monitor` (recorded and shown, not blocked), `off` — from `src/security-status.ts`. The banner prints one row (`governance local (monitor) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · audit (enforce)`); the status bar is steady (`🛡 local · monitor`) and only changes on a denial or an unreachable provider; a denial is also posted to the chat, saying what would have happened under `enforce`. "audit-only" is gone.
+- **`/blitz-security` is a real command** (before, it and `/blitz-profile` / `/blitz-audit` were advertised but not registered — typing them sent the text to the model, which invented a panel). It shows every layer's mode, where it is configured, this session's counters (calls checked / denied, tools / files / bash / threats / prompts blocked) and the last decisions. The two phantom commands are no longer advertised; the audit trail's interface is `blitzpi audit`.
+- **Prompt hygiene**: Pi's "Pi documentation" block, which pointed the agent at BlitzPi's own install directory, is stripped from the system prompt.
+- **Credential rejections are explained**: an HTTP 401/403 from the model provider shows "run /login again or pick another provider" instead of raw JSON, and is audited as `provider_auth_error`.
+- **No npm needed**: setting up a workspace pins Pi's package operations to the runtime running BlitzPi (`npmCommand` in the project's `.pi/settings.json`), so `npm root -g` is never run on machines without npm. User settings are never touched.
+
 ## 1.1.2 — 2026-08-30
 
 ### Governance
