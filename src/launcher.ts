@@ -88,7 +88,9 @@ export function launchBlitzPi(args: string[]): Promise<number> {
   // so its resources are available without a project-trust prompt in whatever cwd the user is in.
   const extArgs = ["-e", REPO_ROOT, ...bundledPackageArgs()];
   const piArgs = PI_SUBCOMMANDS.has(args[0]) ? [...args, ...extArgs] : [...extArgs, ...args];
-  const child = spawn(process.execPath, [cli, ...piArgs], { stdio: "inherit" });
+  // BlitzPi owns updates (`blitzpi update`); Pi's own "new version, npm install -g …" check would mislead users.
+  const env = { ...process.env, PI_SKIP_VERSION_CHECK: process.env.PI_SKIP_VERSION_CHECK ?? "1" };
+  const child = spawn(process.execPath, [cli, ...piArgs], { stdio: "inherit", env });
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => child.kill(sig));
   }

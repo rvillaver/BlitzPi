@@ -24,3 +24,11 @@ gate enforces; the profile is about *how to work*, plus one anchoring line (this
 **How to apply:** change doctrine in the profile file, never in TS or skills. `/adopt-goodbehavior` re-copies shipped
 skills+profile, keeping files the project edited (sha256 manifest in `.blitz/goodbehavior/manifest.json`).
 `/unadopt-goodbehavior` removes them (memory kept unless asked). Repo memory lives in `.blitz/goodbehavior/memory/`.
+
+**Verified end to end (2026-08-29, v1.1.0):** installed via the public `curl | sh` into a fresh HOME (real `~/.pi` login
+linked in), new workspace, the user's design-doc prompt as `blitzpi -p "/skill:audit-goodbehavior <doc>"` then
+`/skill:roadmap-goodbehavior`: turn 1 answered "0% built; reference = …" + wrote `docs/audit/00-index.md` (27 s, no
+questions); turn 2 wrote `DESIGN.md`, `ROADMAP.md`, `PRODUCTION-BACKLOG.md` (1m34). Audit trail: 0 reads outside the
+workspace across both turns. **Method:** `/skill:<name>` expansion works in print mode; prove injection with a
+`before_agent_start` dump extension (`-e dump.ts`) reading `event.systemPrompt`, not by asking the model (a two-part
+question got "NONE" while the section was present); prove non-roaming from `~/.blitz/audit/*.jsonl` zones.
