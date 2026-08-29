@@ -21,6 +21,8 @@ export interface BlitzConfig {
   };
   governance: {
     enabled: boolean;
+    /** enforce = a denied model call is stopped (the run is aborted); monitor = recorded and shown only. */
+    mode: "enforce" | "monitor";
     provider: "local" | "custom" | "openai-moderation" | "guardrails";
     model_whitelist?: string[];
     api_endpoint?: string;
@@ -61,6 +63,7 @@ const DEFAULT_CONFIG: BlitzConfig = {
   },
   governance: {
     enabled: true,
+    mode: "enforce",
     provider: (process.env.BLITZ_GOVERNANCE_PROVIDER as any) || "local",
     api_endpoint: process.env.BLITZ_GOVERNANCE_API,
     openai_api_key: process.env.OPENAI_API_KEY,
@@ -146,6 +149,7 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
     },
     governance: {
       enabled: config.governance?.enabled ?? DEFAULT_CONFIG.governance.enabled,
+      mode: config.governance?.mode === "monitor" ? "monitor" : "enforce",
       provider: (config.governance?.provider as any) ?? DEFAULT_CONFIG.governance.provider,
       model_whitelist: (config.governance?.model_whitelist as string[]) ?? DEFAULT_CONFIG.governance.model_whitelist,
       api_endpoint: (config.governance?.api_endpoint as string) ?? DEFAULT_CONFIG.governance.api_endpoint,

@@ -88,7 +88,7 @@ you choose otherwise).
 | Access profiles | `tool_call` hook → block | allow/deny tools per `.blitz/profiles/*.yaml` |
 | File sandbox | `tool_call` hook → block | confine read/write/edit/grep/find/ls to the workspace |
 | Bash sandbox | `bash` tool override + guard | confine shell — see below |
-| Governance gate | `input` event → block | stop a prompt (injection / disallowed model) before a turn; audit every provider call |
+| Governance gate | `input` event → block; `before_provider_request` → abort | stop a prompt (injection / disallowed model) before a turn; check every model call with the governance provider and **stop** denied ones (`governance.mode: enforce`, default) or only record them (`monitor`) |
 | Threat detection | `tool_call` hook → block | pattern-based injection/PII detection on tool inputs |
 | Audit trail | all layers | JSONL decisions in `.blitz/audit/` |
 

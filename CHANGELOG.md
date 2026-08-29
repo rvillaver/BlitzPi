@@ -2,6 +2,13 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.1.4 — 2026-08-30
+
+### Governance
+- **Per-call governance now enforces.** `governance.mode: enforce` (the default) stops a denied model call: the run's abort signal fires before the request is sent, the call never happens, the turn ends with a chat notice, and the audit entry carries `stage: provider_request, enforced: true`. `governance.mode: monitor` keeps the old behaviour (recorded and shown, call goes out). Provider outages (`api_error`) are never enforced — an unreachable governance service must not silently stop work; they are shown and counted instead.
+- The input gate (before a turn) is unchanged and still enforces prompt-injection / model-whitelist decisions.
+- Denial notices are displayed without being sent to the model (a notice the model can see re-triggers a turn and loops).
+
 ## 1.1.3 — 2026-08-30
 
 ### Governance

@@ -26,9 +26,9 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
     {
       key: "governance",
       name: "Per-call governance",
-      mode: gov.enabled ? "monitor" : "off",
-      detail: `provider ${gov.provider}; every model call is checked and audited — Pi's hook cannot block a call, so denials are shown, not enforced (provider wrapper pending)`,
-      configured: ".blitz/blitz.config.yaml governance.provider",
+      mode: gov.enabled ? gov.mode : "off",
+      detail: `provider ${gov.provider}; every model call is checked and audited${gov.mode === "enforce" ? "; a denied call is stopped (the run is aborted before the request is sent)" : "; denials are shown and audited, the call still goes out"}`,
+      configured: ".blitz/blitz.config.yaml governance.mode (enforce | monitor), governance.provider",
     },
     {
       key: "profiles",
@@ -85,9 +85,9 @@ export function summaryLine(config: BlitzConfig, backendName: string | null): st
 export function governanceStatus(config: BlitzConfig): string {
   const g = stats.governance;
   if (!config.governance.enabled) return "🛡 governance off";
-  if (g.lastDenial) return `🛡 DENIED — ${g.lastDenial}`;
+  if (g.lastDenial) return `🛡 ${config.governance.mode === "enforce" ? "STOPPED" : "DENIED"} — ${g.lastDenial}`;
   if (g.unreachable > 0 && g.checked === 0) return `🛡 governance ${config.governance.provider} unreachable`;
-  return `🛡 ${config.governance.provider} · monitor`;
+  return `🛡 ${config.governance.provider} · ${config.governance.mode}`;
 }
 
 export function panel(config: BlitzConfig, backendName: string | null, lastAudit: string[]): string {

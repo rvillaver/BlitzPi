@@ -5,29 +5,31 @@ import fs from "fs"; import os from "os"; import path from "path";
 
 const cfg: any = {
   threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" },
-  sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, provider: "local", model_whitelist: [] }, goodbehavior: { profile: "development" }, threat_api: { enabled: false },
+  sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local", model_whitelist: [] }, goodbehavior: { profile: "development" }, threat_api: { enabled: false },
 };
 
 describe("security status model", () => {
   test("one vocabulary: per-call governance is monitor, gates are enforce, pinned bash is monitor", () => {
     const L = Object.fromEntries(layers(cfg, "bwrap").map((l) => [l.key, l.mode]));
-    expect(L).toEqual({ input: "enforce", governance: "monitor", profiles: "enforce", sandbox: "enforce", bash: "enforce", threat: "enforce", audit: "enforce" });
+    expect(L).toEqual({ input: "enforce", governance: "enforce", profiles: "enforce", sandbox: "enforce", bash: "enforce", threat: "enforce", audit: "enforce" });
+    expect(layers({ ...cfg, governance: { ...cfg.governance, mode: "monitor" } }, "bwrap").find((l) => l.key === "governance")!.mode).toBe("monitor");
     expect(layers(cfg, "pinned").find((l) => l.key === "bash")!.mode).toBe("monitor");
     expect(layers({ ...cfg, governance: { ...cfg.governance, enabled: false } }, "bwrap").find((l) => l.key === "governance")!.mode).toBe("off");
   });
   test("summary line names provider, backend, profile, tier with modes", () => {
-    expect(summaryLine(cfg, "bwrap")).toBe("governance local (monitor) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · audit (enforce)");
+    expect(summaryLine(cfg, "bwrap")).toBe("governance local (enforce) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · audit (enforce)");
   });
   test("status bar is steady when fine and loud on a denial", () => {
     stats.governance.lastDenial = "";
-    expect(governanceStatus(cfg)).toBe("🛡 local · monitor");
+    expect(governanceStatus(cfg)).toBe("🛡 local · enforce");
     stats.governance.lastDenial = "model not whitelisted";
-    expect(governanceStatus(cfg)).toBe("🛡 DENIED — model not whitelisted");
+    expect(governanceStatus(cfg)).toBe("🛡 STOPPED — model not whitelisted");
+    expect(governanceStatus({ ...cfg, governance: { ...cfg.governance, mode: "monitor" } })).toBe("🛡 DENIED — model not whitelisted");
     stats.governance.lastDenial = "";
   });
   test("panel explains the legend, every layer, counters and where each is configured", () => {
     const p = panel(cfg, "bwrap", ['{"timestamp":"2026-08-30T00:00:01.000Z","type":"file_operation","tool":"read","zone":"project","allowed":true}']);
-    for (const s of ["enforce = the runtime blocks", "Per-call governance", "monitor", "provider wrapper pending", ".blitz/profiles/<name>.yaml", "Model calls checked:", "Blocked:", "Last decisions:"]) expect(p).toContain(s);
+    for (const s of ["enforce = the runtime blocks", "Per-call governance", "the run is aborted", ".blitz/profiles/<name>.yaml", "Model calls checked:", "Blocked:", "Last decisions:"]) expect(p).toContain(s);
   });
 });
 

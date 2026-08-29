@@ -173,14 +173,15 @@ export function setupGovernance(
       if (ctx.hasUI) ctx.ui.notify(`Blocked by governance: ${verdict.reason}`, "error");
       else console.error(`[BLOCKED] governance: ${verdict.reason}`);
       stats.blocked.input++;
-    return { action: "handled" as const };
+      return { action: "handled" as const };
     }
     return { action: "continue" as const };
   });
 
-  // before_provider_request cannot deny a request (Pi treats its result as a payload rewrite and
-  // swallows thrown errors — audit 12.1). Until the provider-wrapper gate (ROADMAP 2.2) lands this
-  // checkpoint is AUDIT-ONLY: it records the decision and shows it in the UI, never throws.
+  // before_provider_request cannot deny a request by itself (its return value is a payload rewrite and
+  // thrown errors are swallowed). Enforcement = ctx.abort(): the agent run's signal is aborted before the
+  // request goes out, the model call never happens, and the turn stops with a chat message. In monitor
+  // mode the decision is recorded and shown only.
   pi.on("before_provider_request", async (event, ctx) => {
     const payload = event.payload as Record<string, unknown>;
     const model = (payload.model as string) || "unknown";
@@ -202,6 +203,8 @@ export function setupGovernance(
       },
     };
     const decision: GovernanceResponse = await governanceProvider.check(governanceRequest);
+    const denied = !decision.approved && decision.threat_category !== "api_error";
+    const enforce = denied && config.governance.mode === "enforce";
     stats.governance.checked++;
     if (!decision.approved) {
       if (decision.threat_category === "api_error") stats.governance.unreachable++;
@@ -211,8 +214,9 @@ export function setupGovernance(
       type: "governance_check",
       run_id: runId,
       model,
+      stage: "provider_request",
       approved: decision.approved,
-      enforced: false,
+      enforced: enforce,
       reason: decision.reason,
       threat_category: decision.threat_category,
     });
@@ -220,15 +224,26 @@ export function setupGovernance(
     // Quiet when fine (steady text), loud on an event; a denial is also posted to the chat because the
     // status bar is easy to miss — and it says what would have happened under `enforce`.
     status(governanceStatus(config));
-    if (!decision.approved && decision.threat_category !== "api_error" && ctx.hasUI) {
-      ctx.ui.notify(`Governance (${governanceProvider.name}) denied this model call: ${decision.reason}`, "error");
-      pi.sendMessage({
-        customType: "blitz-governance",
-        content: `⚠ Governance denied a model call (${governanceProvider.name}): ${decision.reason}\nMode is monitor — the call went through and was audited. Under enforce it would have been stopped.`,
-        display: true,
-      });
+    if (denied) {
+      const content = enforce
+        ? `⛔ Governance (${governanceProvider.name}) stopped a model call: ${decision.reason}\nThe request was not sent and this turn ended. Adjust .blitz/blitz.config.yaml governance.* or ask the governance owner.`
+        : `⚠ Governance (${governanceProvider.name}) denied a model call: ${decision.reason}\nMode is monitor — the call went through and was audited. Under enforce it would have been stopped.`;
+      if (ctx.hasUI) ctx.ui.notify(`Governance ${enforce ? "stopped" : "denied"} a model call: ${decision.reason}`, "error");
+      else console.error(`[GOVERNANCE ${enforce ? "STOPPED" : "DENIED"}] ${decision.reason}`);
+      // A transcript entry the model never sees: pi.sendMessage() would enter the LLM context and re-trigger
+      // a turn — with a denying policy that is an infinite loop (observed: 4195 denials in one run).
+      pi.appendEntry("blitz-governance", { text: content, enforced: enforce, reason: decision.reason });
+      if (enforce) { stats.blocked.input++; ctx.abort(); }
     }
   });
+
+  try {
+    pi.registerEntryRenderer("blitz-governance", (entry: any, _opts: any, theme: any) => {
+      const { Text } = require("@earendil-works/pi-tui");
+      const t = String(entry.data?.text ?? "");
+      return new Text(theme.fg(entry.data?.enforced ? "error" : "warning", t));
+    });
+  } catch { /* renderer unavailable (print mode / older Pi): the notify + audit entry still carry the decision */ }
 
   // A rejected credential is not a governance event, but it is the most confusing failure a user meets.
   pi.on("after_provider_response", async (event: any, ctx) => {
