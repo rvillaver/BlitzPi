@@ -8,6 +8,7 @@ import { classifyZone, type Zone, type ZoneRoots } from "./zones";
 import { decide, severity, permissionKey, type Action, type Level, PermissionMemory } from "./permissions";
 import type { CmdTarget } from "./bash-guard";
 import type { AuditLogger } from "./audit";
+import { redactCommand } from "./feeds/secrets";
 
 export interface GateResult { allow: boolean; reason: string; zone: Zone; level: Level; confined: boolean; }
 
@@ -78,6 +79,6 @@ export class PermissionGate {
   }
 
   private log(action: Action, zone: Zone, target: string, allowed: boolean, via: string, tool?: string): void {
-    this.audit.log({ type: "permission_check", action, zone, target: String(target).slice(0, 300), allowed, via, tool });
+    this.audit.log({ type: "permission_check", action, zone, target: redactCommand(String(target)).slice(0, 300), allowed, via, tool });
   }
 }

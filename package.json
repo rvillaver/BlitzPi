@@ -52,7 +52,8 @@
     "pi-cc-extensions": "^0.8.68",
     "pi-commandcode-provider": "^0.6.0",
     "pi-mcp-adapter": "^2.27.0",
-    "pi-web-access": "^0.26.0"
+    "pi-web-access": "^0.26.0",
+    "smol-toml": "^1.8.0"
   },
   "patchedDependencies": {
     "@earendil-works/pi-coding-agent@0.84.3": "patches/@earendil-works%2Fpi-coding-agent@0.84.3.patch"

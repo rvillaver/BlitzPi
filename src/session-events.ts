@@ -45,6 +45,10 @@ export function classify(entry: Record<string, unknown>): SessionEvent | null {
       if (!mal.length) return null; // clean installs are counted, not listed
       return { time, kind: "feed", label: mal.join(", "), allowed: entry.allowed !== false, detail: s(`malicious package (${entry.mode}) — ${entry.command ?? ""}`) };
     }
+    case "feed_secret": {
+      const hits = (entry.hits as { id: string; sample: string }[] | undefined) ?? [];
+      return { time, kind: "feed", label: hits.map((h) => `${h.id} ${h.sample}`).join(", "), allowed: entry.allowed !== false, detail: s(`credential in command (${entry.mode})`) };
+    }
     case "feed_unreachable":
       return { time, kind: "feed", label: s((entry.packages as string[] | undefined)?.join(", ")), allowed: true, detail: s(`feed unreachable, installed unchecked: ${entry.error ?? ""}`) };
     case "compaction":

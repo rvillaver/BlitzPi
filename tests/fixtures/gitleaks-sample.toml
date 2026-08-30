@@ -1,0 +1,178 @@
+# This file has been auto-generated. Do not edit manually.
+# If you would like to contribute new rules, please use
+# cmd/generate/config/main.go and follow the contributing guidelines
+# at https://github.com/gitleaks/gitleaks/blob/master/CONTRIBUTING.md
+#
+# How the hell does secret scanning work? Read this:
+#   https://lookingatcomputer.substack.com/p/regex-is-almost-all-you-need
+#
+# This is the default gitleaks configuration file.
+# Rules and allowlists are defined within this file.
+# Rules instruct gitleaks on what should be considered a secret.
+# Allowlists instruct gitleaks on what is allowed, i.e. not a secret.
+
+title = "gitleaks config"
+
+# minVersion indicates the minimum Gitleaks version required to use this config.
+# If the running version is older, a warning will be logged and not all
+# config-enabled features are guaranteed to work.
+minVersion = "v8.25.0"
+
+# TODO: change to [[allowlists]]
+[allowlist]
+description = "global allow lists"
+paths = [
+    '''gitleaks\.toml''',
+    '''(?i)\.(?:bmp|gif|jpe?g|png|svg|tiff?)$''',
+    '''(?i)\.(?:eot|[ot]tf|woff2?)$''',
+    '''(?i)\.(?:docx?|xlsx?|pdf|bin|socket|vsidx|v2|suo|wsuo|.dll|pdb|exe|gltf)$''',
+    '''go\.(?:mod|sum|work(?:\.sum)?)$''',
+    '''(?:^|/)vendor/modules\.txt$''',
+    '''(?:^|/)vendor/(?:github\.com|golang\.org/x|google\.golang\.org|gopkg\.in|istio\.io|k8s\.io|sigs\.k8s\.io)(?:/.*)?$''',
+    '''(?:^|/)gradlew(?:\.bat)?$''',
+    '''(?:^|/)gradle\.lockfile$''',
+    '''(?:^|/)mvnw(?:\.cmd)?$''',
+    '''(?:^|/)\.mvn/wrapper/MavenWrapperDownloader\.java$''',
+    '''(?:^|/)node_modules(?:/.*)?$''',
+    '''(?:^|/)(?:deno\.lock|npm-shrinkwrap\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$''',
+    '''(?:^|/)bower_components(?:/.*)?$''',
+    '''(?:^|/)(?:angular|bootstrap|jquery(?:-?ui)?|plotly|swagger-?ui)[a-zA-Z0-9.-]*(?:\.min)?\.js(?:\.map)?$''',
+    '''(?:^|/)javascript\.json$''',
+    '''(?:^|/)(?:Pipfile|poetry)\.lock$''',
+    '''(?i)(?:^|/)(?:v?env|virtualenv)/lib(?:64)?(?:/.*)?$''',
+    '''(?i)(?:^|/)(?:lib(?:64)?/python[23](?:\.\d{1,2})+|python/[23](?:\.\d{1,2})+/lib(?:64)?)(?:/.*)?$''',
+    '''(?i)(?:^|/)[a-z0-9_.]+-[0-9.]+\.dist-info(?:/.+)?$''',
+    '''(?:^|/)vendor/(?:bundle|ruby)(?:/.*?)?$''',
+    '''\.gem$''',
+    '''verification-metadata\.xml''',
+    '''Database.refactorlog''',
+    '''(?:^|/)\.git$''',
+]
+regexes = [
+    '''(?i)^true|false|null$''',
+    '''^(?i:a+|b+|c+|d+|e+|f+|g+|h+|i+|j+|k+|l+|m+|n+|o+|p+|q+|r+|s+|t+|u+|v+|w+|x+|y+|z+|\*+|\.+)$''',
+    '''^\$(?:\d+|{\d+})$''',
+    '''^\$(?:[A-Z_]+|[a-z_]+)$''',
+    '''^\${(?:[A-Z_]+|[a-z_]+)}$''',
+    '''^\{\{[ \t]*[\w ().|]+[ \t]*}}$''',
+    '''^\$\{\{[ \t]*(?:(?:env|github|secrets|vars)(?:\.[A-Za-z]\w+)+[\w "'&./=|]*)[ \t]*}}$''',
+    '''^%(?:[A-Z_]+|[a-z_]+)%$''',
+    '''^%[+\-# 0]?[bcdeEfFgGoOpqstTUvxX]$''',
+    '''^\{\d{0,2}}$''',
+    '''^@(?:[A-Z_]+|[a-z_]+)@$''',
+    '''^/Users/(?i)[a-z0-9]+/[\w .-/]+$''',
+    '''^/(?:bin|etc|home|opt|tmp|usr|var)/[\w ./-]+$''',
+]
+stopwords = [
+    "014df517-39d1-4453-b7b3-9930c563627c",
+    "abcdefghijklmnopqrstuvwxyz",
+]
+
+[[rules]]
+id = "1password-secret-key"
+description = "Uncovered a possible 1Password secret key, potentially compromising access to secrets in vaults."
+regex = '''\bA3-[A-Z0-9]{6}-(?:(?:[A-Z0-9]{11})|(?:[A-Z0-9]{6}-[A-Z0-9]{5}))-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}\b'''
+entropy = 3.8
+keywords = ["a3-"]
+
+[[rules]]
+id = "1password-service-account-token"
+description = "Uncovered a possible 1Password service account token, potentially compromising access to secrets in vaults."
+regex = '''ops_eyJ[a-zA-Z0-9+/]{250,}={0,3}'''
+entropy = 4
+keywords = ["ops_"]
+
+[[rules]]
+id = "adafruit-api-key"
+description = "Identified a potential Adafruit API Key, which could lead to unauthorized access to Adafruit services and sensitive data exposure."
+regex = '''(?i)[\w.-]{0,50}?(?:adafruit)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-z0-9_-]{32})(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["adafruit"]
+
+[[rules]]
+id = "adobe-client-id"
+description = "Detected a pattern that resembles an Adobe OAuth Web Client ID, posing a risk of compromised Adobe integrations and data breaches."
+regex = '''(?i)[\w.-]{0,50}?(?:adobe)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-f0-9]{32})(?:[\x60'"\s;]|\\[nr]|$)'''
+entropy = 2
+keywords = ["adobe"]
+
+[[rules]]
+id = "adobe-client-secret"
+description = "Discovered a potential Adobe Client Secret, which, if exposed, could allow unauthorized Adobe service access and data manipulation."
+regex = '''\b(p8e-(?i)[a-z0-9]{32})(?:[\x60'"\s;]|\\[nr]|$)'''
+entropy = 2
+keywords = ["p8e-"]
+
+[[rules]]
+id = "age-secret-key"
+description = "Discovered a potential Age encryption tool secret key, risking data decryption and unauthorized access to sensitive information."
+regex = '''AGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}'''
+keywords = ["age-secret-key-1"]
+
+[[rules]]
+id = "airtable-api-key"
+description = "Uncovered a possible Airtable API Key, potentially compromising database access and leading to data leakage or alteration."
+regex = '''(?i)[\w.-]{0,50}?(?:airtable)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-z0-9]{17})(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["airtable"]
+
+[[rules]]
+id = "airtable-personnal-access-token"
+description = "Uncovered a possible Airtable Personal AccessToken, potentially compromising database access and leading to data leakage or alteration."
+regex = '''\b(pat[[:alnum:]]{14}\.[a-f0-9]{64})\b'''
+keywords = ["airtable"]
+
+[[rules]]
+id = "algolia-api-key"
+description = "Identified an Algolia API Key, which could result in unauthorized search operations and data exposure on Algolia-managed platforms."
+regex = '''(?i)[\w.-]{0,50}?(?:algolia)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-z0-9]{32})(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["algolia"]
+
+[[rules]]
+id = "alibaba-access-key-id"
+description = "Detected an Alibaba Cloud AccessKey ID, posing a risk of unauthorized cloud resource access and potential data compromise."
+regex = '''\b(LTAI(?i)[a-z0-9]{20})(?:[\x60'"\s;]|\\[nr]|$)'''
+entropy = 2
+keywords = ["ltai"]
+
+[[rules]]
+id = "alibaba-secret-key"
+description = "Discovered a potential Alibaba Cloud Secret Key, potentially allowing unauthorized operations and data access within Alibaba Cloud."
+regex = '''(?i)[\w.-]{0,50}?(?:alibaba)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([a-z0-9]{30})(?:[\x60'"\s;]|\\[nr]|$)'''
+entropy = 2
+keywords = ["alibaba"]
+
+[[rules]]
+id = "anthropic-admin-api-key"
+description = "Detected an Anthropic Admin API Key, risking unauthorized access to administrative functions and sensitive AI model configurations."
+regex = '''\b(sk-ant-admin01-[a-zA-Z0-9_\-]{93}AA)(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["sk-ant-admin01"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Identified an Anthropic API Key, which may compromise AI assistant integrations and expose sensitive data to unauthorized access."
+regex = '''\b(sk-ant-api03-[a-zA-Z0-9_\-]{93}AA)(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["sk-ant-api03"]
+
+[[rules]]
+id = "artifactory-api-key"
+description = "Detected an Artifactory api key, posing a risk unauthorized access to the central repository."
+regex = '''\bAKCp[A-Za-z0-9]{69}\b'''
+entropy = 4.5
+keywords = ["akcp"]
+
+[[rules]]
+id = "aws-access-token"
+description = "Identified a pattern that may indicate AWS credentials, risking unauthorized cloud resource access and data breaches on AWS platforms."
+regex = '''\b((?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16})\b'''
+entropy = 3
+keywords = [
+    "a3t",
+    "akia",
+    "asia",
+    "abia",
+    "acca",
+]
+[[rules.allowlists]]
+regexes = [
+    '''.+EXAMPLE$''',
+]
+

@@ -5,6 +5,11 @@ import { listProjects, pruneProjects, forgetProject, renderProjects } from "./pr
 import { buildReport, renderReport } from "./report";
 import { parseInstalls, type PackageRef } from "./feeds/packages";
 import { OsvClient, maliciousOf } from "./feeds/osv";
+import { FeedStore, FEEDS, feedsDir } from "./feeds/store";
+import { scanSecrets } from "./feeds/secrets";
+import { setupAudit } from "./audit";
+import { initializeCaller } from "./caller";
+import { loadConfig } from "./config";
 
 /**
  * R3.2: CLI command for querying audit trail
@@ -252,9 +257,66 @@ export async function handleReportCommand(args: string[]): Promise<void> {
   console.log(format === "json" ? JSON.stringify(r, null, 2) : renderReport(r));
 }
 
+function cliAudit() { // the CLI's own audit session: feed updates/rollbacks are governance events too
+  try { return setupAudit(initializeCaller(), loadConfig()); } catch { return undefined; }
+}
+const shortSha = (s?: string) => (s ? s.slice(0, 12) : "—");
+
 export async function handleFeedsCommand(args: string[]): Promise<void> {
   const sub = args[0];
   const client = new OsvClient();
+  const store = new FeedStore();
+  const version = (() => { try { return require(path.join(__dirname, "..", "package.json")).version as string; } catch { return undefined; } })();
+  if (sub === "opt-in") {
+    store.optIn();
+    console.log("[Blitz] Security feeds: opted in. Installing…");
+    args = ["update"];
+  }
+  if (sub === "opt-out") {
+    const removed = store.optOut(args.includes("--remove"));
+    console.log(`[Blitz] Security feeds: opted out${removed.length ? `; removed ${removed.join(", ")}` : args.includes("--remove") ? "" : " (installed feeds kept on disk, inactive; add --remove to delete them)"}.`);
+    return;
+  }
+  if (args[0] === "update") {
+    if (!store.optedIn()) { console.log("[Blitz] Security feeds are opt-in and you have not opted in. Run: blitzpi feeds opt-in"); process.exitCode = 2; return; }
+    const names = args.slice(1).filter((a) => !a.startsWith("-"));
+    const force = args.includes("--force");
+    const audit = cliAudit();
+    let failed = 0;
+    for (const f of names.length ? names : FEEDS.map((x) => x.name)) {
+      const ev = await store.update(f, { force, version });
+      audit?.log(ev as any);
+      if (ev.type === "feed_update") console.log(`  ${f.padEnd(10)} ${ev.changed ? "updated " : "unchanged"}  ${ev.rules} rules${ev.skipped ? ` (${ev.skipped} skipped)` : ""}  ${(ev.bytes / 1024).toFixed(0)} KB  sha256 ${shortSha(ev.to)}${ev.changed && ev.from ? `  (was ${shortSha(ev.from)} — blitzpi feeds rollback ${f})` : ""}`);
+      else if (ev.type === "feed_update_failed") { failed++; console.log(`  ${f.padEnd(10)} FAILED    ${ev.error}${ev.kept ? `  (previous feed ${shortSha(ev.kept)} kept)` : ""}`); }
+    }
+    await audit?.close();
+    if (failed) process.exitCode = 1;
+    return;
+  }
+  if (sub === "rollback") {
+    const f = args[1]; if (!f) { console.log("Usage: blitzpi feeds rollback <feed>"); return; }
+    const audit = cliAudit(); const ev = store.rollback(f); audit?.log(ev as any); await audit?.close();
+    console.log(ev.type === "feed_rollback" ? `  ${f}: rolled back ${shortSha(ev.from)} → ${shortSha(ev.to)} (run rollback again to return)` : `  ${f}: ${ev.type === "feed_update_failed" ? ev.error : "unexpected result"}`);
+    if (ev.type !== "feed_rollback") process.exitCode = 1;
+    return;
+  }
+  if (sub === "list") {
+    console.log(`Security feeds (${store.optedIn() ? "opted in" : "NOT opted in — blitzpi feeds opt-in"}), ${feedsDir()}`);
+    for (const f of store.list()) {
+      const m = f.manifest;
+      console.log(`  ${f.name.padEnd(10)} ${f.installed ? "installed" : "absent   "}  ${m ? `${m.rules} rules${m.skipped ? ` (${m.skipped} skipped)` : ""}, fetched ${m.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(m.sha256)}${f.previous ? `, previous ${shortSha(f.previous.sha256)}` : ""}` : ""}\n             ${f.description}\n             source: ${FEEDS.find((d) => d.name === f.name)?.source}`);
+    }
+    return;
+  }
+  if (sub === "scan") {
+    const text = args.slice(1).join(" ");
+    const rules = store.rules("secrets");
+    if (!rules) { console.log("[Blitz] secrets feed not installed (blitzpi feeds opt-in)"); process.exitCode = 2; return; }
+    const hits = scanSecrets(text, rules);
+    console.log(hits.length ? hits.map((h) => `  ✗ ${h.id} [${h.severity}] ${h.sample} — ${h.description}`).join("\n") : "  ✓ no credential found");
+    if (hits.length) process.exitCode = 3;
+    return;
+  }
   if (sub === "check") {
     const refs: PackageRef[] = [];
     for (const a of args.slice(1)) {
@@ -273,9 +335,10 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
   if (sub === "clear-cache") { client.clearCache(); console.log("[Blitz] OSV cache cleared."); return; }
   if (sub === "parse") { console.log(JSON.stringify(parseInstalls(args.slice(1).join(" ")))); return; }
   if (sub === "--help" || sub === "-h") {
-    console.log("Usage: blitzpi feeds [status]            sources and cache state\n       blitzpi feeds check <pkg…>        ask OSV without installing (npm default; pypi:<name>, crates.io:<name>, rubygems:<name>, go:<path>)\n       blitzpi feeds parse <command>     which packages a shell command would install\n       blitzpi feeds clear-cache");
+    console.log("Usage: blitzpi feeds [status]            sources, opt-in state, cache\n       blitzpi feeds opt-in | opt-out [--remove]   security feeds are an opt-in download, separate from platform updates\n       blitzpi feeds update [feed…] [--force]      fetch + compile (previous version kept)\n       blitzpi feeds list                          installed feeds, rule counts, hashes\n       blitzpi feeds rollback <feed>               back to the previous version of a feed\n       blitzpi feeds scan <text>                   test the secrets rules against a string\n       blitzpi feeds check <pkg…>        ask OSV without installing (npm default; pypi:<name>, crates.io:<name>, rubygems:<name>, go:<path>)\n       blitzpi feeds parse <command>     which packages a shell command would install\n       blitzpi feeds clear-cache");
     return;
   }
   const c = client.cacheStats();
-  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command; known-malicious (MAL-*) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  next       gitleaks (secrets), Sigma (command shapes), URLhaus (URLs) — see docs/plans/ROADMAP.md`);
+  const sec = store.manifest("secrets");
+  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  next       Sigma (command shapes), URLhaus (URLs) — see docs/plans/ROADMAP.md`);
 }

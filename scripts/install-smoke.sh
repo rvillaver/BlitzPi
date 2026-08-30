@@ -23,6 +23,15 @@ P="$(sh "$ROOT/install.sh" --print-paths)"; APP="$(printf '%s' "$P" | sed -n 's/
 grep -q "BlitzPi" "$HOME/.zshrc" 2>/dev/null && ok "PATH line added to ~/.zshrc" || no "no PATH line in ~/.zshrc"
 [ -e "$HOME/.bun" ] && no "~/.bun was created (cache leaked outside the app dir)" || ok "nothing outside the app dir (no ~/.bun)"
 
+echo "== security feeds are opt-in (install ran with --yes and no tty answer → not installed)"
+[ ! -e "$HOME/.blitz/feeds/opt-in" ] && ok "no opt-in without consent" || no "feeds opted in without consent"
+grep -q "Security feeds (optional)" "$HOME/install.log" && ok "installer offered the feeds" || no "installer did not mention feeds"
+FS="$("$SHIM" feeds status </dev/null 2>&1)"; printf '%s' "$FS" | grep -q "NOT opted in" && ok "blitzpi feeds status says not opted in" || no "feeds status: $FS"
+"$SHIM" feeds update </dev/null >/dev/null 2>&1 && no "feeds update ran without opt-in" || ok "feeds update refuses without opt-in"
+"$SHIM" feeds opt-in </dev/null >"$HOME/optin.log" 2>&1 && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "blitzpi feeds opt-in downloads + compiles the secrets feed ($(grep -o '[0-9]* rules' "$HOME/optin.log" | head -1))" || { no "opt-in failed"; cat "$HOME/optin.log"; }
+"$SHIM" feeds scan 'export AWS_SECRET=AKIAZZ7XQ2BR4TSTKEYA' </dev/null 2>&1 | grep -q "aws-access-token" && ok "feeds scan finds an AWS key" || no "feeds scan missed the AWS key"
+"$SHIM" feeds opt-out </dev/null >/dev/null 2>&1 && [ ! -e "$HOME/.blitz/feeds/opt-in" ] && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "opt-out keeps files, drops consent" || no "opt-out state wrong"
+
 echo "== run it (no PATH, no bun on PATH, from a foreign cwd)"
 D="$(mktemp -d)"; V="$(cd "$D" && env -i HOME="$HOME" PATH=/usr/bin:/bin "$SHIM" --version </dev/null 2>&1)"
 printf '%s' "$V" | grep -q "^blitzpi .* (pi 0.84.3, bun " && ok "blitzpi --version: $V" || no "--version: $V"
@@ -36,7 +45,11 @@ echo "== update to the same local source (installs a second copy, switches curre
 # bump the version in a copy so it looks like a new release
 SRC2="$(mktemp -d)"; (cd "$ROOT" && tar --exclude=./node_modules --exclude=./.git --exclude=./runs -cf - .) | tar -C "$SRC2" -xf -
 sed -i.bak 's/"version": "\([0-9.]*\)"/"version": "\1-next"/' "$SRC2/package.json" && rm -f "$SRC2/package.json.bak"
-BLITZPI_SOURCE="$SRC2" "$SHIM" update >"$HOME/update.log" 2>&1 && ok "blitzpi update exit 0" || { no "update failed"; tail -20 "$HOME/update.log"; }
+BLITZPI_SOURCE="$SRC2" "$SHIM" update --no-feeds >"$HOME/update.log" 2>&1 && ok "blitzpi update --no-feeds exit 0" || { no "update failed"; tail -20 "$HOME/update.log"; }
+grep -q "Security feeds (optional)" "$HOME/update.log" && no "update re-offered feeds although not opted in" || ok "update did not nag about feeds (not opted in)"
+touch "$HOME/.blitz/feeds/opt-in"
+BLITZPI_SOURCE="$SRC2" "$SHIM" update --no-feeds >"$HOME/update2.log" 2>&1 && grep -q "left as they are" "$HOME/update2.log" && ok "update --no-feeds leaves installed feeds alone (platform still updated)" || { no "update --no-feeds"; tail -5 "$HOME/update2.log"; }
+BLITZPI_SOURCE="$SRC2" "$SHIM" update --feeds >"$HOME/update3.log" 2>&1 && grep -qE "secrets +(updated|unchanged)" "$HOME/update3.log" && ok "update --feeds refreshes feeds after the platform" || { no "update --feeds"; tail -5 "$HOME/update3.log"; }
 readlink "$APP/current" | grep -q -- "-next" && ok "current switched to $(readlink "$APP/current")" || no "current not switched: $(readlink "$APP/current")"
 [ "$(ls "$APP/versions" | wc -l)" -eq 2 ] && ok "previous version kept for rollback ($(ls "$APP/versions" | tr '\n' ' '))" || no "versions dir: $(ls "$APP/versions")"
 "$SHIM" --version </dev/null 2>&1 | grep -q -- "-next" && ok "new version runs" || no "new version does not run"

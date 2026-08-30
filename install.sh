@@ -19,6 +19,8 @@
 # `blitzpi use <version>` switch instantly and offline. Nothing is installed system-wide.
 #
 # Options:  --update  --uninstall [--purge]  --yes  --version vX.Y.Z [--reinstall]  --print-paths
+#           --feeds | --no-feeds  (security feeds are an OPT-IN download, separate from the platform: asked at
+#           install and again at update; the platform always updates, feeds only if you say so)
 #           --list  --rollback  --use <version>  --refresh (re-place the app-level installer + command)
 # Env:      BLITZPI_HOME (app dir override), BLITZPI_SOURCE (local dir or .tar.gz instead of GitHub),
 #           BLITZPI_KEEP (installed versions to keep, default 2)
@@ -26,7 +28,7 @@ set -eu
 
 REPO="rvillaver/BlitzPi"
 BUN_VERSION="1.4.0"
-MODE="install"; YES=0; WANT_VERSION=""; PURGE=0; REINSTALL=0; USE_VERSION=""
+MODE="install"; YES=0; WANT_VERSION=""; PURGE=0; REINSTALL=0; USE_VERSION=""; FEEDS=""
 KEEP="${BLITZPI_KEEP:-2}"; case "$KEEP" in ''|*[!0-9]*) KEEP=2 ;; esac; [ "$KEEP" -ge 1 ] || KEEP=1
 for a in "$@"; do
   case "$a" in
@@ -35,6 +37,8 @@ for a in "$@"; do
     --purge) PURGE=1 ;;
     --yes|-y) YES=1 ;;
     --reinstall) REINSTALL=1 ;;
+    --feeds) FEEDS=yes ;;
+    --no-feeds) FEEDS=no ;;
     --print-paths) MODE="print-paths" ;;
     --list) MODE="list" ;;
     --refresh) MODE="refresh" ;;
@@ -291,6 +295,27 @@ for rc in "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.bashrc" "$HOME/.bash_profile"
   say "WARNING: $rc defines an 'alias blitzpi=...' from an older setup; it will shadow this install."
   say "         Delete that line, then run:  unalias blitzpi; hash -r"
 done
+# ---- security feeds: opt-in, separate from the platform ----------------------------------------
+# Platform updates always go through (above). Feeds (secrets rules etc., ~0.4 MB) are the user's choice, asked
+# here on install and again on every update; `--feeds` / `--no-feeds` answer without asking.
+FEEDS_OPT="$HOME/.blitz/feeds/opt-in"
+ask_feeds() {  # ask_feeds "question" — never auto-yes: --update sets YES=1 for the platform only.
+  # Consent needs an actual answer: Enter/yes on a terminal. EOF (no terminal, piped, CI) is "no", never "yes".
+  case "$FEEDS" in yes) return 0 ;; no) return 1 ;; esac
+  ans=""
+  if [ -r /dev/tty ]; then printf '%s [Y/n] ' "$1"; read -r ans </dev/tty || { say ""; return 1; }
+  elif [ -t 0 ]; then printf '%s [Y/n] ' "$1"; read -r ans || { say ""; return 1; }
+  else return 1; fi
+  case "${ans:-Y}" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
+}
+if [ -f "$FEEDS_OPT" ]; then
+  if ask_feeds "Security feeds are installed (blitzpi feeds list). Update them too?"; then "$SHIM" feeds update </dev/null || say "WARNING: feed update failed (previous feeds kept). Retry: blitzpi feeds update"; else say "Security feeds left as they are (blitzpi feeds update when you want them)."; fi
+elif [ "$MODE" = "install" ] || [ "$FEEDS" = yes ]; then
+  say ""; say "Security feeds (optional): detection rules pulled from public sources — credentials in commands (gitleaks),"
+  say "later command shapes (Sigma) and malicious URLs (URLhaus). ~0.4 MB, kept in ~/.blitz/feeds, updated only when you say so."
+  if ask_feeds "Install security feeds now?"; then "$SHIM" feeds opt-in </dev/null || say "WARNING: feed install failed. Retry: blitzpi feeds opt-in"; else say "Skipped. Later: blitzpi feeds opt-in"; fi
+fi
+say ""
 if [ -n "$RC_TOUCHED" ]; then say "Open a NEW terminal window, then run:  blitzpi"; else say "Run:  blitzpi"; fi
 [ "$MODE" = "install" ] && say "First time: type /login inside BlitzPi to sign in to a provider."
 exit 0

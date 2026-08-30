@@ -11,3 +11,4 @@ Durable learnings for developing BlitzPi itself (one fact per file; skim before 
 - [Per-call governance enforcement](per-call-governance-enforcement.md) — ctx.abort() in before_provider_request enforces; never sendMessage a notice (loops) — appendEntry instead
 - [Diagnostics sources & URL-as-path trap](diagnostics-sources-and-url-path-trap.md) — audit + Pi sessions + projects.json are the report sources; URLs must be stripped before path extraction or commands run unconfined; no click handlers in pi-tui
 - [Package feed: OSV API, not a dictionary](package-feed-osv-facts.md) — npm has >100k malicious entries (221 MB bundle); only MAL-* ids block; 24 h cache trap in live probes; hook before the bash gate
+- [Secrets feed traps](secrets-feed-traps.md) — gitleaks allowlists EXAMPLE keys; EOF is not consent in install.sh; 220/222 rules compile; redact commands in every audit writer

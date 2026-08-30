@@ -17,6 +17,7 @@
         "pi-commandcode-provider": "^0.6.0",
         "pi-mcp-adapter": "^2.27.0",
         "pi-web-access": "^0.26.0",
+        "smol-toml": "^1.8.0",
       },
       "devDependencies": {
         "@types/jest": "^30.0.0",

@@ -10,6 +10,7 @@ import type { AuditLogger } from "../audit";
 import { stats } from "../security-status";
 import { parseInstalls } from "./packages";
 import { OsvClient, maliciousOf, type CheckResult } from "./osv";
+import { redactCommand } from "./secrets";
 
 export function describeBlock(r: CheckResult): string {
   return maliciousOf(r).map((v) => `${v.ecosystem} "${v.name}" is a known malicious package (${v.malicious.join(", ")}${v.summary ? ": " + v.summary : ""})`).join("; ");
@@ -31,14 +32,14 @@ export function setupFeeds(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLo
     const bad = maliciousOf(r);
     if (r.unreachable) {
       stats.feeds.unreachable++;
-      audit.log({ type: "feed_unreachable", feed: "osv", packages: pkgs.map((p) => `${p.ecosystem}:${p.name}`), error: r.error, command: command.slice(0, 300) });
+      audit.log({ type: "feed_unreachable", feed: "osv", packages: pkgs.map((p) => `${p.ecosystem}:${p.name}`), error: r.error, command: redactCommand(command).slice(0, 300) });
       if (ctx.hasUI) ctx.ui.notify(`Package feed (OSV) unreachable — ${pkgs.length} package(s) installed unchecked (${r.error ?? "no response"})`, "warning");
     }
     stats.feeds.checked += r.verdicts.length;
     audit.log({
       type: "feed_check", feed: "osv", mode, allowed: !(bad.length && mode === "enforce"),
       packages: r.verdicts.map((v) => ({ ecosystem: v.ecosystem, name: v.name, malicious: v.malicious, cached: v.cached })),
-      malicious: bad.map((v) => `${v.ecosystem}:${v.name}`), command: command.slice(0, 300),
+      malicious: bad.map((v) => `${v.ecosystem}:${v.name}`), command: redactCommand(command).slice(0, 300),
     });
     if (!bad.length) return;
 

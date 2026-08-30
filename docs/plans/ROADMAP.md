@@ -56,6 +56,17 @@ audited, rollback-able (F4). Not proposed: Sigma's full `sigma_all_rules.zip` (3
 - Platform rollback never touches feeds; feed rollback never touches the platform.
 | ID | What | Gap | Sev | Verify |
 |---|---|---|---|---|
+**F4 + F5 status 2026-08-30: built and verified live — user confirmation needed.** Evidence: `blitzpi feeds opt-in` → `secrets
+updated 220 rules (2 skipped) 95 KB sha256 e163e53b…` ✔ · `feeds update` again → `unchanged` via ETag ✔ · `feeds update --force`
+then `feeds rollback secrets` ×2 → swaps recorded as `feed_update` / `feed_rollback` audit entries ✔ · `feeds scan 'curl -u
+x:ghp_…'` → `curl-auth-user`, `github-pat`, exit 3 ✔ · headless monitor: `echo token=AKIA…` ran, audit `feed_secret
+mode:monitor allowed:true hits:[aws-access-token, generic-api-key]`, `bash_exec.command` = `echo token=AKIA…************…KEYA`,
+raw key occurs **0** times in the session's audit file ✔ · headless enforce (`feeds.secrets: enforce`): `[BLOCKED] secrets feed:
+the command contains a credential — aws-access-token (AKIA…KEYA)` ✔ · TUI (pty): banner `secrets gitleaks (monitor)`, panel
+`◐ Secrets feed (gitleaks) monitor` ✔ · installer smoke **49/49**: no consent without an answer (found + fixed: EOF used to
+default to "yes"), `feeds status` says not opted in, `feeds update` refuses without opt-in, `feeds opt-in` downloads + compiles,
+`update --no-feeds` leaves feeds alone, `update --feeds` refreshes after the platform ✔ · Jest 160 passed ✔.
+
 | F4 | Feed store: `~/.blitz/feeds/<name>/` with `manifest.json` (source, ref/ETag, sha256, fetched_at) + compiled `rules.json` in one native shape; `blitzpi feeds update \| list \| rollback`; previous compiled version kept; every update audited; compile failure keeps the previous feed | AD-7 | high | update/rollback on a real source; corrupt download → previous kept |
 | F5 | gitleaks adapter → secrets in commands/URLs, per-rule ids, **monitor** | AD-3 | med | a fake AWS key in a command → audited, shown, not blocked |
 | F6 | Sigma `linux/process_creation` adapter → command shapes, **monitor**; `blitzpi report` shows hit counts per rule so FP rate is measurable before enforce | AD-1 | med | reverse-shell command → audited; a normal `bun test` → silent |

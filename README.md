@@ -72,13 +72,20 @@ blitzpi --help          # all Pi flags/subcommands pass through
 blitzpi audit           # query the audit trail (--project PATH, --type, --prune for housekeeping)
 blitzpi report [PATH]   # one project across sessions: files read/written/deleted, URLs, commands, governance, usage
 blitzpi projects        # projects managed by BlitzPi (prune | forget PATH)
-blitzpi feeds           # detection feeds: status · check <pkg…> (ask OSV without installing) · parse <command> · clear-cache
+blitzpi feeds           # detection feeds: status · opt-in | opt-out · update | list | rollback <feed> · scan <text> · check <pkg…> · parse <command>
 blitzpi demo            # capability demo (writes it from real runs)
 ```
 
 Inside the session: `/blitz-security` (every layer, its mode, this session's counters — `/blitz-security files | bash |
 governance | all` lists what the counters count), `/blitz-report` (this project's diagnostics), `/session` (Pi's usage and
 cost for this session), `/login`, `/model`, `/theme`, `/adopt-goodbehavior`, `/unadopt-goodbehavior`.
+
+**Security feeds are opt-in and separate from the platform.** The installer asks once (`Install security feeds now?`),
+and `blitzpi update` asks again only if you opted in — the platform always updates, the feeds only when you say so
+(`--feeds` / `--no-feeds` answer without a prompt). Feeds live in `~/.blitz/feeds/` (≈ 0.2 MB compiled), each with a
+manifest (source, sha256, fetched time), the previous version for `blitzpi feeds rollback <feed>`, and an audit entry per
+update. Not opted in: the feed layers show `off (not installed)`; the OSV package check and the built-in patterns keep
+working with nothing downloaded.
 
 **Where the diagnostics live** — all per user, in your home, never in the project: `~/.blitz/audit/` (one `.jsonl` per
 session, every security decision, tagged with the project), `~/.blitz/projects.json` (the projects BlitzPi has set up),
@@ -102,6 +109,7 @@ you choose otherwise).
 | Bash sandbox | `bash` tool override + guard | confine shell — see below |
 | Governance gate | `input` event → block; `before_provider_request` → abort | stop a prompt (injection / disallowed model) before a turn; check every model call with the governance provider and **stop** denied ones (`governance.mode: enforce`, default) or only record them (`monitor`) |
 | Threat detection | `tool_call` hook → block | pattern-based injection/PII detection on tool inputs |
+| Secrets feed (gitleaks) | `tool_call` hook → record / block | **opt-in download** (`blitzpi feeds opt-in`): the 220 gitleaks rules, compiled locally; a credential literal in a shell command is recorded and shown (`feeds.secrets: monitor`, default) or blocked (`enforce`). The secret is never written to the audit trail — flagged credentials are redacted in every audited command |
 | Package feed (OSV) | `tool_call` hook → block | every package an install command names (`bun add`, `npm i`, `npx`, `pip install`, `cargo add`, `gem install`, `go get`) is checked against [osv.dev](https://osv.dev) before it runs; a known-malicious package (OSV `MAL` id) is blocked (`feeds.packages: enforce`, default) or recorded and shown (`monitor`). Advisories on legitimate packages (GHSA/CVE) never block. Answers are cached 24 h in `~/.blitz/feeds/`; an unreachable feed never blocks — the outage is audited |
 | Audit trail | all layers | JSONL decisions in `.blitz/audit/` |
 

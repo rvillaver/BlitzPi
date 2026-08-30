@@ -1,4 +1,5 @@
 import fs from "fs"; import os from "os"; import path from "path";
+process.env.BLITZ_FEEDS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-nofeeds-")); // status must not depend on this machine's opt-in
 import { extractDeletes, extractUrls, bashFacts } from "../src/bash-facts";
 import { classify, recordSessionEvent, sessionEvents, clearSessionEvents, fileSummary, renderEvents } from "../src/session-events";
 import { touchProject, listProjects, pruneProjects, forgetProject, renderProjects, loadRegistry } from "../src/projects";
@@ -8,7 +9,7 @@ import { governanceStatus, stats, panel } from "../src/security-status";
 import { pruneAudit } from "../src/cli";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "blitz-diag-"));
-const cfg: any = { threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", cache_ttl_hours: 24 } };
+const cfg: any = { threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", cache_ttl_hours: 24 } };
 
 describe("bash facts (what a command deletes / fetches, from its command line)", () => {
   test("rm variants, quoted paths, git rm, find -delete", () => {

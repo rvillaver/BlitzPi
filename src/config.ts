@@ -39,6 +39,8 @@ export interface BlitzConfig {
   feeds: {
     /** Package feed (OSV): enforce = a known-malicious package install is blocked; monitor = recorded and shown. */
     packages: "enforce" | "monitor" | "off";
+    /** Secrets feed (gitleaks rules, opt-in download): a credential literal in a command. Default monitor. */
+    secrets: "enforce" | "monitor" | "off";
     cache_ttl_hours: number;
   };
 }
@@ -83,6 +85,7 @@ const DEFAULT_CONFIG: BlitzConfig = {
   },
   feeds: {
     packages: "enforce",
+    secrets: "monitor",
     cache_ttl_hours: 24,
   },
 };
@@ -174,6 +177,7 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
     },
     feeds: {
       packages: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.packages) ?? DEFAULT_CONFIG.feeds.packages,
+      secrets: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.secrets) ?? DEFAULT_CONFIG.feeds.secrets,
       cache_ttl_hours: typeof config.feeds?.cache_ttl_hours === "number" ? config.feeds.cache_ttl_hours : DEFAULT_CONFIG.feeds.cache_ttl_hours,
     },
   };
