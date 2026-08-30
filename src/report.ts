@@ -22,6 +22,9 @@ export interface ProjectReport {
   profile_blocks: number;
   compactions: number;
   audit_entries: number;
+  /** Feed hits per rule (`secret:<id>`, `command:<id>`, `url:<host>`, `package:<eco:name>`) — the false-positive ledger. */
+  feed_hits: Record<string, number>;
+  feed_blocked: number;
 }
 
 /** Pi's session directory for a cwd (mirrors getDefaultSessionDirPath in @earendil-works/pi-coding-agent). */
@@ -84,8 +87,9 @@ export function buildReport(project: string, opts: { since?: string; auditPath?:
     bash: { commands: 0, confined: 0, unconfined: 0, blocked: 0 },
     urls: [],
     governance: { checked: 0, denied: 0, stopped: 0, unreachable: 0, denials: [] },
-    threats: 0, profile_blocks: 0, compactions: 0, audit_entries: entries.length,
+    threats: 0, profile_blocks: 0, compactions: 0, audit_entries: entries.length, feed_hits: {}, feed_blocked: 0,
   };
+  const hit = (k: string) => { r.feed_hits[k] = (r.feed_hits[k] ?? 0) + 1; };
   const read = new Set<string>(), written = new Set<string>(), blocked = new Set<string>(), deleted = new Set<string>(), urls = new Set<string>();
   for (const e of entries as (AuditEntry & Record<string, any>)[]) {
     switch (e.type) {
@@ -123,6 +127,10 @@ export function buildReport(project: string, opts: { since?: string; auditPath?:
       case "access_profile_check":
         if (e.allowed === false) r.profile_blocks++;
         break;
+      case "feed_secret": for (const h of e.hits ?? []) hit(`secret:${h.id}`); if (e.allowed === false) r.feed_blocked++; break;
+      case "feed_command": for (const h of e.hits ?? []) hit(`command:${h.id}${h.title ? " " + h.title : ""}`); if (e.allowed === false) r.feed_blocked++; break;
+      case "feed_url": for (const h of e.hits ?? []) hit(`url:${h.host ?? h.url ?? ""}`); if (e.allowed === false) r.feed_blocked++; break;
+      case "feed_check": for (const m of e.malicious ?? []) hit(`package:${m}`); if (e.allowed === false) r.feed_blocked++; break;
       case "compaction":
         r.compactions++;
         for (const p of e.read_files ?? []) read.add(String(p));
@@ -157,6 +165,10 @@ export function renderReport(r: ProjectReport): string {
     ...list("Files blocked", r.files.blocked),
     ...list("Deleted (from bash command lines, best-effort)", r.files.deleted),
     ...list("URLs (from bash command lines, best-effort)", r.urls),
+    "",
+    ...(Object.keys(r.feed_hits).length
+      ? [`  Feed hits (${r.feed_blocked} blocked) — rule: count; a rule that fires on normal work is a false positive to allowlist or keep in monitor:`, ...Object.entries(r.feed_hits).sort((a, b) => b[1] - a[1]).slice(0, 25).map(([k, n]) => `    ${String(n).padStart(4)}  ${k}`)]
+      : ["  Feed hits: none"]),
     "",
     "  Sources: ~/.blitz/audit (security decisions) · ~/.pi/agent/sessions (usage). Detail: blitzpi audit --project <path>",
   ].join("\n");

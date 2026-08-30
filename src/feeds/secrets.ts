@@ -18,9 +18,10 @@ export function scanSecrets(text: string, rules: CompiledRule[]): SecretHit[] {
   const lower = text.toLowerCase();
   const hits: SecretHit[] = [];
   for (const r of rules) {
+    if (!r.regex) continue;
     if (r.keywords?.length && !r.keywords.some((k) => lower.includes(k))) continue;
     let m: RegExpExecArray | null;
-    try { m = new RegExp(r.regex, r.flags).exec(text); } catch { continue; }
+    try { m = new RegExp(r.regex, r.flags ?? "").exec(text); } catch { continue; }
     if (!m) continue;
     const secret = m[1] ?? m[0];
     if (r.allow?.some((a) => { try { return new RegExp(a.regex, a.flags).test(secret) || new RegExp(a.regex, a.flags).test(m![0]); } catch { return false; } })) continue;
@@ -34,9 +35,11 @@ export function redactSecrets(text: string, rules: CompiledRule[]): string {
   let out = text;
   const lower = text.toLowerCase();
   for (const r of rules) {
+    if (!r.regex) continue;
     if (r.keywords?.length && !r.keywords.some((k) => lower.includes(k))) continue;
     let re: RegExp;
-    try { re = new RegExp(r.regex, r.flags + (r.flags.includes("g") ? "" : "g")); } catch { continue; }
+    const flags = r.flags ?? "";
+    try { re = new RegExp(r.regex, flags + (flags.includes("g") ? "" : "g")); } catch { continue; }
     out = out.replace(re, (whole: string, ...groups: unknown[]) => {
       const secret = typeof groups[0] === "string" ? (groups[0] as string) : whole;
       if (r.allow?.some((a) => { try { return new RegExp(a.regex, a.flags).test(secret); } catch { return false; } })) return whole;

