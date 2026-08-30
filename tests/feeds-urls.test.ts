@@ -60,7 +60,10 @@ describe("urls feed hook", () => {
     fs.mkdirSync(path.join(dir, "urls", "previous"), { recursive: true });
     fs.writeFileSync(path.join(dir, "urls", "previous", "rules.json"), JSON.stringify({ rules: [{ id: "urlhaus-online", set: { urls: ["203.0.113.9:8080/bin.sh"], hosts: {} } }] }));
     fs.writeFileSync(path.join(dir, "urls", "previous", "manifest.json"), JSON.stringify({ name: "urls", sha256: "old" }));
-    await store.update("urls", { force: true }); // current (hashed) becomes previous; the clear-text one must not survive
+    await store.update("urls", { force: true }); // identical content: nothing rotates, and the clear-text copy must not survive
+    expect(fs.existsSync(path.join(dir, "urls", "previous", "rules.json"))).toBe(false);
+    const changedList: any = async () => new Response(LIST + "http://198.51.100.7/evil\n", { status: 200 }); // one more entry than the fixture
+    await new FeedStore(dir, changedList).update("urls"); // new content: the hashed current copy becomes previous
     const prev = JSON.parse(fs.readFileSync(path.join(dir, "urls", "previous", "rules.json"), "utf-8"));
     expect(prev.rules[0].set.urls[0]).toMatch(/^[0-9a-f]{32}$/);
     expect(JSON.stringify(prev)).not.toContain("203.0.113.9");

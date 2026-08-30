@@ -190,7 +190,9 @@ export class FeedStore {
       this.writeJson(path.join(staged, "rules.json"), { rules: compiled.rules, skipped: compiled.skipped });
       manifest.stored_bytes = fs.statSync(path.join(staged, "rules.json")).size;
       this.writeJson(path.join(staged, "manifest.json"), manifest);
-      if (this.installed(name)) {
+      // Rotate current → previous only when the content actually changed: a forced re-download of identical content
+      // must not replace the older copy with a clone of itself (rollback would then "roll back" to the same hash).
+      if (this.installed(name) && !(current && current.sha256 === sha256)) {
         fs.rmSync(path.join(dir, "previous"), { recursive: true, force: true });
         fs.mkdirSync(path.join(dir, "previous"), { recursive: true });
         for (const f of ["manifest.json", "rules.json"]) if (fs.existsSync(path.join(dir, f))) fs.renameSync(path.join(dir, f), path.join(dir, "previous", f));
@@ -206,7 +208,8 @@ export class FeedStore {
         } catch { /* no previous */ }
       }
       fs.rmSync(staged, { recursive: true, force: true });
-      return { type: "feed_update", feed: name, changed: true, from: current?.sha256, to: sha256, rules: manifest.rules, skipped: manifest.skipped, bytes: manifest.bytes, stored: manifest.stored_bytes };
+      // A forced re-download of identical content is a recompile, not a change: no rollback hint, previous copy untouched.
+      return { type: "feed_update", feed: name, changed: !(current && current.sha256 === sha256), from: current?.sha256, to: sha256, rules: manifest.rules, skipped: manifest.skipped, bytes: manifest.bytes, stored: manifest.stored_bytes };
     } catch (e) {
       return { type: "feed_update_failed", feed: name, error: e instanceof Error ? e.message : String(e), kept: current?.sha256 };
     }
@@ -217,6 +220,7 @@ export class FeedStore {
     const prev = this.previousManifest(name);
     const cur = this.manifest(name);
     if (!prev) return { type: "feed_update_failed", feed: name, error: "no previous version of this feed to roll back to" };
+    if (cur && prev.sha256 === cur.sha256) return { type: "feed_update_failed", feed: name, error: `the previous copy is identical to the current one (sha256 ${prev.sha256.slice(0, 12)}) — nothing to roll back` };
     const tmp = path.join(dir, "swap");
     fs.rmSync(tmp, { recursive: true, force: true }); fs.mkdirSync(tmp);
     for (const f of ["manifest.json", "rules.json"]) if (fs.existsSync(path.join(dir, f))) fs.renameSync(path.join(dir, f), path.join(tmp, f));

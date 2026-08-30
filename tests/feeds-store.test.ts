@@ -106,6 +106,22 @@ describe("feed store: opt-in, update, hash, ETag, rollback, failure keeps previo
     expect(await store.update("nope")).toMatchObject({ type: "feed_update_failed", error: expect.stringContaining("unknown feed") });
     expect(new FeedStore(tmp()).rollback("secrets")).toMatchObject({ type: "feed_update_failed" });
   });
+  test("forced re-download of identical content keeps the older previous copy and reports unchanged (backlog #2)", async () => {
+    const dir = tmp();
+    const v1 = FIXTURE, v2 = FIXTURE + '\n[[rules]]\nid = "extra-rule"\ndescription = "x"\nregex = \'\'\'EXTRA-[0-9]{4}\'\'\'\nkeywords = ["extra-"]\n';
+    let body = v1; const store = new FeedStore(dir, fakeFetch(() => body).f); store.optIn();
+    await store.update("secrets"); const sha1 = store.manifest("secrets")!.sha256;
+    body = v2; await store.update("secrets"); const sha2 = store.manifest("secrets")!.sha256;
+    expect(store.previousManifest("secrets")!.sha256).toBe(sha1);
+    const forced = await store.update("secrets", { force: true }); // same v2 content again
+    expect(forced).toMatchObject({ type: "feed_update", changed: false, from: sha2, to: sha2 });
+    expect(store.previousManifest("secrets")!.sha256).toBe(sha1); // not clobbered by a clone of the current copy
+    expect(store.rollback("secrets")).toMatchObject({ type: "feed_rollback", from: sha2, to: sha1 });
+    // an identical previous copy left behind by an older version is explained, not "rolled back" to itself
+    const fs = require("node:fs"), path = require("node:path"); const d = path.join(dir, "secrets");
+    for (const f of ["manifest.json", "rules.json"]) fs.copyFileSync(path.join(d, f), path.join(d, "previous", f));
+    expect(store.rollback("secrets")).toMatchObject({ type: "feed_update_failed", error: expect.stringContaining("nothing to roll back") });
+  });
 });
 
 describe("download progress + sizes", () => {
@@ -124,7 +140,10 @@ describe("download progress + sizes", () => {
     const sz = store.sizes();
     expect(sz.feeds.find((f) => f.name === "secrets")!.stored).toBeGreaterThan(1000);
     expect(sz.total).toBe(sz.feeds.reduce((n, f) => n + f.stored + f.previous, 0) + sz.cache);
-    await store.update("secrets", { force: true });
+    await store.update("secrets", { force: true }); // identical content: a recompile, no previous copy is created
+    expect(store.sizes().feeds.find((f) => f.name === "secrets")!.previous).toBe(0);
+    const changed: any = async () => new Response(FIXTURE + "\n# changed\n", { status: 200 });
+    await new FeedStore(dir, changed).update("secrets"); // new content: the older copy is kept for rollback
     expect(store.sizes().feeds.find((f) => f.name === "secrets")!.previous).toBeGreaterThan(1000);
     // a gzip'd response: Content-Length is the wire size, not what we receive → total unknown until the end
     const gz: any = async () => new Response(new ReadableStream({ start(c) { c.enqueue(enc.slice(0, 4096)); c.enqueue(enc.slice(4096)); c.close(); } }), { status: 200, headers: { "content-length": "1234", "content-encoding": "gzip" } });

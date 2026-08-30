@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.105 — 2026-08-30
+
+- **A download's output file is a write.** `curl -o F` / `--output F` and `wget -O F` / `-o F` / `--output-document F` are gated as writes to `F` (previously reads), so `wget -O ~/.bashrc …` or `curl -o /etc/… ` hits the write ladder. curl's `-O` (remote name into the cwd) and `-o -` (stdout) are not paths.
+- **`blitzpi feeds update --force` on unchanged content** is reported as `unchanged` (a recompile) and no longer replaces the previous copy with a clone of the current one; `blitzpi feeds rollback` onto an identical copy says "nothing to roll back" instead of swapping a feed with itself.
+
 ## 1.2.104 — 2026-08-30
 
 - **Threat detection never rewrites tool input.** Tier ≤ 2 replaced e-mail addresses inside a `bash` command with `[REDACTED_EMAIL]` before execution (`$[…]` is arithmetic in bash, so `user$ts@example.com` ran as `user0`). Removed: PII in a command is observed and audited (`pii_observed`), never edited; the audit writer still redacts.

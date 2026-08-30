@@ -77,3 +77,16 @@ describe("grantsFor / grantMount", () => {
     expect(grantMount({ path: path.join(dir, "missing.txt"), write: false })).toBeNull();
   });
 });
+
+describe("download output files are writes (backlog P0 #1)", () => {
+  test.each([
+    ["curl -sS -o /etc/x.txt https://a.example/f", [{ path: "/etc/x.txt", write: true }]],
+    ["curl --output=../../out.bin https://a.example/f", [{ path: "../../out.bin", write: true }]],
+    ["wget -O /var/tmp/w.bin https://a.example/f", [{ path: "/var/tmp/w.bin", write: true }]],
+    ["wget -o /var/log/wget.log https://a.example/f", [{ path: "/var/log/wget.log", write: true }]],
+    ["wget --output-document ~/.bashrc https://a.example/f", [{ path: "~/.bashrc", write: true }]],
+    ["curl -O https://a.example/f.tgz", []],                       // remote name into the cwd
+    ["curl -sS -o - https://a.example/f | head -c 10", []],        // stdout
+    ["(cd apps && curl -o ../../x.bin https://a.example/f)", [{ path: "../x.bin", write: true }]],
+  ])("%s", (c, expected) => expect(extractTargets(c)).toEqual(expected));
+});

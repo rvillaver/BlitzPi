@@ -19,6 +19,10 @@ export interface CmdTarget { path: string; write: boolean; }
 
 const WRITE_REDIR = /(^|[^0-9<>&])>>?\s*("?~?\/?[^\s"';|&)]+)/g;
 const WRITE_VERB = /(^|[\s;|&(])(rm|mv|cp|tee|dd|truncate|ln|touch|mkdir|rmdir|chmod|chown)\s+([^\n]*)/g;
+/** A download's output file is a write: `curl -o F` / `--output F`, `wget -O F` / `-o F` (log) / `--output-document F`.
+ *  (curl's `-O` takes no argument — it writes the remote name into the cwd — and `-o -` is stdout.) */
+const DL_OUT = /\b(curl|wget)\b([^\n|;&]*)/g;
+const DL_OUT_ARG = /(?:^|\s)(?:(-o|-O|--output|--output-document|--output-file)(?:=|\s+))("?[^\s"';|&)]+)/g;
 
 /** URLs are not paths: `https://example.com` must not read as the path `//example.com` (zone other → the command
  *  would be approved as out-of-project and run UNCONFINED). Strip them before looking for paths. */
@@ -89,6 +93,20 @@ export function extractTargets(rawCommand: string): CmdTarget[] {
     for (const tok of m[3].split(/\s+/)) {
       if (!tok || tok.startsWith("-")) continue;
       if (/^(~|\/|\.\.\/)/.test(tok) || tok.includes("/..") || out) add(tok, true, m.index);
+    }
+  }
+
+  // download output files → writes
+  const dl = new RegExp(DL_OUT);
+  while ((m = dl.exec(command))) {
+    const tool = m[1], args = m[2], base = m.index + m[0].length - args.length;
+    const a = new RegExp(DL_OUT_ARG);
+    let am: RegExpExecArray | null;
+    while ((am = a.exec(args))) {
+      if (tool === "curl" && am[1] === "-O") continue;
+      const file = am[2].replace(/^["']|["']$/g, "");
+      if (file === "-" || file.startsWith("-")) continue;
+      add(file, true, base + am.index);
     }
   }
 

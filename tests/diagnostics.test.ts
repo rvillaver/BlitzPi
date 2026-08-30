@@ -30,7 +30,7 @@ describe("bash guard: URLs are not paths", () => {
   test("a command that names a URL stays in-project (confined); real paths are still found", () => {
     const { extractTargets } = require("../src/bash-guard");
     expect(extractTargets("curl -sI https://example.com | head -1")).toEqual([]);
-    expect(extractTargets("wget http://localhost:3000/x -O /tmp/out")).toEqual([{ path: "/tmp/out", write: false }]); // -O is not a write verb the guard knows (unchanged)
+    expect(extractTargets("wget http://localhost:3000/x -O /tmp/out")).toEqual([{ path: "/tmp/out", write: true }]); // the download's output file is a write (backlog P0 #1)
     expect(extractTargets("cat /etc/hosts")).toEqual([{ path: "/etc/hosts", write: false }]);
   });
 });
