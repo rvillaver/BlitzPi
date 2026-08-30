@@ -24,7 +24,36 @@ No `⚠` outstanding — phase 1 gate passes pending the user's confirmation.
 | F2 | Config `feeds.packages: enforce \| monitor \| off` (default enforce); "Package feed (OSV)" layer in `/blitz-security` and the banner; counter `blocked.feed` | AD-11 | med | `/blitz-security` panel shows the layer with its mode (pty capture); monitor mode audits and shows but does not block (headless probe) |
 | F3 | `blitzpi feeds` CLI: `status` (sources, cache size/age), `check <pkg…>` (query without installing), `clear-cache`; audit entry per check | AD-11 | med | shell output on real packages |
 
-## Phase 2 — pulled dictionaries (feed store)
+## Phase 2 — pulled dictionaries (feed store) — **opt-in component, separate from the platform**
+
+**Decision (user, 2026-08-30):** no release yet; feeds are **opt-in at install and at update** — a user may decline
+security-feed updates, platform updates always go through. Feeds therefore live outside `versions/` (in
+`~/.blitz/feeds/`, per user), have their own version/rollback, and never ride along with a platform release.
+
+**Size impact, measured 2026-08-30** (raw → compiled estimate; the platform is 338 MB + 78 MB Bun for scale):
+
+| Feed | Source | Raw | gzip | Compiled (our format) | Cadence |
+|---|---|---|---|---|---|
+| packages (phase 1) | osv.dev API | — | — | cache 0.6 KB → grows ~100 B/package | live |
+| secrets | gitleaks `gitleaks.toml`, 222 rules | 98 KB | 21 KB | ~60 KB (regex + id + severity) | per gitleaks release |
+| command shapes | Sigma `rules/linux/process_creation` 122 + `macos/process_creation` 67 rules | 214 KB | ~50 KB | ~40 KB (contains/regex strings only) | monthly release (`r2026-07-01`) |
+| URLs | URLhaus `text_online` 15,830 URLs → **1,834 unique hosts**; OpenPhish 300 URLs | 1.3 MB + 20 KB | 307 KB + 5 KB | ~60 KB (host set) — or 1.3 MB if full URLs kept | hourly / hourly |
+| **Total on disk** | | | | **≈ 0.2 MB compiled, ≈ 2 MB if raw sources are kept for rollback** | |
+
+Conclusion: negligible against a 416 MB install. The cost that matters is **network + trust**, not bytes: each
+`blitzpi feeds update` is ~0.4 MB of downloads, and every feed is an input to the enforcer — pinned, checksummed,
+audited, rollback-able (F4). Not proposed: Sigma's full `sigma_all_rules.zip` (3.2 MB, mostly Windows) or URLhaus
+`csv_online` (3.9 MB) — we take the Linux/macOS process-creation subset and the host set.
+
+**Opt-in mechanics (to build in F4):**
+- `install.sh`: after the platform install, `Install security feeds (secrets, command shapes, URLs — ~0.4 MB download)? [Y/n]`;
+  flags `--feeds` / `--no-feeds` for non-interactive; the answer is remembered in `~/.blitz/feeds/opt-in` (per user).
+- `blitzpi update` (platform): always updates the platform; then, only if opted in, asks `Update security feeds too? [Y/n]`
+  (`--no-feeds` skips, `--feeds` forces; the `blitzpi update` shim path passes `--yes` for the platform only).
+- `blitzpi feeds update | list | rollback | opt-in | opt-out`: the feeds' own lifecycle, independent of platform versions.
+- Not opted in ⇒ the dictionary feeds are simply absent: the layers show `off (not installed — blitzpi feeds opt-in)`;
+  the OSV package feed and the built-in patterns keep working (no download needed).
+- Platform rollback never touches feeds; feed rollback never touches the platform.
 | ID | What | Gap | Sev | Verify |
 |---|---|---|---|---|
 | F4 | Feed store: `~/.blitz/feeds/<name>/` with `manifest.json` (source, ref/ETag, sha256, fetched_at) + compiled `rules.json` in one native shape; `blitzpi feeds update \| list \| rollback`; previous compiled version kept; every update audited; compile failure keeps the previous feed | AD-7 | high | update/rollback on a real source; corrupt download → previous kept |
