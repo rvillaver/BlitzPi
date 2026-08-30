@@ -4,7 +4,16 @@
  * github.com, plus Drive, Docs, OneDrive, Dropbox, archive.org; blocking those hosts would block normal work, so
  * on a shared platform only the exact listed URL matches. IPs and dedicated domains (the bulk) match by host.
  */
+import crypto from "node:crypto";
 import type { CompiledFeed } from "../store";
+
+/** Listed URLs are never stored or shown in clear: antivirus engines consume URLhaus too and quarantine any file
+ *  carrying a listed URL (seen on macOS with a docs file). Sets hold 128-bit hashes; output is defanged. */
+export const urlHash = (key: string) => crypto.createHash("sha256").update(key).digest("hex").slice(0, 32);
+export function defangUrl(u: string): string {
+  return u.replace(/^http(s?):\/\//i, "hxxp$1://").replace(/^([a-z]+:\/\/)([^/?#]+)/i, (_m, sch: string, host: string) => sch + host.replace(/\./g, "[.]"));
+}
+export const defangHost = (h: string) => h.replace(/\./g, "[.]");
 
 export const SHARED_PLATFORMS = [
   "github.com", "raw.githubusercontent.com", "objects.githubusercontent.com", "codeload.github.com", "gist.github.com", "github.io",
@@ -52,9 +61,9 @@ export function compileUrlhaus(raw: Buffer | string): CompiledFeed {
   if (lines < (process.env.BLITZ_FEED_URLS_MIN ? Number(process.env.BLITZ_FEED_URLS_MIN) : 100)) throw new Error(`only ${lines} entries — refusing a list this small (a real URLhaus list has thousands)`);
   if (parsed / lines < 0.9) throw new Error(`only ${Math.round((parsed / lines) * 100)}% of lines are http(s) URLs — refusing an unrecognised list`);
   const hosts: Record<string, number> = {};
-  for (const [h, n] of hostCounts) if (!isSharedPlatform(h)) hosts[h] = n;
+  for (const [h, n] of hostCounts) if (!isSharedPlatform(h)) hosts[urlHash(h)] = n;
   return {
-    rules: [{ id: "urlhaus-online", category: "url", severity: "high", description: "URL listed as malware distribution by URLhaus (abuse.ch)", set: { urls: [...urls].sort(), hosts } }],
+    rules: [{ id: "urlhaus-online", category: "url", severity: "high", description: "URL listed as malware distribution by URLhaus (abuse.ch) — stored as hashes", set: { urls: [...urls].map(urlHash).sort(), hosts } }],
     skipped: [], count: urls.size,
     sourceVersion: `URLhaus online (${urls.size} URLs, ${Object.keys(hosts).length} hosts, ${hostCounts.size - Object.keys(hosts).length} shared-platform hosts matched by exact URL only)`,
   };

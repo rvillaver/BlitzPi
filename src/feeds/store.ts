@@ -7,6 +7,7 @@
  *   <feeds>/<name>/manifest.json     source, ref (ETag), sha256 of the raw download, fetched_at, rule counts
  *   <feeds>/<name>/rules.json        compiled rules (what the runtime loads)
  *   <feeds>/<name>/previous/         the previous manifest + rules, for rollback
+ *   (the raw download is never kept: a URL list in clear text is exactly what antivirus quarantines)
  *
  * A feed is an input to the enforcer: the raw download is hashed, every update/rollback is returned as an event
  * for the audit trail, and a download that fails to compile leaves the previous feed in place.
@@ -132,13 +133,21 @@ export class FeedStore {
       fs.rmSync(staged, { recursive: true, force: true });
       this.writeJson(path.join(staged, "manifest.json"), manifest);
       this.writeJson(path.join(staged, "rules.json"), { rules: compiled.rules, skipped: compiled.skipped });
-      fs.writeFileSync(path.join(staged, "source.raw"), raw); // kept for rollback + inspection
       if (this.installed(name)) {
         fs.rmSync(path.join(dir, "previous"), { recursive: true, force: true });
         fs.mkdirSync(path.join(dir, "previous"), { recursive: true });
-        for (const f of ["manifest.json", "rules.json", "source.raw"]) if (fs.existsSync(path.join(dir, f))) fs.renameSync(path.join(dir, f), path.join(dir, "previous", f));
+        for (const f of ["manifest.json", "rules.json"]) if (fs.existsSync(path.join(dir, f))) fs.renameSync(path.join(dir, f), path.join(dir, "previous", f));
       }
-      for (const f of ["manifest.json", "rules.json", "source.raw"]) fs.renameSync(path.join(staged, f), path.join(dir, f));
+      for (const f of ["manifest.json", "rules.json"]) fs.renameSync(path.join(staged, f), path.join(dir, f));
+      for (const stale of ["source.raw", path.join("previous", "source.raw")]) fs.rmSync(path.join(dir, stale), { force: true }); // from 1.2.100
+      // A previous URL feed compiled before hashing (1.2.100) holds listed URLs in clear — antivirus bait; drop it.
+      if (def.category === "url") {
+        try {
+          const prev = JSON.parse(fs.readFileSync(path.join(dir, "previous", "rules.json"), "utf-8")) as { rules?: { set?: { urls?: string[] } }[] };
+          const first = prev.rules?.[0]?.set?.urls?.[0];
+          if (first && !/^[0-9a-f]{32}$/.test(first)) fs.rmSync(path.join(dir, "previous"), { recursive: true, force: true });
+        } catch { /* no previous */ }
+      }
       fs.rmSync(staged, { recursive: true, force: true });
       return { type: "feed_update", feed: name, changed: true, from: current?.sha256, to: sha256, rules: manifest.rules, skipped: manifest.skipped, bytes: manifest.bytes };
     } catch (e) {
@@ -153,8 +162,8 @@ export class FeedStore {
     if (!prev) return { type: "feed_update_failed", feed: name, error: "no previous version of this feed to roll back to" };
     const tmp = path.join(dir, "swap");
     fs.rmSync(tmp, { recursive: true, force: true }); fs.mkdirSync(tmp);
-    for (const f of ["manifest.json", "rules.json", "source.raw"]) if (fs.existsSync(path.join(dir, f))) fs.renameSync(path.join(dir, f), path.join(tmp, f));
-    for (const f of ["manifest.json", "rules.json", "source.raw"]) if (fs.existsSync(path.join(dir, "previous", f))) fs.renameSync(path.join(dir, "previous", f), path.join(dir, f));
+    for (const f of ["manifest.json", "rules.json"]) if (fs.existsSync(path.join(dir, f))) fs.renameSync(path.join(dir, f), path.join(tmp, f));
+    for (const f of ["manifest.json", "rules.json"]) if (fs.existsSync(path.join(dir, "previous", f))) fs.renameSync(path.join(dir, "previous", f), path.join(dir, f));
     fs.rmSync(path.join(dir, "previous"), { recursive: true, force: true });
     fs.renameSync(tmp, path.join(dir, "previous"));
     return { type: "feed_rollback", feed: name, from: cur?.sha256, to: prev.sha256 };

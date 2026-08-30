@@ -2,8 +2,12 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.101 — 2026-08-30
 
+### Governance
+- **Listed URLs never appear in clear — antivirus was quarantining them.** After `blitzpi update` on macOS the antivirus flagged `docs/plans/ROADMAP.md` inside the installed version: it carried a live URLhaus URL as probe evidence, and antivirus engines consume URLhaus too. The URL feed would have done the same at scale (15k listed URLs in plain text under `~/.blitz/feeds/urls/`). Now: the URL feed stores **128-bit hashes** of normalised URLs and hosts (matching hashes what it sees), the raw download is never kept for any feed (rollback uses the previous compiled rules; stale `source.raw` files from 1.2.100 are removed on the next update), and every place a listed URL is written or shown — audit `feed_url` hits, audited commands, the block reason, TUI notices, `blitzpi feeds scan`, docs — uses the **defanged** form (`hxxp://`, `[.]`). The installer smoke test now proves nothing under `~/.blitz/feeds` carries a listed host in clear.
+
+### Install
 - Installer: `blitzpi update` on an already-current platform still offers/refreshes the security feeds (it used to exit before the feeds step); unknown `--options` are ignored with a notice instead of aborting, so a newer command can pass flags an older installer predates.
 
 ## 1.2.100 — 2026-08-30

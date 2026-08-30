@@ -50,8 +50,15 @@ export function redactSecrets(text: string, rules: CompiledRule[]): string {
 }
 
 let activeRules: CompiledRule[] | undefined;
-/** Redactor for audit writers (bash_exec, feed_check …): identity until the secrets feed is loaded. */
-export function redactCommand(text: string): string { return activeRules ? redactSecrets(text, activeRules) : text; }
+const extraRedactors: ((text: string) => string)[] = [];
+/** Other feeds register how they scrub audited text (the URL feed defangs listed URLs). */
+export function registerRedactor(fn: (text: string) => string): void { extraRedactors.push(fn); }
+/** Redactor for audit writers (bash_exec, feed_check …): identity until a feed that redacts is loaded. */
+export function redactCommand(text: string): string {
+  let out = activeRules ? redactSecrets(text, activeRules) : text;
+  for (const f of extraRedactors) out = f(out);
+  return out;
+}
 
 export function setupSecretsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.secrets;
