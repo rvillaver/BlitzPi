@@ -5,7 +5,7 @@
  * Token: ~/.blitz/bridge/discord.token (0600) or BLITZ_DISCORD_TOKEN. One gateway connection per token.
  */
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, Events, GatewayIntentBits, ModalBuilder, Partials, PermissionsBitField,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, Events, GatewayIntentBits, MessageFlags, ModalBuilder, Partials, PermissionsBitField,
   REST, Routes, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
   type ChatInputCommandInteraction, type Interaction, type Message as DMessage, type TextChannel, type ThreadChannel,
 } from "discord.js";
@@ -106,9 +106,9 @@ export class DiscordAdapter implements ChatAdapter {
     if (!(i.isButton() || i.isStringSelectMenu() || i.isModalSubmit())) return;
     const m = /^q:([^:]+)(?::(.*))?$/.exec(i.customId); if (!m) return;
     const p = this.pending.get(m[1]);
-    if (!p) { if (!i.isModalSubmit()) await i.reply({ content: "This question has expired.", ephemeral: true }); else await i.reply({ content: "This question has expired.", ephemeral: true }); return; }
+    if (!p) { if (!i.isModalSubmit()) await i.reply({ content: "This question has expired.", flags: MessageFlags.Ephemeral }); else await i.reply({ content: "This question has expired.", flags: MessageFlags.Ephemeral }); return; }
     const user: UserRef = { id: i.user.id, name: i.user.username };
-    if (!p.canAnswer(user)) { await i.reply({ content: "Only operators can answer BlitzPi here.", ephemeral: true }); return; }
+    if (!p.canAnswer(user)) { await i.reply({ content: "Only operators can answer BlitzPi here.", flags: MessageFlags.Ephemeral }); return; }
     let value: UiResponse | undefined;
     if (i.isButton()) {
       const arg = m[2] ?? "";
@@ -138,7 +138,7 @@ export class DiscordAdapter implements ChatAdapter {
     const options: Record<string, unknown> = {};
     for (const o of i.options.data[0]?.options ?? []) options[o.name] = o.type === 6 ? (o.user?.id ?? o.value) : o.value;
     const user: UserRef = { id: i.user.id, name: i.user.username };
-    await i.deferReply({ ephemeral: sub !== "status" });
+    await i.deferReply(sub !== "status" ? { flags: MessageFlags.Ephemeral } : {});
     try {
       const reply = this.opts.onSlash ? await this.opts.onSlash({ name: i.commandName, sub, options, conv, user, guildOwnerId: i.guild?.ownerId }) : "no handler";
       await i.editReply(reply.slice(0, 1900));

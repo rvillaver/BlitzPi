@@ -78,6 +78,9 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
 
   if (sub === "start") {
     const log = (l: string) => process.stdout.write(`${new Date().toISOString().slice(11, 19)} ${l}\n`);
+    // One daemon per machine: a second gateway connection on the same bot token would answer every interaction twice.
+    const pidFileEarly = path.join(path.dirname(socketPath), "daemon.pid");
+    try { const pid = Number(require("node:fs").readFileSync(pidFileEarly, "utf8")); if (pid && pid !== process.pid) { process.kill(pid, 0); console.error(`[bridge] a daemon is already running (pid ${pid}) — blitzpi bridge status, or stop it first`); process.exitCode = 1; return; } } catch { /* stale or absent */ }
     const bridge = new Bridge({ bindings: store, socketPath, log });
     bridge.attach(new ConsoleAdapter(log, false));
     const platforms = ["console"];
