@@ -306,7 +306,7 @@ export class Bridge {
       const thread = await this.startRun(c, undefined, `[caller ${payload.caller ?? "bridge:op"}]\n${String(payload.prompt ?? "")}`, String(payload.prompt ?? ""));
       return { started: true, thread: convKey(thread) };
     }
-    if (name === "stop") { await this.control(c, "stop", conv); return { ok: true }; }
+    if (name === "stop") { const was = c.running; await this.control(c, "stop", conv); return { ok: true, message: was ? "run aborted" : "nothing was running" }; }
     if (name === "new") { await this.control(c, "new", conv); return { ok: true }; }
     if (name === "can_operate") return { ok: this.isOperator(c, { id: String(payload.user ?? "") }) };
     if (name === "status") return { text: await this.statusText(c), running: c.running };

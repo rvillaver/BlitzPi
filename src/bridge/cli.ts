@@ -140,7 +140,7 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
   try {
     if (sub === "post") { await bridgeCall(socketPath, "post", { ...sel(), text: rest.join(" ") }); console.log("posted"); return; }
     if (sub === "ask") { const r = (await bridgeCall(socketPath, "ask", { ...sel(), question: rest[0] ?? "", options: rest.slice(1) })) as { answer: string | null }; if (r.answer == null) { process.exitCode = 1; return; } console.log(r.answer); return; }
-    if (sub === "stop") { await bridgeCall(socketPath, "stop", sel()); console.log("stopped"); return; }
+    if (sub === "stop") { const r = (await bridgeCall(socketPath, "stop", sel())) as { message?: string }; console.log(r.message ?? "stopped"); return; }
     if (sub === "status") { const r = (await bridgeCall(socketPath, "status", sel())) as { text: string }; console.log(r.text); return; }
   } catch (e) { console.error(`[bridge] ${e instanceof Error ? e.message : e}`); process.exitCode = 1; return; }
   console.log(USAGE); process.exitCode = 2;
