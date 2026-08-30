@@ -27,5 +27,6 @@ export class ConsoleAdapter implements ChatAdapter {
     return answer.trim() ? { value: answer.trim() } : { cancelled: true };
   }
   async recent(): Promise<Message[]> { return []; }
+  async postFiles(target: ConvRef | ThreadRef, files: { path: string; name: string }[], text?: string): Promise<void> { this.out(`[${target.id}] ${text ?? "📎"} ${files.map((f) => f.path).join(", ")}`); }
   identity(u: UserRef): string { return `console:${u.id}`; }
 }

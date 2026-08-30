@@ -28,6 +28,10 @@ export interface ChatAdapter {
   /** The last `n` messages in the conversation after `sinceId` (for the context window); [] where not permitted. */
   recent(conv: ConvRef, n: number, sinceId?: string): Promise<Message[]>;
   identity(u: UserRef): string;
+  /** Fetch an attachment to a local path (size-capped by the adapter). Optional. */
+  download?(file: Attachment, to: string): Promise<string>;
+  /** Post local files (with an optional caption) into a conversation or thread. Optional. */
+  postFiles?(target: ConvRef | ThreadRef, files: { path: string; name: string }[], text?: string): Promise<void>;
   /** Resolve a human channel name (`#general`) to a conversation; create it when `create` and permitted. Optional. */
   resolveConversation?(name: string, create: boolean): Promise<{ conv: ConvRef; created: boolean; owner?: UserRef } | undefined>;
 }

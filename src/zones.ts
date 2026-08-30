@@ -74,6 +74,7 @@ export function classifyZone(target: string, roots: ZoneRoots): Zone {
 
   const gbDirs = [p.join(roots.project, ".blitz", "goodbehavior"), p.join(roots.project, ".pi", "skills")];
   if (gbDirs.some(u)) return "goodbehavior";
+  if (u(p.join(roots.project, ".blitz", "transfer"))) return "project"; // chat file transfer: plain workspace files
   if (u(p.join(roots.project, ".blitz"))) return "project-config";
   if (u(roots.project)) return "project";
 

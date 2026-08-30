@@ -6,6 +6,9 @@
 import { RpcHost, type RpcEvent, type UiRequest, type UiResponse } from "./rpc-host";
 import { BindingsStore } from "./bindings";
 import { type Binding, type ChatAdapter, type ConvRef, type Message, type ThreadRef, type Trigger, type UserRef, convKey } from "./types";
+import { OUT_HINT, changedOut, ensureTransferDirs, fileHash, inboundPath, isUnderOut, snapshotOut, type OutSnapshot } from "./transfer";
+import fs from "node:fs";
+import path from "node:path";
 
 export type ControlWord = "stop" | "status" | "new";
 /** `stop!`, `Cancel.`, `status` — exact control words only; "stop the tests and fix them" is a prompt. */
@@ -38,6 +41,7 @@ export class Pacer {
 interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
   running: boolean; thread?: ThreadRef | ConvRef; pacer?: Pacer; startedAt?: number; lastBotMessageId?: string; queue: string[];
+  outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
 export interface BridgeOptions {
   bindings: BindingsStore;
@@ -65,7 +69,7 @@ export class Bridge {
     if (c) { c.binding = this.opts.bindings.get(conv) ?? c.binding; return c; }
     const binding = this.opts.bindings.get(conv); const adapter = this.adapters.get(conv.platform);
     if (!binding || !adapter) return undefined;
-    c = { conv, adapter, binding, running: false, queue: [] }; this.convs.set(key, c); return c;
+    c = { conv, adapter, binding, running: false, queue: [], delivered: new Set() }; this.convs.set(key, c); return c;
   }
   isOperator(c: Conversation, u: UserRef): boolean { return c.binding.operators.length === 0 || c.binding.operators.includes(u.id) || c.binding.operators.includes(c.adapter.identity(u)); }
 
@@ -93,7 +97,38 @@ export class Bridge {
       return;
     }
     const context = await this.contextFor(c, t);
-    await this.startRun(c, t.message, `[caller ${caller}]\n${context}${t.text}`, t.text);
+    const attached = await this.pullAttachments(c, t.message);
+    await this.startRun(c, t.message, `[caller ${caller}]\n${context}${t.text}${attached}`, t.text);
+  }
+
+  /** Download the message's attachments into <project>/.blitz/transfer/in and name them for the agent. */
+  private async pullAttachments(c: Conversation, m: Message): Promise<string> {
+    const files = m.attachments ?? [];
+    if (!files.length || !c.adapter.download) return "";
+    ensureTransferDirs(c.binding.project);
+    const got: string[] = [];
+    for (const f of files) {
+      if (f.bytes && f.bytes > c.adapter.capabilities.attachmentBytes) { await c.adapter.post(c.thread ?? c.conv, `⚠️ ${f.name} is over the size limit — not transferred.`); continue; }
+      try { const saved = await c.adapter.download(f, inboundPath(c.binding.project, m.id, f.name)); got.push(path.relative(c.binding.project, saved)); }
+      catch (e) { await c.adapter.post(c.thread ?? c.conv, `⚠️ could not fetch ${f.name}: ${e instanceof Error ? e.message : e}`); }
+    }
+    return got.length ? `\n\n[attached: ${got.join(", ")}]` : "";
+  }
+
+  /** Deliver files the agent left under .blitz/transfer/out (new or changed since the run started; content-deduped). */
+  private async deliverOut(c: Conversation, only?: string[]): Promise<void> {
+    if (!c.adapter.postFiles) return;
+    const candidates = only ?? changedOut(c.binding.project, c.outSnapshot ?? new Map());
+    const files: { path: string; name: string }[] = [];
+    for (const p of candidates) {
+      try {
+        if (!fs.existsSync(p) || fs.statSync(p).size > c.adapter.capabilities.attachmentBytes) continue;
+        const h = fileHash(p); if (c.delivered.has(h)) continue; c.delivered.add(h);
+        files.push({ path: p, name: path.basename(p) });
+      } catch { /* vanished */ }
+    }
+    if (files.length) await c.adapter.postFiles(c.thread ?? c.conv, files, `📎 ${files.map((f) => f.name).join(", ")}`);
+    if (only === undefined) c.outSnapshot = snapshotOut(c.binding.project);
   }
 
   private async contextFor(c: Conversation, t: Trigger): Promise<string> {
@@ -147,11 +182,12 @@ export class Bridge {
     const cap = c.adapter.capabilities;
     const thread = seed ? await c.adapter.openThread(c.conv, seed, shown.slice(0, 60)) : c.conv;
     c.thread = thread; c.running = true; c.startedAt = Date.now();
+    try { ensureTransferDirs(c.binding.project); c.outSnapshot = snapshotOut(c.binding.project); } catch { /* read-only project: no transfer */ }
     c.pacer = new Pacer((t) => c.adapter.post(thread, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100));
     if (cap.threads && "conv" in thread) await c.adapter.post(c.conv, `▶ started — ${shown.split("\n")[0].slice(0, 80)}`);
     try {
       const host = await this.host(c);
-      await host.prompt(prompt);
+      await host.prompt(c.adapter.postFiles ? `${prompt}\n\n${OUT_HINT}` : prompt);
     } catch (e) {
       c.running = false;
       await c.adapter.post(thread, `⚠️ could not start the run: ${e instanceof Error ? e.message : e}`);
@@ -165,7 +201,12 @@ export class Bridge {
     switch (e.type) {
       case "message_update": { const ev = e.assistantMessageEvent as { type?: string; delta?: string } | undefined; if (ev?.type === "text_delta" && ev.delta) p.delta(ev.delta); break; }
       case "tool_execution_start": if (lvl !== "quiet") p.activity(`🔧 ${String(e.toolName)} ${summarizeArgs(e.args)}`); break;
-      case "tool_execution_end": { const err = e.isError === true; if (err) p.activity(`❌ ${String(e.toolName)} — ${firstText(e.result).slice(0, 160)}`); else if (lvl === "full") p.activity(`✅ ${String(e.toolName)}`); break; }
+      case "tool_execution_end": {
+        const err = e.isError === true; if (err) p.activity(`❌ ${String(e.toolName)} — ${firstText(e.result).slice(0, 160)}`); else if (lvl === "full") p.activity(`✅ ${String(e.toolName)}`);
+        const target = (e.args as { path?: string; file_path?: string } | undefined)?.path ?? (e.args as { file_path?: string } | undefined)?.file_path;
+        if (!err && target && (e.toolName === "write" || e.toolName === "edit") && isUnderOut(c.binding.project, target)) void this.deliverOut(c, [path.isAbsolute(target) ? target : path.resolve(c.binding.project, target)]).catch(() => {});
+        break;
+      }
       case "extension_ui_request": { const r = e as unknown as UiRequest; if (r.method === "notify" && (r.notifyType === "warning" || r.notifyType === "error")) p.activity(`⚠️ ${r.message ?? ""}`); break; }
       case "agent_settled": void this.finishRun(c); break;
     }
@@ -173,6 +214,7 @@ export class Bridge {
   private async finishRun(c: Conversation): Promise<void> {
     const p = c.pacer; c.running = false;
     await p?.flush();
+    try { await this.deliverOut(c); } catch (e) { await c.adapter.post(c.thread ?? c.conv, `⚠️ could not deliver files: ${e instanceof Error ? e.message : e}`); }
     const ms = Date.now() - (c.startedAt ?? Date.now());
     let stats = "";
     try { const s: any = (await c.host!.getSessionStats()).data; stats = ` · ${s.tokens?.total ?? 0} tokens${typeof s.cost === "number" ? ` · $${s.cost.toFixed(3)}` : ""}${s.contextUsage?.percent != null ? ` · context ${Math.round(Number(s.contextUsage.percent) * 10) / 10}%` : ""}`; } catch { /* fine */ }

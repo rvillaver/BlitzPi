@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Chat bridge — file transfer.** Attachments on a triggering message are fetched into `<project>/.blitz/transfer/in/` and named in the prompt; anything the agent saves under `.blitz/transfer/out/` (during the run or by its end) is posted to the thread as an attachment, once per content. The transfer directory is workspace space (no security-config prompt) and git-ignores itself. Project writes still go through the write ladder — in Discord the "allow this write?" prompt appears as buttons for operators, and "Always" remembers it for the project.
+
 ## 1.2.108 — 2026-08-30
 
 - **Chat bridge — Discord.** `blitzpi bridge start` now runs a Discord bot when `~/.blitz/bridge/discord.token` (or `BLITZ_DISCORD_TOKEN`) exists. Bind a channel to a project (`/blitz-bridge bind #channel` inside a session, `/blitz bind <dir>` in Discord, or `blitzpi bridge bind discord:#channel <dir>`): members chat freely; `@blitzpi …` starts a governed run in a thread — tool activity and the answer stream in as new messages (never edited), Blitz's own prompts (dangerous writes, the `question` tool) appear as buttons only operators can press, security notices show as ⚠ lines, and `✅ done` closes the run. `@blitzpi stop` / `/blitz stop` abort immediately. `/blitz status|new|trigger|activity|context|operators` tune a channel; the guild owner is the default operator. The `bridge` skill walks a user through the Discord portal setup. Every bridge prompt records who asked (`on_behalf_of`). Telegram and Slack adapters follow; file transfer is next.

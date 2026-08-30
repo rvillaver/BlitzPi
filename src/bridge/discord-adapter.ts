@@ -13,7 +13,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { bridgeDir } from "./bindings";
 import type { UiRequest, UiResponse } from "./rpc-host";
-import type { AdapterCapabilities, ChatAdapter, ConvRef, Message, ThreadRef, Trigger, UserRef } from "./types";
+import type { AdapterCapabilities, Attachment, ChatAdapter, ConvRef, Message, ThreadRef, Trigger, UserRef } from "./types";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 
 export function discordToken(): string | undefined {
   if (process.env.BLITZ_DISCORD_TOKEN) return process.env.BLITZ_DISCORD_TOKEN.trim();
@@ -183,6 +185,17 @@ export class DiscordAdapter implements ChatAdapter {
       const timer = setTimeout(() => { this.pending.delete(id); resolve(undefined); msg.edit({ content: `${body}\n⏳ no answer`, components: [] }).catch(() => {}); }, ttl);
       this.pending.set(id, { req, resolve, canAnswer, messageId: msg.id, timer });
     });
+  }
+  async download(file: Attachment, to: string): Promise<string> {
+    const res = await fetch(file.url); if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+    const len = Number(res.headers.get("content-length") ?? file.bytes ?? 0); if (len > this.capabilities.attachmentBytes) throw new Error("too large");
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(to));
+    return to;
+  }
+  async postFiles(target: ConvRef | ThreadRef, files: { path: string; name: string }[], text?: string): Promise<void> {
+    const ch = await this.channel(target.id);
+    for (let i = 0; i < files.length; i += 10) await ch.send({ content: i === 0 ? text?.slice(0, 1900) : undefined, files: files.slice(i, i + 10).map((f) => ({ attachment: f.path, name: f.name })), allowedMentions: { parse: [] } });
   }
   async recent(conv: ConvRef, n: number, sinceId?: string): Promise<Message[]> {
     try {
