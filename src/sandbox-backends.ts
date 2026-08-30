@@ -11,11 +11,27 @@ import { defaultScratchDirs } from "./zones";
 import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
+export interface Grant { path: string; write: boolean }
 export interface ExecOptions {
   onData: (b: Buffer) => void;
   signal?: AbortSignal;
   timeout?: number;
   env?: NodeJS.ProcessEnv;
+  /** Out-of-workspace paths the user approved for THIS command: the backend opens exactly these (read-only or
+   *  read-write) instead of dropping confinement for the whole command. */
+  grants?: Grant[];
+}
+
+/** The path a backend can actually open for a grant: the real path if it exists; for a write to a path that does not
+ *  exist yet, its nearest existing ancestor (the directory the file will be created in); null = nothing to open. */
+export function grantMount(g: Grant): string | null {
+  const { existsSync } = require("node:fs");
+  const { dirname } = require("node:path");
+  let p = g.path;
+  if (existsSync(p)) { try { return realpathSync(p); } catch { return p; } }
+  if (!g.write) return null;
+  for (let d = dirname(p); d !== dirname(d); d = dirname(d)) if (existsSync(d)) { try { return realpathSync(d); } catch { return d; } }
+  return null;
 }
 export interface SandboxBackend {
   name: string;
@@ -82,6 +98,7 @@ class BwrapBackend implements SandboxBackend {
     for (const d of RO_SYSTEM_DIRS) args.push("--ro-bind-try", d, d);
     args.push("--ro-bind-try", RUNTIME_DIR, RUNTIME_DIR);
     for (const d of defaultScratchDirs()) args.push("--bind-try", d, d); // scratch: the host temp dir, shared with the file tools
+    for (const g of options.grants ?? []) { const m = grantMount(g); if (m) args.push(g.write ? "--bind-try" : "--ro-bind-try", m, m); } // approved escapes, and only those
     args.push("--proc", "/proc", "--dev", "/dev",
       "--bind", runDir, runDir, "--chdir", runDir,
       "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
@@ -110,7 +127,7 @@ class SandboxExecBackend implements SandboxBackend {
   name = "sandbox-exec";
   hardened = true;
   describe(runDir: string) { return `macOS Seatbelt — file writes confined to ${runDir} (reads gated by the guard; network kept)`; }
-  private profile(runDir: string): string {
+  private profile(runDir: string, grants: Grant[] = []): string {
     // SBPL: allow by default, then deny all writes, then re-allow writes only inside the workspace,
     // the scratch (temp) dirs, plus the char devices a shell needs.
     const esc = (p: string) => p.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -120,6 +137,7 @@ class SandboxExecBackend implements SandboxBackend {
       "(deny file-write*)",
       `(allow file-write* (subpath "${esc(runDir)}"))`,
       ...defaultScratchDirs().map((d) => `(allow file-write* (subpath "${esc(d)}"))`),
+      ...grants.filter((g) => g.write).map(grantMount).filter((m): m is string => !!m).map((m) => `(allow file-write* (subpath "${esc(m)}"))`), // approved escapes, and only those
       '(allow file-write* (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (literal "/dev/dtracehelper") (literal "/dev/random") (literal "/dev/urandom"))',
     ].join("\n");
   }
@@ -128,7 +146,7 @@ class SandboxExecBackend implements SandboxBackend {
     // before building the profile or an in-workspace write under a symlinked dir is wrongly denied.
     let real = runDir; try { real = realpathSync(runDir); } catch { /* keep runDir */ }
     const env = { ...process.env, ...options.env, HOME: real };
-    const args = ["-p", this.profile(real), "/bin/bash", "-c", command];
+    const args = ["-p", this.profile(real, options.grants ?? []), "/bin/bash", "-c", command];
     const child = spawn("/usr/bin/sandbox-exec", args, { cwd: real, env, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);
   }

@@ -56,9 +56,13 @@ Every decision is written to the audit trail.
   (Seatbelt), so `cmd > /tmp/out.log` followed by `read /tmp/out.log` works. Don't put secrets in `/tmp`.
 - **Threat detection scans instructions, not output**: a tool call's `command`, `path`/`file`, and `url` fields.
   File content and edit text are never pattern-scanned — they are governed by zones + the sandbox.
-- The **sandbox confines the coding flow** to the project. Approved out-of-project actions run
-  unconfined (you allowed the escape); in-project actions run under the OS backend
-  (bwrap on Linux, Seatbelt on macOS).
+- The **sandbox confines the coding flow** to the project. An approved out-of-project *path* is opened for
+  that one command as a grant (read-only or read-write) and the command stays under the OS backend (bwrap on
+  Linux, Seatbelt on macOS); `bash_exec` records the grants. Only an approved dangerous *shape* — `sudo`, a
+  download piped into a shell, a reverse shell — runs unconfined, and the prompt says so.
+- **Toolchain caches** live in one BlitzPi-owned root (`sandbox.cache: shared` → `~/.blitz/cache/<tool>`,
+  `project` → `<project>/.blitz/cache`, `off`), routed via the package managers' cache env vars, writable in
+  every confined command and classified `scratch`. The host's own caches are never opened.
 - The **security layer is exempt** — it reads its own install to run, and writes the global audit
   (`~/.blitz/audit`) itself, without asking. It is the enforcer, not the enforced.
 - **Audit** is global; **project policy and GoodBehavior data** live in the project; **BlitzPi's code**

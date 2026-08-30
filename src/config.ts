@@ -20,6 +20,8 @@ export interface BlitzConfig {
     enabled: boolean;
     run_dir: string;
     backend?: "auto" | "bwrap" | "sandbox-exec" | "pinned" | "none";
+    /** Where package managers cache under the sandbox: shared (~/.blitz/cache, default) | project (<project>/.blitz/cache) | off. */
+    cache: "shared" | "project" | "off";
   };
   governance: {
     enabled: boolean;
@@ -45,6 +47,8 @@ export interface BlitzConfig {
     secrets: "enforce" | "monitor" | "off";
     /** Command-shapes feed (Sigma rules, opt-in download): reverse shells, download-and-execute … Default monitor. */
     commands: "enforce" | "monitor" | "off";
+    /** Rule ids (Sigma / gitleaks) this project accepts as known false positives: their hits are neither recorded nor shown. */
+    allow: string[];
     /** URL feed (URLhaus, opt-in download): a URL in a command that is listed as distributing malware. Default monitor. */
     urls: "enforce" | "monitor" | "off";
     cache_ttl_hours: number;
@@ -74,6 +78,7 @@ const DEFAULT_CONFIG: BlitzConfig = {
     enabled: true,
     run_dir: getDefaultRunDir(),
     backend: (process.env.BLITZ_SANDBOX_BACKEND as any) || "auto",
+    cache: "shared",
   },
   governance: {
     enabled: true,
@@ -95,6 +100,7 @@ const DEFAULT_CONFIG: BlitzConfig = {
     secrets: "monitor",
     commands: "monitor",
     urls: "monitor",
+    allow: [],
     cache_ttl_hours: 24,
   },
 };
@@ -168,6 +174,7 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
       enabled: config.sandbox?.enabled ?? DEFAULT_CONFIG.sandbox.enabled,
       run_dir: expandTilde((config.sandbox?.run_dir as string) ?? DEFAULT_CONFIG.sandbox.run_dir),
       backend: (config.sandbox?.backend as any) ?? DEFAULT_CONFIG.sandbox.backend,
+      cache: (["shared", "project", "off"] as const).find((m) => m === config.sandbox?.cache) ?? DEFAULT_CONFIG.sandbox.cache,
     },
     governance: {
       enabled: config.governance?.enabled ?? DEFAULT_CONFIG.governance.enabled,
@@ -190,6 +197,7 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
       secrets: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.secrets) ?? DEFAULT_CONFIG.feeds.secrets,
       commands: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.commands) ?? DEFAULT_CONFIG.feeds.commands,
       urls: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.urls) ?? DEFAULT_CONFIG.feeds.urls,
+      allow: Array.isArray(config.feeds?.allow) ? (config.feeds.allow as unknown[]).filter((x): x is string => typeof x === "string") : DEFAULT_CONFIG.feeds.allow,
       cache_ttl_hours: typeof config.feeds?.cache_ttl_hours === "number" ? config.feeds.cache_ttl_hours : DEFAULT_CONFIG.feeds.cache_ttl_hours,
     },
   };

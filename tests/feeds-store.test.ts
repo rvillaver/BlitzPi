@@ -141,12 +141,12 @@ describe("download progress + sizes", () => {
 });
 
 describe("secrets feed hook + layer", () => {
-  function harness(mode: "enforce" | "monitor" | "off", installed = true) {
+  function harness(mode: "enforce" | "monitor" | "off", installed = true, allow: string[] = []) {
     const dir = tmp(); const store = new FeedStore(dir, fakeFetch(FIXTURE).f);
     const handlers: Record<string, any> = {}; const pi: any = { on: (n: string, h: any) => { handlers[n] = h; } };
     const logged: any[] = []; const notes: string[] = [];
     const ready = (async () => { if (installed) { store.optIn(); await store.update("secrets"); } })();
-    return { ready, run: async () => { await ready; setupSecretsFeed(pi, { feeds: { secrets: mode } } as any, { log: (e: any) => logged.push(e) } as any, store); return { fire: (command: string) => handlers.tool_call?.({ toolName: "bash", input: { command } }, { hasUI: true, ui: { notify: (m: string) => notes.push(m) } }), registered: !!handlers.tool_call, logged, notes }; } };
+    return { ready, run: async () => { await ready; setupSecretsFeed(pi, { feeds: { secrets: mode, allow } } as any, { log: (e: any) => logged.push(e) } as any, store); return { fire: (command: string) => handlers.tool_call?.({ toolName: "bash", input: { command } }, { hasUI: true, ui: { notify: (m: string) => notes.push(m) } }), registered: !!handlers.tool_call, logged, notes }; } };
   }
   beforeEach(() => { stats.feeds.secrets = 0; stats.blocked.feed = 0; });
   test("monitor: audited (redacted) and shown, not blocked", async () => {
@@ -157,6 +157,11 @@ describe("secrets feed hook + layer", () => {
     expect(h.notes[0]).toContain("Secrets feed (monitor)");
     expect(stats.feeds.secrets).toBe(1); expect(stats.blocked.feed).toBe(0);
     expect(await h.fire("ls")).toBeUndefined(); expect(h.logged).toHaveLength(1);
+  });
+  test("feeds.allow: an accepted gitleaks rule id passes silently (G4)", async () => {
+    const h = await harness("enforce", true, ["aws-access-token"]).run();
+    expect(await h.fire("echo AKIAZZ7XQ2BR4TSTKEYA")).toBeUndefined();
+    expect(h.logged).toHaveLength(0); expect(stats.feeds.secrets).toBe(0); expect(stats.blocked.feed).toBe(0);
   });
   test("enforce blocks; off and not-installed register nothing", async () => {
     const e = await harness("enforce").run();

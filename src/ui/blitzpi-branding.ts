@@ -60,7 +60,7 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 }
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
-  console.log(banner(config)); // renders in startup scrollback (setHeader does not replace Pi's mascot in 0.84.3)
+  console.log(banner(config)); // startup scrollback; the TUI header below carries the same summary
   const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", packages: "feed", feed: "feed", feeds: "feed", content: "content", all: "all" };
   pi.registerCommand("blitz-security", {
     description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | packages | content | all",
@@ -80,10 +80,12 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
       show(pi, ctx, renderReport(buildReport(process.cwd(), { since, auditPath: audit.getPath() })));
     },
   });
-  // Replace Pi's startup header and the terminal title (TUI only).
+  // Replace Pi's startup header and the terminal title (TUI only). Applied now and again after every
+  // session_start handler has run: pi-cc-extensions (bundled) resets the header to Pi's default in its own
+  // session_start, which runs after ours — the deferred call puts BlitzPi's header back.
   pi.on("session_start", async (_event, ctx) => {
     if (ctx.mode !== "tui") return;
-    ctx.ui.setHeader((_tui, theme) => {
+    const apply = () => ctx.ui.setHeader((_tui, theme) => {
       return {
         render(_width: number): string[] {
           return [
@@ -98,6 +100,8 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
         invalidate() {},
       };
     });
+    apply();
+    setTimeout(apply, 0);
     ctx.ui.setTitle(`blitzpi – ${path.basename(ctx.cwd)}`);
   });
 

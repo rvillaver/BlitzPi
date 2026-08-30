@@ -75,7 +75,8 @@ export function setupSecretsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: A
     const rules = store.liveRules("secrets");
     activeRules = rules;
     if (!rules) return;
-    const hits = scanSecrets(command, rules);
+    const allow = new Set(config.feeds.allow ?? []);
+    const hits = scanSecrets(command, rules).filter((h) => !allow.has(h.id)); // per-project accepted false positives
     if (!hits.length) return;
     stats.feeds.secrets += hits.length;
     const what = hits.map((h) => `${h.id} (${h.sample})`).join(", ");

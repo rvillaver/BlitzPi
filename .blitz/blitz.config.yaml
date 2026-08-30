@@ -15,6 +15,7 @@ sandbox:
   # backend: auto   # auto = bwrap (Linux) → sandbox-exec (macOS, built-in) → pinned (cross-platform guard)
   #   bwrap | sandbox-exec | pinned | none
   run_dir: "."  # workspace = project cwd; file tools + bash confined here
+  # cache: shared   # package-manager caches: shared = ~/.blitz/cache/<tool> (default) | project = .blitz/cache | off
 
 governance:
   enabled: true
@@ -26,3 +27,10 @@ governance:
 threat_api:
   enabled: false
   api_endpoint: http://localhost:9001/threat/check
+
+feeds:
+  # packages: enforce   # osv.dev check on every package install (enforce | monitor | off)
+  # secrets: monitor    # gitleaks rules on commands (opt-in download)
+  # commands: monitor   # Sigma command shapes (opt-in download)
+  # urls: monitor       # URLhaus (opt-in download)
+  # allow: []           # rule ids accepted as false positives here (from the audit's feed_* hits[].id)

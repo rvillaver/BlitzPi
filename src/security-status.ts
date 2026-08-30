@@ -91,7 +91,7 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
       detail: config.feeds.secrets !== "off" && !secretsFeedInstalled()
         ? `not installed — security feeds are opt-in: blitzpi feeds opt-in (then ${config.feeds.secrets} as configured)`
         : `a credential literal in a shell command ${config.feeds.secrets === "enforce" ? "is blocked" : "is recorded and shown"}; the secret is never written to the audit trail`,
-      configured: ".blitz/blitz.config.yaml feeds.secrets (enforce | monitor | off) · blitzpi feeds update",
+      configured: `.blitz/blitz.config.yaml feeds.secrets (enforce | monitor | off)${config.feeds.allow?.length ? ` · feeds.allow: ${config.feeds.allow.length} rule id(s) accepted` : ""} · blitzpi feeds update`,
     },
     {
       key: "commands",
@@ -100,7 +100,7 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
       detail: config.feeds.commands !== "off" && !feedInstalled("commands")
         ? `not installed — security feeds are opt-in: blitzpi feeds opt-in (then ${config.feeds.commands} as configured)`
         : `Linux/macOS process-creation rules (reverse shells, download-and-execute, persistence …) ${config.feeds.commands === "enforce" ? "block" : "are recorded and shown — read the false-positive rate off blitzpi report before enforce"}`,
-      configured: ".blitz/blitz.config.yaml feeds.commands (enforce | monitor | off) · blitzpi feeds update",
+      configured: `.blitz/blitz.config.yaml feeds.commands (enforce | monitor | off)${config.feeds.allow?.length ? ` · feeds.allow: ${config.feeds.allow.length} rule id(s) accepted` : ""} · blitzpi feeds update`,
     },
     {
       key: "urls",

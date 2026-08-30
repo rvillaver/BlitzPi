@@ -154,7 +154,7 @@ class Tier2Detector extends Tier1Detector {
     // understand shell properly. This heuristic must NOT flag normal shell (`$(...)`, backticks,
     // `2>/dev/null`, `&&`) — only genuinely malicious remote-exec/reverse-shell shapes.
     const patterns = [
-      /\b(?:curl|wget|fetch)\b[^\n|]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh|powershell)\b/i, // download|shell
+      /\b(?:curl|wget|fetch)\b[^\n|;&)]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh|powershell)\b/i, // download|shell (same statement only)
       /\|\s*nc\s+-?[a-z]*e/i,      // netcat reverse shell (nc -e)
       /\/dev\/tcp\//i,             // bash /dev/tcp reverse shell
     ];
@@ -297,32 +297,6 @@ function getDetectorForTier(tier: 1 | 2 | 3 | 4): Tier1Detector {
   }
 }
 
-/**
- * Sanitize tool input by removing or redacting PII
- */
-function sanitizeInput(input: Record<string, unknown>): Record<string, unknown> {
-  const sanitized = JSON.parse(JSON.stringify(input));
-
-  // Redact email addresses
-  const emailPattern = /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g;
-  if (typeof sanitized.command === "string") {
-    sanitized.command = sanitized.command.replace(emailPattern, "[REDACTED_EMAIL]");
-  }
-  if (typeof sanitized.text === "string") {
-    sanitized.text = sanitized.text.replace(emailPattern, "[REDACTED_EMAIL]");
-  }
-
-  // Redact API keys
-  const apiKeyPattern =
-    /(?:api[_-]?key|apikey|api_secret|secret[_-]?key|auth[_-]?token|token)\s*[:=]\s*[a-zA-Z0-9_-]{20,}/gi;
-  const stringifiedInput = JSON.stringify(sanitized);
-  if (apiKeyPattern.test(stringifiedInput)) {
-    // For now, we'll log this but not modify since it's complex
-    return sanitized;
-  }
-
-  return sanitized;
-}
 
 export function setupThreatDetection(
   pi: ExtensionAPI,
@@ -371,23 +345,6 @@ export function setupThreatDetection(
           block: true,
           reason: `[THREAT DETECTED] ${detection.reason} (Tier ${config.threat_detection.tier})`,
         };
-      }
-
-      // Optionally sanitize input for lower tiers (in higher tiers, we might want stricter blocking)
-      if (config.threat_detection.tier <= 2) {
-        const sanitized = sanitizeInput(event.input);
-        // Mutate the input in place if sanitization changed anything
-        if (JSON.stringify(sanitized) !== JSON.stringify(event.input)) {
-          Object.assign(event.input, sanitized);
-          auditLogger.log({
-            type: "threat_detection_check",
-            allowed: true,
-            action: "sanitized_input",
-            tier: config.threat_detection.tier,
-            tool_name: event.toolName,
-            tool_call_id: event.toolCallId,
-          });
-        }
       }
 
       // Log allowed calls at higher tiers for audit trail

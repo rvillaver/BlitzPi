@@ -21,6 +21,8 @@ import { setupCommandsFeed } from "./feeds/commands";
 import { setupUrlsFeed } from "./feeds/urls";
 import { setupContentScan } from "./content-scan";
 import { setupFeedsOnboarding } from "./feeds/onboard";
+import { cacheRoot } from "./toolchain-cache";
+import { defaultScratchDirs } from "./zones";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -42,7 +44,9 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     const projectRoot = process.cwd();
     const installRoot = path.join(__dirname, "..");
     const memory = new PermissionMemory(defaultPermissionStore(projectRoot));
-    const gate = new PermissionGate({ project: projectRoot, install: installRoot }, memory, auditLogger);
+    // The toolchain cache root counts as scratch for the guard: package managers write there on every install.
+    const cache = cacheRoot(config.sandbox.cache ?? "shared", projectRoot);
+    const gate = new PermissionGate({ project: projectRoot, install: installRoot, scratch: [...defaultScratchDirs(), ...(cache ? [cache] : [])] }, memory, auditLogger);
 
     // Register checkpoints and providers
     setupThreatDetection(pi, config, auditLogger);

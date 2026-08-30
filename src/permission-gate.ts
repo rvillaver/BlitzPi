@@ -9,11 +9,27 @@ import { decide, severity, permissionKey, type Action, type Level, PermissionMem
 import type { CmdTarget } from "./bash-guard";
 import type { AuditLogger } from "./audit";
 import { redactCommand } from "./feeds/secrets";
+import type { Grant } from "./sandbox-backends";
+import { isAbsolute, resolve } from "node:path";
+
+/** Confined zones never need a grant: the backend already opens them. */
+const CONFINED_ZONES = new Set<Zone>(["project", "goodbehavior", "project-config", "plumbing", "scratch"]);
+/** The out-of-workspace paths a command names, as grants for the backend (absolute; write wins over read). */
+export function grantsFor(targets: CmdTarget[], roots: ZoneRoots): Grant[] {
+  const out = new Map<string, boolean>();
+  for (const t of targets) {
+    if (CONFINED_ZONES.has(classifyZone(t.path, roots))) continue;
+    if (t.path.startsWith("~")) continue; // HOME is pinned to the workspace inside the sandbox
+    const abs = isAbsolute(t.path) ? resolve(t.path) : resolve(roots.project, t.path);
+    out.set(abs, (out.get(abs) ?? false) || t.write);
+  }
+  return [...out.entries()].map(([path, write]) => ({ path, write }));
+}
 
 export interface GateResult { allow: boolean; reason: string; zone: Zone; level: Level; confined: boolean; }
 
 export class PermissionGate {
-  constructor(private roots: ZoneRoots, private memory: PermissionMemory, private audit: AuditLogger) {}
+  constructor(readonly roots: ZoneRoots, private memory: PermissionMemory, private audit: AuditLogger) {}
 
   /** Most severe (action, zone, target) among a command's named paths. */
   worst(targets: CmdTarget[], command: string): { action: Action; zone: Zone; target: string; level: Level } {
@@ -34,7 +50,7 @@ export class PermissionGate {
 
   /** Treat a whole command as a dangerous out-of-project action (for shell-shape dangers like sudo). */
   async resolveDangerousCommand(command: string, why: string, ctx: ExtensionContext | undefined): Promise<GateResult> {
-    return this.resolve("write", "other", `${why}: ${command}`, "bash command", ctx);
+    return this.resolve("write", "other", `${why}: ${command}`, "bash command — if allowed it runs OUTSIDE the OS sandbox", ctx);
   }
 
   /** Core resolver. `confined` = the action stays inside the project. */
@@ -58,7 +74,7 @@ export class PermissionGate {
     const q = `${action === "write" ? "Write" : "Read"} ${label}\n  ${target}\n  zone: ${zone}`;
     let choice: string | undefined;
     if (level === "dangerous") {
-      ctx!.ui.notify(`DANGEROUS: ${action} outside your project (${zone}). ${target}`, "error");
+      ctx!.ui.notify(`DANGEROUS: ${action} outside your project (${zone}) — ${label}. ${target}`, "error");
       choice = await ctx!.ui.select(`⚠ BlitzPi: allow DANGEROUS ${action}?`, ["No", "Yes (I understand the risk)"]);
       choice = choice?.startsWith("Yes") ? "Yes" : "No";
     } else if (level === "ask-noalways") {

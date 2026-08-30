@@ -68,7 +68,8 @@ export function setupCommandsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: 
     if (!command) return;
     const rules = store.liveRules("commands");
     if (!rules) return;
-    const hits = scanCommand(command, rules);
+    const allow = new Set(config.feeds.allow ?? []);
+    const hits = scanCommand(command, rules).filter((h) => !allow.has(h.id)); // per-project accepted false positives
     if (!hits.length) return;
     stats.feeds.commands += hits.length;
     const what = hits.map((h) => `${h.title} [${h.severity}]`).join("; ");

@@ -1,8 +1,9 @@
 /**
  * Bash under the permission gate. The tool_call hook classifies the command (dangerous shape, or the
- * most severe named path) and asks the gate. Approved in-project commands run under the OS backend
- * (bwrap/Seatbelt/pinned); an approved OUT-of-project command runs unconfined (the user allowed the
- * escape). Blocked commands don't run.
+ * most severe named path) and asks the gate. Approved commands run under the OS backend
+ * (bwrap/Seatbelt/pinned); an approved out-of-project PATH is opened for that command as a grant, so
+ * confinement holds. Only an approved dangerous SHAPE (sudo, download|shell) runs unconfined.
+ * Blocked commands don't run.
  */
 import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { stats } from "./security-status";
@@ -12,8 +13,9 @@ import { resolve } from "node:path";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
 import { dangerousShape, extractTargets } from "./bash-guard";
-import { selectBackend, type SandboxBackend, type BackendPref } from "./sandbox-backends";
-import type { PermissionGate } from "./permission-gate";
+import { selectBackend, type SandboxBackend, type BackendPref, type Grant } from "./sandbox-backends";
+import { grantsFor, type PermissionGate } from "./permission-gate";
+import { cacheEnv, cacheRoot } from "./toolchain-cache";
 import { debug } from "./log";
 import { bashFacts } from "./bash-facts";
 import { redactCommand } from "./feeds/secrets";
@@ -27,39 +29,46 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
   const runDir = resolve(config.sandbox.run_dir);
   const backend: SandboxBackend | null = selectBackend((config.sandbox.backend ?? "auto") as BackendPref);
   activeBackend = backend ? backend.name : null;
-  const confinedByCommand = new Map<string, boolean>(); // command -> run under OS backend?
+  const runPlan = new Map<string, { confined: boolean; grants: Grant[] }>(); // command -> how to run it
+  // Toolchain caches: one BlitzPi-owned root, routed via env and opened read-write in every confined command (G3).
+  const cache = cacheRoot(config.sandbox.cache ?? "shared", runDir);
+  const cacheGrant: Grant[] = cache ? [{ path: cache, write: true }] : [];
+  const withCache = (env: NodeJS.ProcessEnv | undefined) => (cache ? { ...cacheEnv(cache), ...env } : env);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     if ((event as any).toolName !== "bash") return;
     const command: string = (event as any).input?.command ?? "";
 
     const shape = dangerousShape(command);
+    const targets = shape ? [] : extractTargets(command);
     const res = shape
       ? await gate.resolveDangerousCommand(command, shape, ctx)
-      : await (async () => { const w = gate.worst(extractTargets(command), command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx); })();
+      : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx); })();
 
     if (!res.allow) { stats.blocked.bash++; return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` }; }
-    confinedByCommand.set(command, res.confined); // out-of-project approved → run unconfined
+    // A dangerous SHAPE (sudo, download|shell, reverse shell) the user allowed runs unconfined — the backend cannot
+    // host it. An approved out-of-project PATH keeps the OS sandbox: the backend opens exactly that path (G2c).
+    runPlan.set(command, shape ? { confined: false, grants: [] } : { confined: true, grants: grantsFor(targets, gate.roots) });
   });
 
   const def = createBashToolDefinition(runDir, {
     exposeSessionEnvironment: true,
     operations: {
       exec: (command, _cwd, options) => {
-        const confined = confinedByCommand.get(command) ?? true;
-        confinedByCommand.delete(command);
-        if (confined && backend) {
-          audit.log({ type: "bash_exec", confined: true, backend: backend.name, command: redactCommand(command), ...bashFacts(command) });
-          const t0 = Date.now();
-          return backend.exec(command, runDir, options).then((r) => {
+        const plan = runPlan.get(command) ?? { confined: true, grants: [] };
+        runPlan.delete(command);
+        const t0 = Date.now();
+        if (plan.confined && backend) {
+          audit.log({ type: "bash_exec", confined: true, backend: backend.name, command: redactCommand(command), ...bashFacts(command), ...(plan.grants.length ? { grants: plan.grants } : {}) });
+          return backend.exec(command, runDir, { ...options, env: withCache(options.env), grants: [...cacheGrant, ...plan.grants] }).then((r) => {
             audit.log({ type: "bash_exit", backend: backend.name, exit_code: r.exitCode, aborted: !!options.signal?.aborted, ms: Date.now() - t0, command: redactCommand(command).slice(0, 120) });
             return r;
           });
         }
-        // unconfined: user approved an out-of-project command (or no backend). Run in the project cwd.
+        // unconfined: the user approved a dangerous command shape (or there is no backend). Run in the project cwd.
         audit.log({ type: "bash_exec", confined: false, command: redactCommand(command), ...bashFacts(command) });
         debug("bash (unconfined, approved) :", command);
-        const child = spawn("/bin/bash", ["-c", command], { cwd: runDir, env: { ...process.env, ...options.env }, stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn("/bin/bash", ["-c", command], { cwd: runDir, env: { ...process.env, ...withCache(options.env) }, stdio: ["ignore", "pipe", "pipe"] });
         child.stdout.on("data", (d: Buffer) => options.onData(d));
         child.stderr.on("data", (d: Buffer) => options.onData(d));
         let timer: NodeJS.Timeout | undefined;
@@ -68,11 +77,15 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         options.signal?.addEventListener("abort", onAbort, { once: true });
         return new Promise((r) => {
           child.on("error", (e) => { options.onData(Buffer.from(`[bash] ${e.message}\n`)); r({ exitCode: 126 }); });
-          child.on("close", (code) => { if (timer) clearTimeout(timer); options.signal?.removeEventListener("abort", onAbort); r({ exitCode: code }); });
+          child.on("close", (code) => {
+            if (timer) clearTimeout(timer); options.signal?.removeEventListener("abort", onAbort);
+            audit.log({ type: "bash_exit", backend: "none", exit_code: code, aborted: !!options.signal?.aborted, ms: Date.now() - t0, command: redactCommand(command).slice(0, 120) });
+            r({ exitCode: code });
+          });
         });
       },
     },
   });
   pi.registerTool(def);
-  console.log(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}`);
+  console.log(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}`);
 }

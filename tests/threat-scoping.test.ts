@@ -55,3 +55,15 @@ describe("real threats in instructions are still caught", () => {
     expect(await run("read", { path: "../shared/util.ts" })).toBeUndefined();
   });
 });
+
+describe("threat detection never rewrites tool input (G1)", () => {
+  test("a bash command carrying an email runs verbatim; PII is observed, nothing is sanitized", async () => {
+    const { run, entries } = hook(2);
+    const input = { command: 'email="user$ts@example.com"; curl -sS -X POST "$base/auth/register" -d "{\\"email\\":\\"$email\\"}"' };
+    const before = input.command;
+    expect(await run("bash", input)).toBeUndefined();
+    expect(input.command).toBe(before);
+    expect(entries.some((e) => e.action === "pii_observed" && e.pii_type === "email")).toBe(true);
+    expect(entries.some((e) => e.action === "sanitized_input")).toBe(false);
+  });
+});
