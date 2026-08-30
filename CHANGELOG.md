@@ -2,8 +2,9 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.108 — 2026-08-30
 
+- **Chat bridge — Discord.** `blitzpi bridge start` now runs a Discord bot when `~/.blitz/bridge/discord.token` (or `BLITZ_DISCORD_TOKEN`) exists. Bind a channel to a project (`/blitz-bridge bind #channel` inside a session, `/blitz bind <dir>` in Discord, or `blitzpi bridge bind discord:#channel <dir>`): members chat freely; `@blitzpi …` starts a governed run in a thread — tool activity and the answer stream in as new messages (never edited), Blitz's own prompts (dangerous writes, the `question` tool) appear as buttons only operators can press, security notices show as ⚠ lines, and `✅ done` closes the run. `@blitzpi stop` / `/blitz stop` abort immediately. `/blitz status|new|trigger|activity|context|operators` tune a channel; the guild owner is the default operator. The `bridge` skill walks a user through the Discord portal setup. Every bridge prompt records who asked (`on_behalf_of`). Telegram and Slack adapters follow; file transfer is next.
 - **Windows (preview, being verified):** `install.ps1` — one line in PowerShell installs a private Bun and BlitzPi under `%LOCALAPPDATA%\BlitzPi` with `blitzpi` on the user PATH; `blitzpi update|versions|rollback|use|uninstall` work through it. Zones understand Windows paths (drive letters, backslashes, case). The `pinned` backend (PowerShell, cwd/HOME pinned) is the guard-level confinement today; AppContainer isolation follows.
 
 ## 1.2.107 — 2026-08-30

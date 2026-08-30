@@ -24,6 +24,7 @@ import { setupFeedsOnboarding } from "./feeds/onboard";
 import { cacheRoot } from "./toolchain-cache";
 import { setupQuestionTool } from "./tools/question";
 import { setupChannelPostTool } from "./tools/channel-post";
+import { setupBridgeCommands } from "./ui/bridge-commands";
 import { defaultScratchDirs } from "./zones";
 import { info } from "./log";
 
@@ -74,6 +75,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     setupBlitzPiBranding(pi, config, auditLogger);
     setupQuestionTool(pi); // ask the user via ctx.ui — buttons over RPC (chat bridge), a picker in the TUI
     setupChannelPostTool(pi); // only under the bridge daemon (BLITZ_BRIDGE_SOCKET)
+    setupBridgeCommands(pi); // /blitz-bridge setup|start|bind|… (the `bridge` skill drives these conversationally)
 
     info("[Blitz Pi] Security layer ready");
   } catch (error) {

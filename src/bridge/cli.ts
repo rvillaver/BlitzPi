@@ -7,6 +7,7 @@ import path from "node:path";
 import { Bridge } from "./core";
 import { BindingsStore } from "./bindings";
 import { ConsoleAdapter } from "./console-adapter";
+import { DiscordAdapter, discordToken } from "./discord-adapter";
 import { bridgeCall, defaultSocketPath, serveSocket } from "./socket";
 import type { Binding, ConvRef } from "./types";
 
@@ -42,6 +43,13 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
     const partial: Partial<Binding> = {};
     if (f.trigger) partial.trigger = f.trigger as Binding["trigger"]; if (f.activity) partial.activity = f.activity as Binding["activity"];
     if (f.context) partial.context_window = Number(f.context); if (f.operator) partial.operators = f.operator as string[];
+    // A channel *name* needs the platform to resolve it: go through the running daemon when there is one.
+    if (!/^\d+$/.test(conv.id) && conv.platform !== "console") {
+      try {
+        const r = (await bridgeCall(socketPath, "bind", { platform: conv.platform, channel: conv.id, project: dir, create: f["no-create"] !== "true", ...partial })) as Binding & { conv: string; created: boolean };
+        console.log(`bound ${r.conv}${r.created ? " (channel created)" : ""} → ${r.project} (trigger ${r.trigger}, activity ${r.activity}, context ${r.context_window}, operators ${r.operators.length ? r.operators.join(", ") : "everyone"})`); return;
+      } catch (e) { console.error(`[bridge] ${e instanceof Error ? e.message : e}\n  (a channel name needs the daemon running: blitzpi bridge start — or bind by numeric id)`); process.exitCode = 1; return; }
+    }
     const b = store.bind(conv, dir, partial);
     console.log(`bound ${rest[0]} → ${b.project} (trigger ${b.trigger}, activity ${b.activity}, context ${b.context_window}, operators ${b.operators.length ? b.operators.join(", ") : "everyone"})`); return;
   }
@@ -69,11 +77,42 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
   }
 
   if (sub === "start") {
-    const adapter = new ConsoleAdapter((l) => process.stdout.write(`${new Date().toISOString().slice(11, 19)} ${l}\n`), false);
-    const bridge = new Bridge({ bindings: store, socketPath, log: (l) => process.stderr.write(l + "\n") });
-    bridge.attach(adapter);
+    const log = (l: string) => process.stdout.write(`${new Date().toISOString().slice(11, 19)} ${l}\n`);
+    const bridge = new Bridge({ bindings: store, socketPath, log });
+    bridge.attach(new ConsoleAdapter(log, false));
+    const platforms = ["console"];
+    const token = discordToken();
+    if (token) {
+      const discord: DiscordAdapter = new DiscordAdapter({
+        token, log,
+        onSlash: async ({ sub: cmd, options, conv, user, guildOwnerId }) => {
+          const key = `${conv.platform}:${conv.id}`;
+          const b = store.get(conv);
+          const operator = b ? (b.operators.length ? b.operators.includes(user.id) : user.id === guildOwnerId) : user.id === guildOwnerId;
+          if (cmd === "status") return b ? String(((await bridge.op("status", { conv: key })) as { text: string }).text) : "This channel is not bound to a project — `/blitz bind <dir>` (owner) binds it.";
+          if (!operator) return "Only operators can do that here.";
+          if (cmd === "bind") { const r = (await bridge.op("bind", { platform: conv.platform, channel: conv.id, project: String(options.project), operators: b?.operators?.length ? b.operators : [guildOwnerId ?? user.id] })) as Binding; return `Bound to \`${r.project}\` — trigger ${r.trigger}, activity ${r.activity}, context ${r.context_window}. Mention me to start.`; }
+          if (!b) return "This channel is not bound — `/blitz bind <dir>` first.";
+          if (cmd === "unbind") { await bridge.op("unbind", { conv: key }); return "Unbound."; }
+          if (cmd === "stop") { await bridge.op("stop", { conv: key }); return "⏹ stop requested."; }
+          if (cmd === "new") { await bridge.op("new", { conv: key }); return "🆕 next request starts a fresh session."; }
+          if (cmd === "trigger") { await bridge.op("settings", { conv: key, trigger: options.mode }); return `Trigger: **${options.mode}**.`; }
+          if (cmd === "activity") { await bridge.op("settings", { conv: key, activity: options.level }); return `Activity: **${options.level}**.`; }
+          if (cmd === "context") { await bridge.op("settings", { conv: key, context_window: Number(options.messages) }); return `Context window: **${options.messages}** message(s).`; }
+          if (cmd === "operators") { await bridge.op("settings", { conv: key, [options.action === "add" ? "add_operator" : "remove_operator"]: String(options.user) }); return `Operator ${options.action === "add" ? "added" : "removed"}: <@${options.user}>.`; }
+          return "Unknown command.";
+        },
+      });
+      bridge.attach(discord);
+      try { await discord.start(); platforms.push("discord"); } catch (e) { log(`[discord] could not start: ${e instanceof Error ? e.message : e}`); }
+    }
     const server = serveSocket(socketPath, (op, payload) => bridge.op(op, payload));
-    console.log(`[bridge] control socket ${socketPath}\n[bridge] platforms: console (Discord/Telegram/Slack adapters arrive in phase 2)\n[bridge] bound: ${store.list().length} conversation(s) — blitzpi bridge projects`);
+    const pidFile = path.join(path.dirname(socketPath), "daemon.pid");
+    try { require("node:fs").writeFileSync(pidFile, String(process.pid)); } catch { /* fine */ }
+    process.on("exit", () => { try { require("node:fs").unlinkSync(pidFile); } catch { /* fine */ } });
+    log(`[bridge] control socket ${socketPath}`);
+    log(`[bridge] platforms: ${platforms.join(", ")}${token ? "" : " (no Discord token at ~/.blitz/bridge/discord.token)"}`);
+    log(`[bridge] bound: ${store.list().length} conversation(s) — blitzpi bridge projects`);
     await new Promise<void>((res) => { const bye = () => { server.close(); bridge.stop().finally(() => res()); }; process.on("SIGINT", bye); process.on("SIGTERM", bye); });
     return;
   }

@@ -6,7 +6,8 @@ export interface ThreadRef extends ConvRef { conv: ConvRef }
 export interface UserRef { id: string; name?: string }
 export interface Attachment { name: string; url: string; bytes?: number }
 export interface Message { id: string; author: UserRef; text: string; time: number; attachments?: Attachment[] }
-export type TriggerKind = "mention" | "reply" | "thread" | "command";
+/** `message` = a plain message in a bound conversation — only a trigger under `trigger: all`. */
+export type TriggerKind = "mention" | "reply" | "thread" | "command" | "message";
 export interface Trigger { kind: TriggerKind; conv: ConvRef; thread?: ThreadRef; message: Message; text: string }
 
 export interface AdapterCapabilities {
@@ -27,6 +28,8 @@ export interface ChatAdapter {
   /** The last `n` messages in the conversation after `sinceId` (for the context window); [] where not permitted. */
   recent(conv: ConvRef, n: number, sinceId?: string): Promise<Message[]>;
   identity(u: UserRef): string;
+  /** Resolve a human channel name (`#general`) to a conversation; create it when `create` and permitted. Optional. */
+  resolveConversation?(name: string, create: boolean): Promise<{ conv: ConvRef; created: boolean; owner?: UserRef } | undefined>;
 }
 
 export type TriggerMode = "mentions" | "all" | "operators";

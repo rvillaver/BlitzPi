@@ -74,6 +74,7 @@ export class Bridge {
     const c = this.conversation(t.conv);
     if (!c) { await this.adapters.get(t.conv.platform)?.post(t.conv, "This conversation is not bound to a project. Bind it with `/blitz-bridge bind` or `blitzpi bridge bind`."); return; }
     const operator = this.isOperator(c, t.message.author);
+    if (t.kind === "message" && c.binding.trigger !== "all") return; // plain chatter: humans talk, the bot listens only under `all`
     if (c.binding.trigger === "operators" && !operator) return; // silent for non-operators in operators mode
     if (!operator && (t.kind !== "mention" && t.kind !== "reply" && t.kind !== "thread") && c.binding.trigger !== "all") return;
     const word = controlWord(t.text);
@@ -189,6 +190,35 @@ export class Bridge {
   }
   async op(name: string, payload: Record<string, unknown>): Promise<unknown> {
     if (name === "projects") return this.opts.bindings.list().map((e) => ({ conv: convKey(e.conv), ...e.binding }));
+    if (name === "bind") {
+      // bind {platform, channel: "#name"|id, project, create?, ...settings}
+      const platform = String(payload.platform ?? ""); const adapter = this.adapters.get(platform);
+      if (!adapter) throw new Error(`no adapter for ${platform} — is the daemon running with it?`);
+      const project = String(payload.project ?? process.cwd());
+      const name = String(payload.channel ?? "");
+      let conv: ConvRef | undefined; let created = false; let owner: UserRef | undefined;
+      if (/^\d+$/.test(name)) conv = { platform, id: name };
+      else if (adapter.resolveConversation) { const r = await adapter.resolveConversation(name, payload.create !== false); if (r) { conv = r.conv; created = r.created; owner = r.owner; } }
+      if (!conv) throw new Error(`no channel ${name} in ${platform} (and it could not be created)`);
+      const settings: Record<string, unknown> = {};
+      for (const k of ["trigger", "activity", "context_window", "announce_done", "name"]) if (payload[k] !== undefined) settings[k] = payload[k];
+      if (Array.isArray(payload.operators) && payload.operators.length) settings.operators = payload.operators.map(String);
+      const prev = this.opts.bindings.get(conv);
+      if (!settings.operators && !(prev?.operators.length) && owner) settings.operators = [owner.id]; // the owner is the default operator
+      const b = this.opts.bindings.bind(conv, project, settings as any);
+      this.convs.delete(convKey(conv));
+      return { conv: convKey(conv), created, ...b };
+    }
+    if (name === "unbind") { const conv = this.resolveConv(payload as any); if (!conv) throw new Error("nothing bound for that"); const c = this.convs.get(convKey(conv)); await c?.host?.stop(); this.convs.delete(convKey(conv)); return { removed: this.opts.bindings.unbind(conv) }; }
+    if (name === "settings") {
+      const conv = this.resolveConv(payload as any); if (!conv) throw new Error("nothing bound for that");
+      const b = this.opts.bindings.get(conv); if (!b) throw new Error("nothing bound for that");
+      const patch: Record<string, unknown> = {};
+      for (const k of ["trigger", "activity", "context_window", "announce_done"]) if (payload[k] !== undefined) patch[k] = payload[k];
+      if (payload.add_operator) patch.operators = [...new Set([...b.operators, String(payload.add_operator)])];
+      if (payload.remove_operator) patch.operators = b.operators.filter((o) => o !== String(payload.remove_operator));
+      const nb = this.opts.bindings.update(conv, patch as any); this.convs.delete(convKey(conv)); return nb;
+    }
     const conv = this.resolveConv(payload as { conv?: string; project?: string });
     if (!conv) throw new Error(`no conversation bound for ${payload.conv ?? payload.project ?? "(nothing given)"} — blitzpi bridge bind <platform:id> <dir>`);
     const c = this.conversation(conv);
@@ -205,6 +235,8 @@ export class Bridge {
       return { started: true, thread: convKey(thread) };
     }
     if (name === "stop") { await this.control(c, "stop", conv); return { ok: true }; }
+    if (name === "new") { await this.control(c, "new", conv); return { ok: true }; }
+    if (name === "can_operate") return { ok: this.isOperator(c, { id: String(payload.user ?? "") }) };
     if (name === "status") return { text: await this.statusText(c), running: c.running };
     throw new Error(`unknown op ${name}`);
   }

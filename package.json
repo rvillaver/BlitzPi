@@ -1,6 +1,6 @@
 {
   "name": "@blitz/pi-coding-agent",
-  "version": "1.2.107",
+  "version": "1.2.108",
   "description": "BlitzPi — the Pi coding agent with Blitz security governance (access profiles, sandbox, threat detection, governance gate, audit trail)",
   "main": "src/index.ts",
   "bin": {
@@ -47,6 +47,7 @@
     "@tintinweb/pi-subagents": "^0.18.0",
     "@types/js-yaml": "^4.0.9",
     "arcjet": "^1.11.0",
+    "discord.js": "^14.27.0",
     "js-yaml": "^5.4.1",
     "minimatch": "^10.2.6",
     "pi-cc-extensions": "^0.8.68",
@@ -61,6 +62,9 @@
   "pi": {
     "extensions": [
       "./src/index.ts"
+    ],
+    "skills": [
+      "./.pi/skills/bridge"
     ],
     "themes": [
       "./.pi/themes/blitzpi-dark.json",

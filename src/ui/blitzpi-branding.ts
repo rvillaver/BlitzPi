@@ -24,7 +24,7 @@ const banner = (config: BlitzConfig) => [
   "",
 ].join("\n");
 
-function show(pi: ExtensionAPI, ctx: { hasUI: boolean }, content: string): void {
+export function show(pi: ExtensionAPI, ctx: { hasUI: boolean }, content: string): void {
   if (ctx.hasUI) {
     pi.sendMessage({ customType: "blitz-status", content, display: true });
   } else {
