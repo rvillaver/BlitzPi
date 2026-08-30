@@ -4,6 +4,7 @@
  * own lifecycle (`blitzpi feeds update | list | rollback | opt-in | opt-out`). Platform updates never touch them.
  *
  *   <feeds>/opt-in                   present = the user chose to install security feeds (ISO date inside)
+ *   <feeds>/opt-out                  present = the user declined and asked not to be asked again
  *   <feeds>/<name>/manifest.json     source, ref (ETag), sha256 of the raw download, fetched_at, rule counts
  *   <feeds>/<name>/rules.json        compiled rules (what the runtime loads)
  *   <feeds>/<name>/previous/         the previous manifest + rules, for rollback
@@ -90,8 +91,16 @@ export class FeedStore {
 
   // ---- opt-in ---------------------------------------------------------------------------------------------
   optedIn(): boolean { return fs.existsSync(path.join(this.dir, "opt-in")); }
-  optIn(): void { fs.mkdirSync(this.dir, { recursive: true }); fs.writeFileSync(path.join(this.dir, "opt-in"), new Date().toISOString() + "\n"); }
+  /** "in" | "out" | undefined (never asked, or answered "not now"). */
+  decision(): "in" | "out" | undefined { return this.optedIn() ? "in" : fs.existsSync(path.join(this.dir, "opt-out")) ? "out" : undefined; }
+  optIn(): void {
+    fs.mkdirSync(this.dir, { recursive: true });
+    fs.writeFileSync(path.join(this.dir, "opt-in"), new Date().toISOString() + "\n");
+    try { fs.unlinkSync(path.join(this.dir, "opt-out")); } catch { /* none */ }
+  }
   optOut(removeFeeds = false): string[] {
+    fs.mkdirSync(this.dir, { recursive: true });
+    fs.writeFileSync(path.join(this.dir, "opt-out"), new Date().toISOString() + "\n");
     try { fs.unlinkSync(path.join(this.dir, "opt-in")); } catch { /* not opted in */ }
     const removed: string[] = [];
     if (removeFeeds) for (const f of FEEDS) if (fs.existsSync(this.feedDir(f.name))) { fs.rmSync(this.feedDir(f.name), { recursive: true, force: true }); removed.push(f.name); }
@@ -103,6 +112,18 @@ export class FeedStore {
   previousManifest(name: string): FeedManifest | undefined { return this.readJson<FeedManifest>(path.join(this.feedDir(name), "previous", "manifest.json")); }
   rules(name: string): CompiledRule[] | undefined { return this.readJson<{ rules: CompiledRule[] }>(path.join(this.feedDir(name), "rules.json"))?.rules; }
   installed(name: string): boolean { return !!this.manifest(name) && fs.existsSync(path.join(this.feedDir(name), "rules.json")); }
+  /** Rules for the runtime: re-read when the feed changes on disk (opt-in / update / rollback), so no restart is needed. */
+  private cache = new Map<string, { mtime: number; rules: CompiledRule[] | undefined }>();
+  liveRules(name: string): CompiledRule[] | undefined {
+    if (!this.optedIn()) return undefined;
+    let mtime = 0;
+    try { mtime = fs.statSync(path.join(this.feedDir(name), "rules.json")).mtimeMs; } catch { return undefined; }
+    const c = this.cache.get(name);
+    if (c && c.mtime === mtime) return c.rules;
+    const rules = this.rules(name);
+    this.cache.set(name, { mtime, rules });
+    return rules;
+  }
   list(): FeedStatus[] {
     return FEEDS.map((f) => ({ name: f.name, description: f.description, category: f.category, installed: this.installed(f.name), manifest: this.manifest(f.name), previous: this.previousManifest(f.name) }));
   }

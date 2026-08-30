@@ -2,6 +2,12 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.102 — 2026-08-30
+
+### Install
+- **BlitzPi now asks about security feeds itself.** On macOS, `blitzpi update` never offered the feeds: the installer only asked machines that had *already* opted in, and every update runs the previous version's installer anyway, so an installer-side question reaches a machine one release late or never. Now the app asks — once per version, at session start in the TUI, while no decision is recorded: **Yes** installs the feeds right there (they are active immediately; the hooks re-read rules when a feed changes, so no restart), **Not now** asks again after the next update, **No — don't ask again** records an opt-out (`blitzpi feeds opt-in` reverses it). The installer also asks whenever the machine is undecided (install *and* update), records an explicit "no" as opt-out, and never treats a non-answer as a decision. `blitzpi feeds status` shows "not decided" / "declined".
+- Feed hooks register even before a feed is installed and pick the feed up the moment it appears (opt-in, update, rollback) — no restart.
+
 ## 1.2.101 — 2026-08-30
 
 ### Governance

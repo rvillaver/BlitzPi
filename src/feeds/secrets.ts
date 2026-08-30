@@ -63,16 +63,18 @@ export function redactCommand(text: string): string {
 export function setupSecretsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.secrets;
   if (mode === "off") { console.log("[Blitz:Feeds] secrets feed off"); return; }
-  const rules = store.optedIn() ? store.rules("secrets") : undefined;
-  if (!rules) { activeRules = undefined; console.log(`[Blitz:Feeds] secrets feed not installed (blitzpi feeds opt-in) — ${mode} configured, inactive`); return; }
-  console.log(`[Blitz:Feeds] secrets feed (gitleaks) ${mode}, ${rules.length} rules`);
-  activeRules = rules;
+  const initial = store.liveRules("secrets");
+  activeRules = initial;
+  console.log(initial ? `[Blitz:Feeds] secrets feed (gitleaks) ${mode}, ${initial.length} rules` : `[Blitz:Feeds] secrets feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;
     if (tool !== "bash" && tool !== "powershell") return;
     const command: string = (event as any).input?.command ?? "";
     if (!command) return;
+    const rules = store.liveRules("secrets");
+    activeRules = rules;
+    if (!rules) return;
     const hits = scanSecrets(command, rules);
     if (!hits.length) return;
     stats.feeds.secrets += hits.length;

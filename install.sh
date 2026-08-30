@@ -124,24 +124,30 @@ remove_path_line() {
 # ---- security feeds: opt-in, separate from the platform ----------------------------------------
 # Platform updates always go through. Feeds are the user's choice, asked on install and again on every update
 # (also when the platform is already current); `--feeds` / `--no-feeds` answer without asking.
-FEEDS_OPT="$HOME/.blitz/feeds/opt-in"
+FEEDS_OPT="$HOME/.blitz/feeds/opt-in"; FEEDS_OUT="$HOME/.blitz/feeds/opt-out"
 ask_feeds() {  # ask_feeds "question" — never auto-yes: --update sets YES=1 for the platform only.
   # Consent needs an actual answer: Enter/yes on a terminal. EOF (no terminal, piped, CI) is "no", never "yes".
-  case "$FEEDS" in yes) return 0 ;; no) return 1 ;; esac
+  ANSWERED=0
+  case "$FEEDS" in yes) ANSWERED=1; return 0 ;; no) ANSWERED=1; return 1 ;; esac
   ans=""
   if [ -r /dev/tty ]; then printf '%s [Y/n] ' "$1"; read -r ans </dev/tty || { say ""; return 1; }
   elif [ -t 0 ]; then printf '%s [Y/n] ' "$1"; read -r ans || { say ""; return 1; }
   else return 1; fi
+  ANSWERED=1
   case "${ans:-Y}" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
 }
 feeds_step() {
   if [ -f "$FEEDS_OPT" ]; then
     if ask_feeds "Security feeds are installed (blitzpi feeds list). Update them too?"; then "$SHIM" feeds update </dev/null || say "WARNING: feed update failed (previous feeds kept). Retry: blitzpi feeds update"; else say "Security feeds left as they are (blitzpi feeds update when you want them)."; fi
-  elif [ "$MODE" = "install" ] || [ "$FEEDS" = yes ]; then
+  elif [ -f "$FEEDS_OUT" ] && [ "$FEEDS" != yes ]; then
+    say "Security feeds: declined earlier (blitzpi feeds opt-in to change)."
+  else  # undecided (install, or an update on a machine that was never asked), or --feeds
     say ""; say "Security feeds (optional): detection rules pulled from public sources — credentials in commands (gitleaks),"
     say "command shapes (Sigma) and malicious URLs (URLhaus). First download ≈ 4.5 MB (Sigma bundle 3.2 MB, URLhaus 1.3 MB),"
     say "≈ 1.5 MB kept in ~/.blitz/feeds; updated only when you say so (blitzpi feeds update)."
-    if ask_feeds "Install security feeds now?"; then "$SHIM" feeds opt-in </dev/null || say "WARNING: feed install failed. Retry: blitzpi feeds opt-in"; else say "Skipped. Later: blitzpi feeds opt-in"; fi
+    if ask_feeds "Install security feeds now?"; then "$SHIM" feeds opt-in </dev/null || say "WARNING: feed install failed. Retry: blitzpi feeds opt-in"
+    elif [ "$ANSWERED" = 1 ]; then mkdir -p "$HOME/.blitz/feeds"; date -u +%Y-%m-%dT%H:%M:%SZ >"$FEEDS_OUT"; say "Declined — recorded; blitzpi feeds opt-in if you change your mind."
+    else say "Skipped (no answer). BlitzPi will ask when it starts; or: blitzpi feeds opt-in"; fi
   fi
 }
 

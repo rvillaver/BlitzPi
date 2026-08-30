@@ -43,19 +43,18 @@ export function defangListed(text: string, rules: CompiledRule[]): string {
 export function setupUrlsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.urls;
   if (mode === "off") { console.log("[Blitz:Feeds] urls feed off"); return; }
-  const rules = store.optedIn() ? store.rules("urls") : undefined;
-  if (!rules) { console.log(`[Blitz:Feeds] urls feed not installed (blitzpi feeds opt-in) — ${mode} configured, inactive`); return; }
-  // Sets are loaded once per session; `includes` on a sorted array is fine at this size (15k) for a per-command check.
-  const setRules = rules.map((r) => (r.set ? { ...r, set: { urls: r.set.urls, hosts: r.set.hosts } } : r));
-  console.log(`[Blitz:Feeds] urls feed (URLhaus) ${mode}, ${setRules[0]?.set?.urls.length ?? 0} URLs`);
-  registerRedactor((t) => defangListed(t, setRules));
+  const initial = store.liveRules("urls");
+  console.log(initial ? `[Blitz:Feeds] urls feed (URLhaus) ${mode}, ${initial[0]?.set?.urls.length ?? 0} URLs` : `[Blitz:Feeds] urls feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
+  registerRedactor((t) => { const r = store.liveRules("urls"); return r ? defangListed(t, r) : t; });
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;
     if (tool !== "bash" && tool !== "powershell") return;
     const command: string = (event as any).input?.command ?? "";
     if (!command || !/:\/\//.test(command)) return;
-    const hits = scanUrls(command, setRules);
+    const rules = store.liveRules("urls");
+    if (!rules) return;
+    const hits = scanUrls(command, rules);
     if (!hits.length) return;
     stats.feeds.urls += hits.length;
     const what = hits.map((h) => (h.kind === "url" ? `${h.url} (listed URL)` : `${h.url} (host ${h.host} listed ${h.listed}×)`)).join("; ");

@@ -131,7 +131,9 @@ describe("secrets feed hook + layer", () => {
     expect(await e.fire("echo AKIAZZ7XQ2BR4TSTKEYA")).toMatchObject({ block: true, reason: expect.stringContaining("aws-access-token") });
     expect(stats.blocked.feed).toBe(1);
     expect((await harness("off").run()).registered).toBe(false);
-    expect((await harness("monitor", false).run()).registered).toBe(false);
+    const absent = await harness("monitor", false).run(); // registered, silent until installed
+    expect(absent.registered).toBe(true);
+    expect(await absent.fire("echo AKIAZZ7XQ2BR4TSTKEYA")).toBeUndefined(); expect(absent.logged).toHaveLength(0);
   });
   test("layer reflects opt-in state", async () => {
     const cfg: any = { threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };

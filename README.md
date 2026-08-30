@@ -80,9 +80,10 @@ Inside the session: `/blitz-security` (every layer, its mode, this session's cou
 governance | all` lists what the counters count), `/blitz-report` (this project's diagnostics), `/session` (Pi's usage and
 cost for this session), `/login`, `/model`, `/theme`, `/adopt-goodbehavior`, `/unadopt-goodbehavior`.
 
-**Security feeds are opt-in and separate from the platform.** The installer asks once (`Install security feeds now?`),
-and `blitzpi update` asks again only if you opted in — the platform always updates, the feeds only when you say so
-(`--feeds` / `--no-feeds` answer without a prompt). Feeds live in `~/.blitz/feeds/` (≈ 0.2 MB compiled), each with a
+**Security feeds are opt-in and separate from the platform.** BlitzPi asks once at start (in the TUI) while you have not
+decided — *Yes* installs them on the spot, *Not now* asks again after the next update, *No* records an opt-out; the installer
+asks too, at install and at update. The platform always updates, the feeds only when you say so (`--feeds` / `--no-feeds`
+answer the installer without a prompt; `blitzpi feeds opt-in | opt-out` any time). Feeds live in `~/.blitz/feeds/` (≈ 0.2 MB compiled), each with a
 manifest (source, sha256, fetched time), the previous version for `blitzpi feeds rollback <feed>`, and an audit entry per
 update. Not opted in: the feed layers show `off (not installed)`; the OSV package check and the built-in patterns keep
 working with nothing downloaded.

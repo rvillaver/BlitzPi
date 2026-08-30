@@ -20,6 +20,7 @@ import { setupSecretsFeed } from "./feeds/secrets";
 import { setupCommandsFeed } from "./feeds/commands";
 import { setupUrlsFeed } from "./feeds/urls";
 import { setupContentScan } from "./content-scan";
+import { setupFeedsOnboarding } from "./feeds/onboard";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -53,6 +54,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     setupCommandsFeed(pi, config, auditLogger);
     setupUrlsFeed(pi, config, auditLogger);
     setupContentScan(pi, config, auditLogger);
+    setupFeedsOnboarding(pi, auditLogger); // asks once per version while undecided; installs in-app
     setupSandboxedBash(pi, config, auditLogger, gate);
 
     // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)

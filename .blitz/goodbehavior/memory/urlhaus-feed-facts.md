@@ -5,3 +5,4 @@
 - Live probes: use `echo <listed url>` for monitor (the feed reads the command line; no request is made) and `curl <listed url>` for enforce (blocked before it runs — verify `bash_exec` count is 0 in that session). Never fetch a listed URL for real.
 - Pick a listed URL from `~/.blitz/feeds/urls/source.raw` at probe time (the list changes hourly); prefer an IP entry.
 - `scripts/install-smoke.sh` can fail transiently in the platform install step (download); re-run before diagnosing.
+- The list has **CRLF** line endings: `$`-anchored greps match nothing — `tr -d '\r'` first. It is **newest-first** and grows by the minute, so a freshly downloaded feed lacks the first lines; test with the *oldest* entries (`tail`).

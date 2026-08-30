@@ -274,6 +274,11 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
     console.log("[Blitz] Security feeds: opted in. Installing…");
     args = ["update"];
   }
+  if (sub === "status" || sub === undefined) {
+    const d = store.decision();
+    if (d === "out") console.log("[Blitz] Security feeds: declined (blitzpi feeds opt-in to change).");
+    else if (!d) console.log("[Blitz] Security feeds: not decided yet — BlitzPi asks at the next start, or run: blitzpi feeds opt-in");
+  }
   if (sub === "opt-out") {
     const removed = store.optOut(args.includes("--remove"));
     console.log(`[Blitz] Security feeds: opted out${removed.length ? `; removed ${removed.join(", ")}` : args.includes("--remove") ? "" : " (installed feeds kept on disk, inactive; add --remove to delete them)"}.`);
@@ -345,5 +350,5 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
   }
   const c = client.cacheStats();
   const sec = store.manifest("secrets"); const cmd = store.manifest("commands"); const url = store.manifest("urls");
-  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  commands   Sigma rules — ${store.optedIn() ? (cmd ? `installed: ${cmd.rules} rules (${cmd.skipped} skipped), fetched ${cmd.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(cmd.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}\n  urls       URLhaus — ${store.optedIn() ? (url ? `installed: ${url.rules} URLs, fetched ${url.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(url.sha256)} (hourly source: blitzpi feeds update)` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}`);
+  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : store.decision() === "out" ? "declined" : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  commands   Sigma rules — ${store.optedIn() ? (cmd ? `installed: ${cmd.rules} rules (${cmd.skipped} skipped), fetched ${cmd.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(cmd.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}\n  urls       URLhaus — ${store.optedIn() ? (url ? `installed: ${url.rules} URLs, fetched ${url.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(url.sha256)} (hourly source: blitzpi feeds update)` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}`);
 }

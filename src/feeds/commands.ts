@@ -58,15 +58,16 @@ export function scanCommand(command: string, rules: CompiledRule[]): CommandHit[
 export function setupCommandsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.commands;
   if (mode === "off") { console.log("[Blitz:Feeds] commands feed off"); return; }
-  const rules = store.optedIn() ? store.rules("commands") : undefined;
-  if (!rules) { console.log(`[Blitz:Feeds] commands feed not installed (blitzpi feeds opt-in) — ${mode} configured, inactive`); return; }
-  console.log(`[Blitz:Feeds] commands feed (Sigma) ${mode}, ${rules.length} rules`);
+  const initial = store.liveRules("commands");
+  console.log(initial ? `[Blitz:Feeds] commands feed (Sigma) ${mode}, ${initial.length} rules` : `[Blitz:Feeds] commands feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;
     if (tool !== "bash" && tool !== "powershell") return;
     const command: string = (event as any).input?.command ?? "";
     if (!command) return;
+    const rules = store.liveRules("commands");
+    if (!rules) return;
     const hits = scanCommand(command, rules);
     if (!hits.length) return;
     stats.feeds.commands += hits.length;

