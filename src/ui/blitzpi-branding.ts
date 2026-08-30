@@ -61,9 +61,9 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
   console.log(banner(config)); // renders in startup scrollback (setHeader does not replace Pi's mascot in 0.84.3)
-  const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", packages: "feed", feed: "feed", feeds: "feed", all: "all" };
+  const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", packages: "feed", feed: "feed", feeds: "feed", content: "content", all: "all" };
   pi.registerCommand("blitz-security", {
-    description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | packages | all",
+    description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | packages | content | all",
     handler: async (args: string, ctx) => {
       const kind = KINDS[(args ?? "").trim().toLowerCase()];
       if (kind) { show(pi, ctx, renderEvents(kind)); return; }

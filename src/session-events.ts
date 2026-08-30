@@ -3,7 +3,7 @@
  * WHAT the counters count (which files, which commands, which denials) — the audit trail has the same facts
  * on disk, this is the live, inspectable view. Bounded ring; oldest entries drop.
  */
-export type EventKind = "file" | "bash" | "governance" | "profile" | "threat" | "compaction" | "feed" | "other";
+export type EventKind = "file" | "bash" | "governance" | "profile" | "threat" | "compaction" | "feed" | "content" | "other";
 
 export interface SessionEvent {
   time: string; // ISO
@@ -59,6 +59,8 @@ export function classify(entry: Record<string, unknown>): SessionEvent | null {
     }
     case "feed_unreachable":
       return { time, kind: "feed", label: s((entry.packages as string[] | undefined)?.join(", ")), allowed: true, detail: s(`feed unreachable, installed unchecked: ${entry.error ?? ""}`) };
+    case "content_injection":
+      return { time, kind: "content", label: `${entry.tool} ${s(entry.target, 80)}`, allowed: true, detail: s(`instruction-shaped text: ${(entry.shapes as string[] | undefined)?.join(", ")} — "${entry.sample}"`, 200) };
     case "compaction":
       return { time, kind: "compaction", label: `compacted (${s(entry.reason)})`, allowed: true, detail: s(`${(entry.read_files as string[] | undefined)?.length ?? 0} read, ${(entry.modified_files as string[] | undefined)?.length ?? 0} modified summarised`) };
     default:

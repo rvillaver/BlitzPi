@@ -7,6 +7,22 @@ import { debug } from "./log";
 /**
  * Threat detection patterns for Tier 1 (fast, pattern-based detection)
  */
+/** Named so a content-scan hit can say WHICH shape matched without echoing the content. */
+export const INJECTION_SHAPES: { name: string; re: RegExp }[] = [
+  { name: "ignore-instructions", re: /ignore\s+(?:all\s+|any\s+)?(?:previous\s+|prior\s+|above\s+|earlier\s+)?(?:instructions?|rules|guidelines|prompts?)/i },
+  { name: "disregard-instructions", re: /disregard\s+(?:all\s+|any\s+)?(?:previous\s+|prior\s+|above\s+)?(?:instructions?|rules|guidelines)/i },
+  { name: "override-system-prompt", re: /(?:override|bypass|forget|reveal|print|repeat)\s+(?:the\s+|your\s+)?(?:system\s+)?prompt/i },
+  { name: "new-instructions", re: /\bnew\s+instructions?\s*:/i },
+  { name: "you-are-now", re: /\b(?:you\s+are\s+now|from\s+now\s+on\s+you\s+are|pretend\s+(?:that\s+)?you\s+are)\b/i },
+  { name: "role-switch", re: /\bact\s+as\s+(?:a\s+|an\s+)?(?:system|admin|root|developer\s+mode|dan)\b/i },
+  { name: "jailbreak", re: /\bjailbreak(?:ed|ing)?\b|\bDAN\s+mode\b/i },
+  { name: "to-the-ai", re: /\b(?:attention|note|important(?:\s+note)?|message)\s*(?:to|for)?\s*(?:the\s+|any\s+)?(?:ai|assistant|llm|language\s+model|agent|claude|gpt|copilot)(?:\s+(?:assistants?|models?|agents?|systems?))?\s*[:!]/i },
+  { name: "hidden-instruction-marker", re: /<\s*(?:system|instructions?|assistant)\s*>|\[(?:SYSTEM|INST|INSTRUCTIONS?)\]|BEGIN\s+(?:SYSTEM|HIDDEN)\s+(?:PROMPT|INSTRUCTIONS?)/i },
+  { name: "run-command-instruction", re: /\b(?:run|execute)\s+(?:this|the\s+following)\s+(?:shell\s+)?command\s*:/i },
+  { name: "exfiltrate", re: /\b(?:send|post|upload|exfiltrate)\s+(?:the\s+|all\s+|your\s+)?(?:contents?|files?|secrets?|keys?|credentials?|env(?:ironment)?)\s+(?:of\s+\S+\s+)?to\s+https?:\/\//i },
+  { name: "delete-everything", re: /\b(?:delete|remove|wipe)\s+(?:all\s+)?(?:the\s+)?(?:files|repository|repo|everything)\b/i },
+];
+
 const THREAT_PATTERNS = {
   prompt_injection: [
     /ignore\s+(?:previous\s+)?instructions?/i,

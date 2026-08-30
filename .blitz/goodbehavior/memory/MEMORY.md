@@ -14,3 +14,4 @@ Durable learnings for developing BlitzPi itself (one fact per file; skim before 
 - [Secrets feed traps](secrets-feed-traps.md) — gitleaks allowlists EXAMPLE keys; EOF is not consent in install.sh; 220/222 rules compile; redact commands in every audit writer
 - [Sigma feed facts](sigma-feed-facts.md) — sigma_all_rules.zip (3.2 MB) not core; 121/137 compile; own zip reader; negated filters needing context = no filter; report ledger
 - [URLhaus feed facts](urlhaus-feed-facts.md) — no header in the list; 34% is GitHub → exact-URL only for shared platforms; probe with echo (monitor) / curl (enforce, 0 bash_exec)
+- [Content scan facts](content-scan-facts.md) — tool_result hook annotates, never blocks; named shapes; annotation marker prevents re-trigger; probe by reading an injected file

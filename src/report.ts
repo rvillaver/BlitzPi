@@ -131,6 +131,7 @@ export function buildReport(project: string, opts: { since?: string; auditPath?:
       case "feed_command": for (const h of e.hits ?? []) hit(`command:${h.id}${h.title ? " " + h.title : ""}`); if (e.allowed === false) r.feed_blocked++; break;
       case "feed_url": for (const h of e.hits ?? []) hit(`url:${h.host ?? h.url ?? ""}`); if (e.allowed === false) r.feed_blocked++; break;
       case "feed_check": for (const m of e.malicious ?? []) hit(`package:${m}`); if (e.allowed === false) r.feed_blocked++; break;
+      case "content_injection": for (const sh of e.shapes ?? []) hit(`content:${sh}`); break;
       case "compaction":
         r.compactions++;
         for (const p of e.read_files ?? []) read.add(String(p));

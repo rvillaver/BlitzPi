@@ -17,6 +17,7 @@ export const stats = {
   governance: { checked: 0, denied: 0, unreachable: 0, lastDenial: "" },
   blocked: { profile: 0, sandbox: 0, bash: 0, threat: 0, input: 0, feed: 0 },
   feeds: { checked: 0, malicious: 0, unreachable: 0, last: "", secrets: 0, commands: 0, urls: 0 },
+  content: { scanned: 0, flagged: 0 },
 };
 
 export function layers(config: BlitzConfig, backendName: string | null): Layer[] {
@@ -65,6 +66,13 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
       configured: ".blitz/blitz.config.yaml threat_detection.*",
     },
     {
+      key: "content",
+      name: "Content injection scan",
+      mode: config.threat_detection.content === "off" ? "off" : "monitor",
+      detail: "every tool result the agent reads is scanned for instruction-shaped text; a hit is audited, shown, and the result is annotated so the model treats it as data — never blocked (files legitimately contain such phrases)",
+      configured: ".blitz/blitz.config.yaml threat_detection.content (monitor | off)",
+    },
+    {
       key: "feeds",
       name: "Package feed (OSV)",
       mode: config.feeds.packages,
@@ -108,7 +116,7 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
   ];
 }
 
-const short: Record<string, string> = { input: "input", governance: "governance", profiles: "profile", sandbox: "files", bash: "bash", threat: "threat", feeds: "packages", secrets: "secrets", commands: "commands", urls: "urls", audit: "audit" };
+const short: Record<string, string> = { input: "input", governance: "governance", profiles: "profile", sandbox: "files", bash: "bash", threat: "threat", content: "content", feeds: "packages", secrets: "secrets", commands: "commands", urls: "urls", audit: "audit" };
 
 /** One row for the startup banner: `governance local (monitor) · bash bwrap (enforce) · …` */
 export function summaryLine(config: BlitzConfig, backendName: string | null): string {
@@ -152,6 +160,7 @@ export function panel(config: BlitzConfig, backendName: string | null, lastAudit
     `  Model calls checked: ${g.checked}   denied (shown): ${g.denied}   provider unreachable: ${g.unreachable}`,
     `  Blocked: tools by profile ${b.profile} · file ops ${b.sandbox} · bash ${b.bash} · threat ${b.threat} · prompts ${b.input} · packages ${b.feed}`,
     `  Package feed: ${stats.feeds.checked} checked · ${stats.feeds.malicious} malicious · ${stats.feeds.unreachable} unreachable${stats.feeds.last ? `   last: ${stats.feeds.last.slice(0, 90)}` : ""}   Secrets feed: ${stats.feeds.secrets} credential(s) seen   Command shapes: ${stats.feeds.commands} hit(s)   URLs: ${stats.feeds.urls} listed`,
+    `  Content scan: ${stats.content.scanned} results scanned · ${stats.content.flagged} with instruction-shaped text`,
     "",
     lastAudit.length ? "  Last decisions:" : "  No audit entries yet.",
     ...lastAudit.map((l) => `    ${l}`),

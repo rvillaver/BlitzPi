@@ -6,6 +6,8 @@ export interface BlitzConfig {
   threat_detection: {
     enabled: boolean;
     tier: 1 | 2 | 3 | 4;
+    /** Scan tool RESULTS (what the agent reads) for instruction-shaped text — monitor only, never blocks. */
+    content: "monitor" | "off";
   };
   audit: {
     enabled: boolean;
@@ -59,6 +61,7 @@ const DEFAULT_CONFIG: BlitzConfig = {
   threat_detection: {
     enabled: true,
     tier: 2, // command-injection tier; 3-4 add aggressive heuristics (more false positives on normal bash)
+    content: "monitor",
   },
   audit: {
     enabled: true,
@@ -152,6 +155,7 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
     threat_detection: {
       enabled: config.threat_detection?.enabled ?? DEFAULT_CONFIG.threat_detection.enabled,
       tier: validateTier(config.threat_detection?.tier ?? DEFAULT_CONFIG.threat_detection.tier),
+      content: config.threat_detection?.content === "off" ? "off" : "monitor",
     },
     audit: {
       enabled: config.audit?.enabled ?? DEFAULT_CONFIG.audit.enabled,

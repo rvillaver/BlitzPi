@@ -18,6 +18,9 @@ built and verified on Linux and macOS.
 - **Feeds — org mirror / governance-endpoint distribution** — serve feed bundles from the governance API; needs F4.
 - **Feeds — version-aware vulnerability (GHSA/CVE) checks on install** — OSV returns advisories per version; needs the
   resolved version (post-install lockfile) to be meaningful. Malicious (`MAL-*`) is version-independent and ships first.
+- **Feeds — pulled jailbreak/injection phrase corpus** — the content scan (F8) uses 12 built-in named shapes. The public
+  corpora (`verazuo/jailbreak_llms`, `deepset/prompt-injections`, L1B3RT4S) are whole prompts, not phrases: matching them
+  needs n-gram signatures or a classifier, and licences vary. Unblocks: a maintained phrase list, or the classifier item below.
 - **Feeds — model-based prompt-injection classifiers** (Prompt Guard 2, ProtectAI DeBERTa) — means shipping a model;
   phrase corpora in monitor mode (F8) first.
 - **Network policy for the bash sandbox** — host network is currently shared; add egress rules.

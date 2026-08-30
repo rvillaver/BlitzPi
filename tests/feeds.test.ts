@@ -128,7 +128,7 @@ describe("feeds hook on bash tool calls", () => {
     expect(await h.fire("npm i evil", "read")).toBeUndefined();
   });
   test("layer, summary line and config default", () => {
-    const cfg: any = { threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "monitor", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
+    const cfg: any = { threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "monitor", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
     expect(layers(cfg, "bwrap").find((l) => l.key === "feeds")).toMatchObject({ name: "Package feed (OSV)", mode: "monitor" });
     expect(summaryLine(cfg, "bwrap")).toContain("packages osv (monitor)");
     expect(loadConfig().feeds).toEqual({ packages: "enforce", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 });

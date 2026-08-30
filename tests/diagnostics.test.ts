@@ -9,7 +9,7 @@ import { governanceStatus, stats, panel } from "../src/security-status";
 import { pruneAudit } from "../src/cli";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "blitz-diag-"));
-const cfg: any = { threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
+const cfg: any = { threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
 
 describe("bash facts (what a command deletes / fetches, from its command line)", () => {
   test("rm variants, quoted paths, git rm, find -delete", () => {
