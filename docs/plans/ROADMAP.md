@@ -14,7 +14,10 @@ installed, `feed_unreachable … fetch failed` ✔ · `feeds.packages: monitor` 
 installed, `feed_check mode:monitor allowed:true malicious:["npm:is-number"]` ✔ · TUI (pty): banner `packages osv (enforce)`,
 panel row `● Package feed (OSV)`, `/blitz-security packages` ✔ · `blitzpi feeds check @0xengine/xmlrpc lodash pypi:requests`
 → `✗ MALICIOUS … MAL-2024-11182`, `✓ clean`, `✓ clean`, exit 3 ✔ · Jest 151 passed (12 new in `tests/feeds.test.ts`) ✔.
-Not exercised live: PyPI/crates/gem/go installs (parser unit-tested only) ⚠ — a real `pip install` probe is a cheap follow-up.
+`pip install tcloud-python-sdks` → `[BLOCKED] package feed: PyPI "tcloud-python-sdks" is a known malicious package
+(MAL-2025-191887 …)`, audit `feed_check allowed:false` ✔ (blocked before exec — pip is not even installed on this machine).
+crates/gem/go: parser unit-tested; the OSV path is ecosystem-agnostic (same request), no live probe ✔ by construction.
+No `⚠` outstanding — phase 1 gate passes pending the user's confirmation.
 | ID | What | Gap | Sev | Verify |
 |---|---|---|---|---|
 | F1 | `src/feeds/`: parse package-install commands (bun/npm/npx/pnpm/yarn/pip/pipx/cargo/gem/go) into `{ecosystem, name}`; query OSV `querybatch`; block on any `MAL-*` (malicious), never on GHSA/CVE advisories; local cache (`~/.blitz/feeds/osv-cache.json`, 24 h TTL); unreachable → allow + audit `feed_unreachable` (never enforce an outage) | AD-2, AD-8, AD-9 | high | unit tests on the parser + decision; headless probe `bun add @0xengine/xmlrpc` → `[BLOCKED]` + audit `feed_check … MAL-2024-11182`; `bun add is-odd` → allowed; API pointed at a dead port → allowed + `feed_unreachable` |
