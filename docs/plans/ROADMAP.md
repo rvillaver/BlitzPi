@@ -1,5 +1,7 @@
 # Roadmap — updatable attack detection (feeds)
 
+**Released as 1.2.100 (2026-08-30): phases 1–3 complete** (F1–F8 verified live; F8 right-sized, corpus parked). Remaining ideas: `docs/BACKLOG.md`.
+
 Source: `docs/audit/01-attack-detection-feeds.md`. Parked work: `docs/BACKLOG.md`. Definition of done for every item:
 the real CLI blocks/observes the thing live (headless probe + audit entry), tests cover the parsing/decision, evidence is
 recorded here, **and the user confirms**. Every feed starts in `monitor` unless its false-positive rate is near zero.

@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.100 — 2026-08-30
 
 ### Governance
 - **Package feed (OSV) — detection that updates itself.** Every `bash`/`powershell` call that installs packages (`bun|pnpm|yarn add`, `npm i`, `npx`/`bunx`, `pip|pipx|uv pip install`, `poetry|uv add`, `cargo add|install`, `gem install`, `go get|install`) is checked against osv.dev before it runs. A known-malicious package (an OSV `MAL-*` entry — >100,000 npm packages alone, maintained by OpenSSF) is **blocked** under `feeds.packages: enforce` (the default) with the OSV id and summary in the reason; `monitor` records and shows it; `off` disables. Advisories on legitimate packages (GHSA/CVE) never block — they need the resolved version, parked in the backlog. Verdicts are cached 24 h (`~/.blitz/feeds/osv-cache.json`); an unreachable feed never blocks — the install proceeds and `feed_unreachable` is audited, the same rule as governance outages. The feed hook runs before the bash gate, so a malicious install is refused, not asked about. New layer "Package feed (OSV)" in the banner and `/blitz-security`; `/blitz-security packages` lists this session's hits; `blitzpi feeds status | check <pkg…> | parse <command> | clear-cache`. Why an API and not a pulled dictionary: OSV's npm bundle is 221 MB and the ossf repo 273 MB — the dictionary *is* osv.dev. Audit: `docs/audit/01-attack-detection-feeds.md`; plan: `docs/plans/ROADMAP.md`.
@@ -16,7 +16,7 @@ Governance changes are called out explicitly in every release: what the runtime 
 - **Content-side injection scan (monitor only).** Injection reaches a coding agent through what it *reads*, not the user's prompt. Every text tool result (`read`, `bash` output, fetched pages …, first 200 KB) is scanned for 12 named instruction shapes — `ignore-instructions`, `to-the-ai`, `you-are-now`, `run-command-instruction`, `exfiltrate`, `hidden-instruction-marker` …. A hit is audited as `content_injection` (tool, target, shape names, a ≤100-char sample — never the content), shown in the TUI, and the tool result is annotated with a one-line note telling the model the text is data, not instructions. Nothing is blocked: files legitimately contain such phrases. New layer "Content injection scan"; `/blitz-security content`; shapes appear in the report ledger. `threat_detection.content: monitor | off`. A pulled *corpus* of jailbreak phrases is parked (see backlog): no maintained, small, licence-clear list exists that would beat these shapes without a classifier model.
 
 ### Other
-- Versioning policy: next release is **1.2.100** (three-digit patch series, minor stays at 2); pushes accumulate here until a release is cut.
+- Versioning: this starts the **1.2.1xx** series (three-digit patch, minor stays at 2). Pushes are not releases; a release is cut when a set of improvements is complete.
 
 ## 1.2.3 — 2026-08-30
 
