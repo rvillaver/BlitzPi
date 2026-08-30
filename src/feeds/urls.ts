@@ -11,6 +11,7 @@ import { extractUrls } from "../bash-facts";
 import { FeedStore, type CompiledRule } from "./store";
 import { normalizeUrl, urlHash, defangUrl, defangHost } from "./adapters/urlhaus";
 import { redactCommand, registerRedactor } from "./secrets";
+import { info } from "../log";
 
 /** `url`/`host` are DEFANGED (hxxp://, [.]) — safe to write anywhere. `raw` is the URL as seen, for matching only. */
 export interface UrlHit { url: string; host: string; kind: "url" | "host"; listed: number; raw: string }
@@ -42,9 +43,9 @@ export function defangListed(text: string, rules: CompiledRule[]): string {
 
 export function setupUrlsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.urls;
-  if (mode === "off") { console.log("[Blitz:Feeds] urls feed off"); return; }
+  if (mode === "off") { info("[Blitz:Feeds] urls feed off"); return; }
   const initial = store.liveRules("urls");
-  console.log(initial ? `[Blitz:Feeds] urls feed (URLhaus) ${mode}, ${initial[0]?.set?.urls.length ?? 0} URLs` : `[Blitz:Feeds] urls feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
+  info(initial ? `[Blitz:Feeds] urls feed (URLhaus) ${mode}, ${initial[0]?.set?.urls.length ?? 0} URLs` : `[Blitz:Feeds] urls feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
   registerRedactor((t) => { const r = store.liveRules("urls"); return r ? defangListed(t, r) : t; });
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {

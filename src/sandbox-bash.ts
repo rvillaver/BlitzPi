@@ -18,7 +18,7 @@ import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
 import { ensureSandboxConfig, isBunInstall, parseAge, parseUntrusted, renderPolicy, summarizeAudit } from "./feeds/install-policy";
 import { homedir } from "node:os";
-import { debug } from "./log";
+import { debug, info } from "./log";
 import { bashFacts } from "./bash-facts";
 import { redactCommand } from "./feeds/secrets";
 
@@ -27,7 +27,7 @@ let activeBackend: string | null = null;
 export const activeBackendName = () => activeBackend;
 
 export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, gate: PermissionGate): void {
-  if (!config.sandbox.enabled) { console.log("[Blitz:BashSandbox] disabled"); return; }
+  if (!config.sandbox.enabled) { info("[Blitz:BashSandbox] disabled"); return; }
   const runDir = resolve(config.sandbox.run_dir);
   const backend: SandboxBackend | null = selectBackend((config.sandbox.backend ?? "auto") as BackendPref);
   activeBackend = backend ? backend.name : null;
@@ -109,5 +109,5 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     },
   });
   pi.registerTool(def);
-  console.log(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}${policyDir ? `; bun minimumReleaseAge ${policyAge}s` : "; bun install policy off"}`);
+  info(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}${policyDir ? `; bun minimumReleaseAge ${policyAge}s` : "; bun install policy off"}`);
 }

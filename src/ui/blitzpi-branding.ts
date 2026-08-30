@@ -14,6 +14,7 @@ import { activeBackendName } from "../sandbox-bash";
 import { panel, summaryLine } from "../security-status";
 import { renderEvents, type EventKind } from "../session-events";
 import { buildReport, renderReport } from "../report";
+import { info } from "../log";
 
 const banner = (config: BlitzConfig) => [
   "",
@@ -27,7 +28,7 @@ function show(pi: ExtensionAPI, ctx: { hasUI: boolean }, content: string): void 
   if (ctx.hasUI) {
     pi.sendMessage({ customType: "blitz-status", content, display: true });
   } else {
-    console.log(content); // print/json mode: no TUI to render the message
+    info(content); // print/json mode: no TUI to render the message
   }
 }
 
@@ -60,7 +61,7 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 }
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
-  console.log(banner(config)); // startup scrollback; the TUI header below carries the same summary
+  info(banner(config)); // startup scrollback; the TUI header below carries the same summary
   const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", packages: "feed", feed: "feed", feeds: "feed", content: "content", all: "all" };
   pi.registerCommand("blitz-security", {
     description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | packages | content | all",

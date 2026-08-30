@@ -22,14 +22,17 @@ import { setupUrlsFeed } from "./feeds/urls";
 import { setupContentScan } from "./content-scan";
 import { setupFeedsOnboarding } from "./feeds/onboard";
 import { cacheRoot } from "./toolchain-cache";
+import { setupQuestionTool } from "./tools/question";
+import { setupChannelPostTool } from "./tools/channel-post";
 import { defaultScratchDirs } from "./zones";
+import { info } from "./log";
 
 /**
  * Blitz Pi - Security-first coding agent
  * This extension loads as part of the Blitz Pi unified product
  */
 export default async function blitz(pi: ExtensionAPI): Promise<void> {
-  console.log("[Blitz Pi] Initializing security layer...");
+  info("[Blitz Pi] Initializing security layer...");
 
   try {
     // Phase 1: Core initialization
@@ -37,8 +40,8 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     const config = loadConfig();
     const auditLogger = setupAudit(caller, config);
 
-    console.log(`[Blitz Pi] Caller: ${caller.user} (${caller.install_type}) in ${caller.project_path}`);
-    console.log(`[Blitz Pi] Threat detection tier: ${config.threat_detection.tier}`);
+    info(`[Blitz Pi] Caller: ${caller.user} (${caller.install_type}) in ${caller.project_path}`);
+    info(`[Blitz Pi] Threat detection tier: ${config.threat_detection.tier}`);
 
     // Permission gate (zones + ladder). Project = launch folder; install = BlitzPi's own dir.
     const projectRoot = process.cwd();
@@ -69,8 +72,10 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
 
     // Phase 4: Setup UI & Branding (BlitzPi identity + live status commands)
     setupBlitzPiBranding(pi, config, auditLogger);
+    setupQuestionTool(pi); // ask the user via ctx.ui — buttons over RPC (chat bridge), a picker in the TUI
+    setupChannelPostTool(pi); // only under the bridge daemon (BLITZ_BRIDGE_SOCKET)
 
-    console.log("[Blitz Pi] Security layer ready");
+    info("[Blitz Pi] Security layer ready");
   } catch (error) {
     console.error("[Blitz Pi] Failed to initialize:", error);
     throw error;

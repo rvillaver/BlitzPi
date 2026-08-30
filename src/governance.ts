@@ -2,11 +2,11 @@ import { governanceStatus, stats } from "./security-status";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { BlitzConfig } from "./config";
 import { AuditLogger } from "./audit";
-import { Caller } from "./caller";
+import { Caller, noteCaller } from "./caller";
 import { MockGovernanceAPI, GovernanceRequest, GovernanceResponse } from "./governance-api";
 import { checkThreatAPI, MockThreatAPI, ThreatCheckRequest } from "./threat-api";
 import { createGovernanceProvider, type ProviderConfig } from "./governance-providers/factory";
-import { debug } from "./log";
+import { debug, info } from "./log";
 
 const PROMPT_INJECTION_PATTERNS = [
   /ignore.*(?:previous\s+)?instructions?/i,
@@ -93,7 +93,7 @@ export function setupGovernance(
   blitzAuditLogger: AuditLogger,
   blitzCaller?: Caller
 ): void {
-  console.log("[Blitz:Governance] Setup");
+  info("[Blitz:Governance] Setup");
 
   // Initialize governance state
   runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -104,7 +104,7 @@ export function setupGovernance(
   config = blitzConfig;
 
   if (!config.governance.enabled) {
-    console.log("[Blitz:Governance] Disabled in config");
+    info("[Blitz:Governance] Disabled in config");
     return;
   }
 
@@ -120,7 +120,7 @@ export function setupGovernance(
   let governanceProvider: import("./governance-providers/index").GovernanceProvider;
   try {
     governanceProvider = createGovernanceProvider(providerConfig);
-    console.log(`[Blitz:Governance] Enabled. Provider: ${governanceProvider.name}`);
+    info(`[Blitz:Governance] Enabled. Provider: ${governanceProvider.name}`);
   } catch (error) {
     console.error(`[Blitz:Governance] Failed to initialize provider:`, error instanceof Error ? error.message : String(error));
     return;
@@ -156,6 +156,7 @@ export function setupGovernance(
     if (event.source === "extension") return { action: "continue" as const };
     const text = event.text ?? "";
     if (text.startsWith("/")) return { action: "continue" as const }; // slash commands are not model prompts
+    const behalf = noteCaller(text); // a bridge prompt names its human: `[caller discord:123#alice]` → audit on_behalf_of
     const model = ctx.model?.id ?? "unknown";
     const verdict = await decide(text, model);
     auditLogger.log({
@@ -163,6 +164,7 @@ export function setupGovernance(
       run_id: runId,
       model,
       stage: "input",
+      ...(behalf ? { on_behalf_of: behalf } : {}),
       approved: verdict.approved,
       enforced: true,
       reason: verdict.reason,

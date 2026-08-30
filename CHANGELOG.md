@@ -2,6 +2,12 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.107 — 2026-08-30
+
+- **`question` tool.** The agent can ask you to pick from short options (or type an answer) — a picker in the TUI, buttons over the RPC bridge. In print/JSON mode it says no one is there to answer instead of guessing.
+- **Chat bridge, phase 1 (plumbing; no chat platform yet).** `blitzpi bridge run [--project DIR] "<prompt>"` runs a governed request and streams tool activity and the answer to the terminal; `blitzpi bridge start` is the daemon with a local control socket (`~/.blitz/bridge/bridge.sock`, 0600) and `blitzpi bridge post|ask|stop|status|projects|bind|unbind` talk to it. Inside a bridge-hosted run the agent has a `channel_post` tool (gated like any tool; only present under the daemon). Every bridge prompt names its human (`[caller platform:id#name]`) and the audit records it as `on_behalf_of`. Discord/Telegram/Slack adapters follow.
+- **Headless output is clean.** In `-p`, `--mode json` and `--mode rpc`, Blitz's startup lines go to stderr — stdout carries only the answer / JSONL.
+
 ## 1.2.106 — 2026-08-30
 
 - **Bun install policy inside the sandbox.** `feeds.min_release_age` (default `3d`; `off`) — Bun does not select a version published more recently than that (the "malicious version published an hour ago, pulled after a day" window OSV cannot know yet). The policy travels as a BlitzPi-owned `.bunfig.toml` via `XDG_CONFIG_HOME`; the project is untouched. After every Bun install the tool output ends with `[Blitz] install policy: …` — packages whose lifecycle scripts Bun refused to run (with the `bun pm trust` hint) and the tree's advisories by severity (`bun audit`) — audited as `install_policy`. Cache and policy env now override whatever the launching shell exports.

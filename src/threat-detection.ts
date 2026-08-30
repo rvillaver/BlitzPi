@@ -2,7 +2,7 @@ import type { ExtensionAPI, ToolCallEvent, ToolCallEventResult } from "@earendil
 import { stats } from "./security-status";
 import { BlitzConfig } from "./config";
 import { AuditLogger } from "./audit";
-import { debug } from "./log";
+import { debug, info } from "./log";
 
 /**
  * Threat detection patterns for Tier 1 (fast, pattern-based detection)
@@ -303,12 +303,12 @@ export function setupThreatDetection(
   config: BlitzConfig,
   auditLogger: AuditLogger
 ): void {
-  console.log(
+  info(
     `[Blitz:ThreatDetection] Setup (tier ${config.threat_detection.tier})`
   );
 
   if (!config.threat_detection.enabled) {
-    console.log("[Blitz:ThreatDetection] Disabled by configuration");
+    info("[Blitz:ThreatDetection] Disabled by configuration");
     return;
   }
 
@@ -371,5 +371,5 @@ export function setupThreatDetection(
     }
   });
 
-  console.log("[Blitz:ThreatDetection] Listening for tool calls...");
+  info("[Blitz:ThreatDetection] Listening for tool calls...");
 }

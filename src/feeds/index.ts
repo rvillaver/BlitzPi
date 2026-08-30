@@ -11,6 +11,7 @@ import { stats } from "../security-status";
 import { parseInstalls } from "./packages";
 import { OsvClient, maliciousOf, type CheckResult } from "./osv";
 import { redactCommand } from "./secrets";
+import { info } from "../log";
 
 export function describeBlock(r: CheckResult): string {
   return maliciousOf(r).map((v) => `${v.ecosystem} "${v.name}" is a known malicious package (${v.malicious.join(", ")}${v.summary ? ": " + v.summary : ""})`).join("; ");
@@ -18,8 +19,8 @@ export function describeBlock(r: CheckResult): string {
 
 export function setupFeeds(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, client: OsvClient = new OsvClient({ ttlHours: config.feeds.cache_ttl_hours })): void {
   const mode = config.feeds.packages;
-  if (mode === "off") { console.log("[Blitz:Feeds] package feed off"); return; }
-  console.log(`[Blitz:Feeds] package feed (OSV) ${mode}`);
+  if (mode === "off") { info("[Blitz:Feeds] package feed off"); return; }
+  info(`[Blitz:Feeds] package feed (OSV) ${mode}`);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;

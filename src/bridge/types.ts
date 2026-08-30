@@ -1,0 +1,39 @@
+/** Platform-neutral bridge contracts (CHAT-BRIDGE "ChatAdapter — the seam"). Adapters translate; the core never imports a platform SDK. */
+import type { UiRequest, UiResponse } from "./rpc-host";
+
+export interface ConvRef { platform: string; id: string }
+export interface ThreadRef extends ConvRef { conv: ConvRef }
+export interface UserRef { id: string; name?: string }
+export interface Attachment { name: string; url: string; bytes?: number }
+export interface Message { id: string; author: UserRef; text: string; time: number; attachments?: Attachment[] }
+export type TriggerKind = "mention" | "reply" | "thread" | "command";
+export interface Trigger { kind: TriggerKind; conv: ConvRef; thread?: ThreadRef; message: Message; text: string }
+
+export interface AdapterCapabilities {
+  threads: boolean; buttons: number; selectMenu: number; modal: boolean;
+  messageChars: number; paceWindowMs: number; attachmentBytes: number; seesAllMessages: boolean;
+}
+export interface ChatAdapter {
+  readonly platform: string;
+  readonly capabilities: AdapterCapabilities;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  onTrigger(cb: (t: Trigger) => void): void;
+  /** Open the run thread off the triggering message; adapters without threads return the conversation itself. */
+  openThread(conv: ConvRef, seed: Message, name: string): Promise<ThreadRef | ConvRef>;
+  post(target: ConvRef | ThreadRef, text: string): Promise<void>;
+  /** Render a dialog request (select/confirm/input/editor) and resolve with the answer of a user `canAnswer` accepts. */
+  ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean): Promise<UiResponse | undefined>;
+  /** The last `n` messages in the conversation after `sinceId` (for the context window); [] where not permitted. */
+  recent(conv: ConvRef, n: number, sinceId?: string): Promise<Message[]>;
+  identity(u: UserRef): string;
+}
+
+export type TriggerMode = "mentions" | "all" | "operators";
+export type ActivityLevel = "full" | "tools" | "quiet";
+export interface Binding {
+  project: string; sessionId?: string; name?: string;
+  trigger: TriggerMode; activity: ActivityLevel; operators: string[]; context_window: number; announce_done: boolean;
+}
+export const convKey = (c: ConvRef) => `${c.platform}:${c.id}`;
+export const defaultBinding = (project: string, partial: Partial<Binding> = {}): Binding => ({ project, trigger: "mentions", activity: "full", operators: [], context_window: 5, announce_done: true, ...partial });

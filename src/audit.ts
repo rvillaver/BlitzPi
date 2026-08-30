@@ -1,3 +1,4 @@
+import { getOnBehalfOf } from "./caller";
 import fs from "fs";
 import path from "path";
 import { Caller } from "./caller";
@@ -41,6 +42,7 @@ export function setupAudit(caller: Caller, config: BlitzConfig): AuditLogger {
         timestamp: new Date().toISOString(),
         type: entry.type || "unknown",
         caller,
+        ...(getOnBehalfOf() ? { on_behalf_of: getOnBehalfOf() } : {}),
         ...entry,
       };
       stream.write(JSON.stringify(logEntry) + "\n");

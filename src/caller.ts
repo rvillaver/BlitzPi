@@ -50,3 +50,16 @@ function detectInstallType(): "global" | "local" {
 
   return "local";
 }
+
+/** Who a bridge-originated prompt is on behalf of (e.g. `discord:123#alice`) — set from the `[caller …]` marker,
+ *  recorded on every audit entry until the next marker. */
+let onBehalfOf: string | undefined;
+export const CALLER_MARKER = /^\[caller ([^\]\n]{1,120})\]\n?/;
+export function setOnBehalfOf(id: string | undefined): void { onBehalfOf = id; }
+export function getOnBehalfOf(): string | undefined { return onBehalfOf; }
+/** Parse and remember a leading caller marker; returns the text with the marker kept (the model sees who asked). */
+export function noteCaller(text: string): string | undefined {
+  const m = CALLER_MARKER.exec(text);
+  if (m) setOnBehalfOf(m[1].trim());
+  return m?.[1].trim();
+}

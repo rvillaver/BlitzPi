@@ -13,6 +13,7 @@ import type { BlitzConfig } from "../config";
 import { adoptGoodBehavior, isAdopted, loadProfile, unadoptGoodBehavior } from "../adopt-goodbehavior";
 import { createDoneGate, DoneGate } from "./done-gate";
 import { stripInstallDocs } from "../prompt-hygiene";
+import { info } from "../log";
 
 export interface GoodBehaviorContext { doneGate: DoneGate; toolsCalled: string[] }
 let gbContext: GoodBehaviorContext | null = null;
@@ -31,7 +32,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   const gateCfg = (profile?.frontmatter?.done_gate ?? {}) as { build_tools?: string[]; observe_tools?: string[] };
   gbContext = { doneGate: createDoneGate(gateCfg.build_tools, gateCfg.observe_tools), toolsCalled: [] };
   const adopted = isAdopted(cwd);
-  console.log(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"` : "not adopted in this project (/adopt-goodbehavior)"}`);
+  info(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"` : "not adopted in this project (/adopt-goodbehavior)"}`);
 
   pi.on("before_agent_start", async (event: any) => {
     const base = stripInstallDocs(event.systemPrompt ?? "");
@@ -70,7 +71,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
       ];
       if (first || r.installed.length) lines.push("ACTION NEEDED: skills load at startup — restart BlitzPi here to activate them.");
       const content = lines.join("\n");
-      if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else console.log(content);
+      if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else info(content);
     },
   });
 
@@ -86,7 +87,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
       }
       const removed = unadoptGoodBehavior(cwd, purge);
       const content = `GoodBehavior removed from ${cwd}\n${removed.map((f) => `- ${f}`).join("\n")}\n${purge ? "" : "- project memory kept: .blitz/goodbehavior/memory/\n"}Restart BlitzPi here to unload the skills.`;
-      if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else console.log(content);
+      if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else info(content);
     },
   });
 }

@@ -10,6 +10,7 @@ import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
 import { INJECTION_SHAPES } from "./threat-detection";
 import { stats } from "./security-status";
+import { info } from "./log";
 
 export const SCAN_LIMIT = 200_000; // chars per result
 const NOTE_PREFIX = "[BlitzPi content scan]";
@@ -34,8 +35,8 @@ export function annotation(hits: ContentHit[], tool: string): string {
 }
 
 export function setupContentScan(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
-  if (config.threat_detection.content === "off") { console.log("[Blitz:ContentScan] off"); return; }
-  console.log("[Blitz:ContentScan] tool results scanned for instruction-shaped text (monitor)");
+  if (config.threat_detection.content === "off") { info("[Blitz:ContentScan] off"); return; }
+  info("[Blitz:ContentScan] tool results scanned for instruction-shaped text (monitor)");
   pi.on("tool_result", async (event: any, ctx: any) => {
     const tool = String(event.toolName ?? "");
     const parts: any[] = Array.isArray(event.content) ? event.content : [];
