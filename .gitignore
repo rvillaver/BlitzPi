@@ -44,3 +44,7 @@ runs/
 npm-debug.log*
 .claude/
 /~
+
+# Claude workshop (never published)
+CLAUDE.md
+CLAUDE.local.md

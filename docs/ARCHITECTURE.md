@@ -60,8 +60,7 @@ interface SandboxBackend {
 ```
 
 Add it to `selectBackend(pref)` (and the `BackendPref` union + `config.sandbox.backend`). The guard
-(`bash-guard.ts`) already runs cross-platform on top of any backend. Windows target: AppContainer (see
-docs/BACKLOG.md) — Windows has the primitive but no built-in CLI wrapper, so it needs a native helper.
+(`bash-guard.ts`) already runs cross-platform on top of any backend. Windows target: AppContainer — Windows has the primitive but no built-in CLI wrapper, so it needs a native helper.
 
 ## Verifying changes
 

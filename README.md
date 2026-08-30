@@ -127,7 +127,7 @@ you choose otherwise).
 | Linux | `bwrap` | OS-level (workspace = only writable path) |
 | macOS | `sandbox-exec` (built-in) | OS-level (writes confined to workspace) |
 | any / fallback | `pinned` + guard | scope guard: classify allow / confirm / deny + audit (not OS-isolated) |
-| Windows | *guard only today* | AppContainer backend planned (see docs/BACKLOG.md) |
+| Windows | *guard only today* | AppContainer backend planned |
 
 The guard runs on every OS regardless of backend: it classifies each command and prompts the user
 (`confirm`) or blocks (`deny`) for out-of-scope actions. It is scope enforcement + approval + audit, not
@@ -156,5 +156,3 @@ classified into a **zone** (project / system / other / …) and resolved on a **
 ## Enhance
 
 - Architecture, key files, extension points, and contributor gotchas: **docs/ARCHITECTURE.md**.
-- What's next and deferred work: **docs/BACKLOG.md**.
-- Development workflow / operating principles: **CLAUDE.md**.
