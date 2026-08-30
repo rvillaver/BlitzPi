@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- Installer: `blitzpi update` on an already-current platform still offers/refreshes the security feeds (it used to exit before the feeds step); unknown `--options` are ignored with a notice instead of aborting, so a newer command can pass flags an older installer predates.
+
 ## 1.2.100 — 2026-08-30
 
 ### Governance
@@ -14,6 +18,9 @@ Governance changes are called out explicitly in every release: what the runtime 
 - **Malicious-URL feed (URLhaus) — opt-in.** The `urls` feed pulls abuse.ch's `text_online` list (CC0, ~15,000 URLs, 1.3 MB, hourly) into two sets: every exact URL, and hosts — except shared platforms. Measured before building: 34% of the list is `raw.githubusercontent.com` / `github.com` (plus Drive, Docs, OneDrive, Dropbox, archive.org), so those match by exact URL only; IPs and dedicated domains (the bulk) match by host. Every URL a `bash`/`powershell` command names is checked; `feeds.urls: monitor` (default) records `feed_url` and shows it, `enforce` blocks before the command runs — a listed URL is never fetched. `blitzpi feeds scan` and the report ledger cover it. New layer "Malicious URLs (URLhaus)".
 
 - **Content-side injection scan (monitor only).** Injection reaches a coding agent through what it *reads*, not the user's prompt. Every text tool result (`read`, `bash` output, fetched pages …, first 200 KB) is scanned for 12 named instruction shapes — `ignore-instructions`, `to-the-ai`, `you-are-now`, `run-command-instruction`, `exfiltrate`, `hidden-instruction-marker` …. A hit is audited as `content_injection` (tool, target, shape names, a ≤100-char sample — never the content), shown in the TUI, and the tool result is annotated with a one-line note telling the model the text is data, not instructions. Nothing is blocked: files legitimately contain such phrases. New layer "Content injection scan"; `/blitz-security content`; shapes appear in the report ledger. `threat_detection.content: monitor | off`. A pulled *corpus* of jailbreak phrases is parked (see backlog): no maintained, small, licence-clear list exists that would beat these shapes without a classifier model.
+
+### Updating from 1.2.3 or earlier
+- The first `blitzpi update` runs the *previous* version's installer, which does not know the feeds question or `--feeds`; the platform updates normally and the question appears from the next update on. Run `blitzpi feeds opt-in` any time to install the feeds directly.
 
 ### Other
 - Versioning: this starts the **1.2.1xx** series (three-digit patch, minor stays at 2). Pushes are not releases; a release is cut when a set of improvements is complete.
