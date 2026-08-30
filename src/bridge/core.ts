@@ -257,6 +257,10 @@ export class Bridge {
       for (const k of ["trigger", "activity", "context_window", "announce_done", "name", "threads"]) if (payload[k] !== undefined) settings[k] = payload[k];
       if (Array.isArray(payload.operators) && payload.operators.length) settings.operators = payload.operators.map(String);
       const prev = this.opts.bindings.get(conv);
+      // One project ↔ one conversation ↔ one session: a second channel on the same folder would mean two agents in one
+      // working directory. Rebinding the same conversation is fine; another conversation is refused unless `force`.
+      const other = this.opts.bindings.byProject(project);
+      if (other && convKey(other.conv) !== convKey(conv) && payload.force !== true) throw new Error(`${project} is already bound to ${convKey(other.conv)} — one project, one conversation (unbind it first, or pass force)`);
       if (!settings.operators && !(prev?.operators.length) && owner) settings.operators = [owner.id]; // the owner is the default operator
       const b = this.opts.bindings.bind(conv, project, settings as any);
       this.convs.delete(convKey(conv));

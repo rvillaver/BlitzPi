@@ -89,5 +89,7 @@ test("ops: projects, post, run (by project dir), status, unknown", async () => {
   await bridge.waitIdle(conv, 10_000);
   expect((await bridge.op("status", { conv: "fake:chan" }) as any).running).toBe(false);
   await expect(bridge.op("post", { project: "/nowhere" })).rejects.toThrow(/no conversation bound/);
+  await expect(bridge.op("bind", { platform: "fake", channel: "999", project: process.cwd() })).rejects.toThrow(/already bound to fake:chan/); // one project, one conversation
+  expect(await bridge.op("bind", { platform: "fake", channel: "chan", project: process.cwd(), activity: "quiet" })).toMatchObject({ activity: "quiet" }); // rebinding the same one is fine
   await bridge.stop();
 });
