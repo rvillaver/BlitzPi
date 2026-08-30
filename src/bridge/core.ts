@@ -250,8 +250,8 @@ export class Bridge {
       const project = String(payload.project ?? process.cwd());
       const name = String(payload.channel ?? "");
       let conv: ConvRef | undefined; let created = false; let owner: UserRef | undefined;
-      if (/^\d+$/.test(name)) conv = { platform, id: name };
-      else if (adapter.resolveConversation) { const r = await adapter.resolveConversation(name, payload.create !== false); if (r) { conv = r.conv; created = r.created; owner = r.owner; } }
+      if (/^\d+$/.test(name) || !adapter.resolveConversation) conv = { platform, id: name.replace(/^#/, "") }; // ids, or platforms without name lookup
+      else { const r = await adapter.resolveConversation(name, payload.create !== false); if (r) { conv = r.conv; created = r.created; owner = r.owner; } }
       if (!conv) throw new Error(`no channel ${name} in ${platform} (and it could not be created)`);
       const settings: Record<string, unknown> = {};
       for (const k of ["trigger", "activity", "context_window", "announce_done", "name", "threads"]) if (payload[k] !== undefined) settings[k] = payload[k];
