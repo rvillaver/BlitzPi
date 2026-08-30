@@ -30,7 +30,7 @@ threat_api:
 
 feeds:
   # packages: enforce   # osv.dev check on every package install (enforce | monitor | off)
-  # secrets: monitor    # gitleaks rules on commands (opt-in download)
+  # secrets: enforce    # gitleaks rules on commands (opt-in download); enforce since 1.2.106
   # commands: monitor   # Sigma command shapes (opt-in download)
-  # urls: monitor       # URLhaus (opt-in download)
+  # urls: enforce       # URLhaus (opt-in download); enforce since 1.2.106
   # allow: []           # rule ids accepted as false positives here (from the audit's feed_* hits[].id)

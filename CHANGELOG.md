@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Governance: the secrets and URL feeds now enforce by default** (`feeds.secrets: enforce`, `feeds.urls: enforce`). Measured before the flip: across the trails on both development machines every `feed_secret` and `feed_url` entry was a deliberate probe — no false positive on real work — while the Sigma command-shapes feed fired on ordinary commands (`touch -t`, `grep password`) and therefore **stays in `monitor`**; use `feeds.allow` to accept its known false positives per project, then set `feeds.commands: enforce` yourself. A project that set a mode explicitly keeps it. Feeds that are not installed stay off — the opt-in is unchanged.
+
 ## 1.2.105 — 2026-08-30
 
 - **A download's output file is a write.** `curl -o F` / `--output F` and `wget -O F` / `-o F` / `--output-document F` are gated as writes to `F` (previously reads), so `wget -O ~/.bashrc …` or `curl -o /etc/… ` hits the write ladder. curl's `-O` (remote name into the cwd) and `-o -` (stdout) are not paths.

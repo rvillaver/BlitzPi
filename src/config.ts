@@ -43,13 +43,13 @@ export interface BlitzConfig {
   feeds: {
     /** Package feed (OSV): enforce = a known-malicious package install is blocked; monitor = recorded and shown. */
     packages: "enforce" | "monitor" | "off";
-    /** Secrets feed (gitleaks rules, opt-in download): a credential literal in a command. Default monitor. */
+    /** Secrets feed (gitleaks rules, opt-in download): a credential literal in a command. Default enforce (1.2.106). */
     secrets: "enforce" | "monitor" | "off";
     /** Command-shapes feed (Sigma rules, opt-in download): reverse shells, download-and-execute … Default monitor. */
     commands: "enforce" | "monitor" | "off";
     /** Rule ids (Sigma / gitleaks) this project accepts as known false positives: their hits are neither recorded nor shown. */
     allow: string[];
-    /** URL feed (URLhaus, opt-in download): a URL in a command that is listed as distributing malware. Default monitor. */
+    /** URL feed (URLhaus, opt-in download): a URL in a command that is listed as distributing malware. Default enforce (1.2.106). */
     urls: "enforce" | "monitor" | "off";
     cache_ttl_hours: number;
   };
@@ -97,9 +97,9 @@ const DEFAULT_CONFIG: BlitzConfig = {
   },
   feeds: {
     packages: "enforce",
-    secrets: "monitor",
-    commands: "monitor",
-    urls: "monitor",
+    secrets: "enforce",
+    commands: "monitor", // Sigma shapes fire on normal work (touch -t, grep password) — allowlist per project, then flip
+    urls: "enforce",
     allow: [],
     cache_ttl_hours: 24,
   },
