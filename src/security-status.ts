@@ -10,7 +10,8 @@ export interface Layer { key: string; name: string; mode: Mode; detail: string; 
 
 export const stats = {
   governance: { checked: 0, denied: 0, unreachable: 0, lastDenial: "" },
-  blocked: { profile: 0, sandbox: 0, bash: 0, threat: 0, input: 0 },
+  blocked: { profile: 0, sandbox: 0, bash: 0, threat: 0, input: 0, feed: 0 },
+  feeds: { checked: 0, malicious: 0, unreachable: 0, last: "" },
 };
 
 export function layers(config: BlitzConfig, backendName: string | null): Layer[] {
@@ -59,6 +60,13 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
       configured: ".blitz/blitz.config.yaml threat_detection.*",
     },
     {
+      key: "feeds",
+      name: "Package feed (OSV)",
+      mode: config.feeds.packages,
+      detail: `every package an install command names is checked against osv.dev before it runs; a known-malicious package (an OSV MAL id) ${config.feeds.packages === "enforce" ? "is blocked" : "is recorded and shown"}; an unreachable feed never blocks`,
+      configured: ".blitz/blitz.config.yaml feeds.packages (enforce | monitor | off)",
+    },
+    {
       key: "audit",
       name: "Audit trail",
       mode: config.audit.enabled ? "enforce" : "off",
@@ -68,14 +76,14 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
   ];
 }
 
-const short: Record<string, string> = { input: "input", governance: "governance", profiles: "profile", sandbox: "files", bash: "bash", threat: "threat", audit: "audit" };
+const short: Record<string, string> = { input: "input", governance: "governance", profiles: "profile", sandbox: "files", bash: "bash", threat: "threat", feeds: "packages", audit: "audit" };
 
 /** One row for the startup banner: `governance local (monitor) · bash bwrap (enforce) · …` */
 export function summaryLine(config: BlitzConfig, backendName: string | null): string {
   return layers(config, backendName)
     .filter((l) => l.key !== "input")
     .map((l) => {
-      const what = l.key === "governance" ? config.governance.provider : l.key === "bash" ? backendName ?? "none" : l.key === "profiles" ? config.profiles.default : l.key === "threat" ? `tier ${config.threat_detection.tier}` : "";
+      const what = l.key === "governance" ? config.governance.provider : l.key === "bash" ? backendName ?? "none" : l.key === "profiles" ? config.profiles.default : l.key === "threat" ? `tier ${config.threat_detection.tier}` : l.key === "feeds" ? "osv" : "";
       return `${short[l.key]}${what ? " " + what : ""} (${l.mode})`;
     })
     .join(" · ");
@@ -85,7 +93,7 @@ export function summaryLine(config: BlitzConfig, backendName: string | null): st
 export function governanceStatus(config: BlitzConfig): string {
   const g = stats.governance;
   const b = stats.blocked;
-  const blocked = b.profile + b.sandbox + b.bash + b.threat + b.input;
+  const blocked = b.profile + b.sandbox + b.bash + b.threat + b.input + b.feed;
   const tail = blocked > 0 ? ` · ${blocked} blocked → /blitz-security` : "";
   if (!config.governance.enabled) return `🛡 governance off${tail}`;
   if (g.lastDenial) return `🛡 ${config.governance.mode === "enforce" ? "STOPPED" : "DENIED"} — ${g.lastDenial}`;
@@ -96,7 +104,7 @@ export function governanceStatus(config: BlitzConfig): string {
 /** Total blocked this session across every layer. */
 export function blockedTotal(): number {
   const b = stats.blocked;
-  return b.profile + b.sandbox + b.bash + b.threat + b.input;
+  return b.profile + b.sandbox + b.bash + b.threat + b.input + b.feed;
 }
 
 export function panel(config: BlitzConfig, backendName: string | null, lastAudit: string[], sessionFile?: string): string {
@@ -110,7 +118,8 @@ export function panel(config: BlitzConfig, backendName: string | null, lastAudit
     ...rows,
     "",
     `  Model calls checked: ${g.checked}   denied (shown): ${g.denied}   provider unreachable: ${g.unreachable}`,
-    `  Blocked: tools by profile ${b.profile} · file ops ${b.sandbox} · bash ${b.bash} · threat ${b.threat} · prompts ${b.input}`,
+    `  Blocked: tools by profile ${b.profile} · file ops ${b.sandbox} · bash ${b.bash} · threat ${b.threat} · prompts ${b.input} · packages ${b.feed}`,
+    `  Package feed: ${stats.feeds.checked} checked · ${stats.feeds.malicious} malicious · ${stats.feeds.unreachable} unreachable${stats.feeds.last ? `   last: ${stats.feeds.last.slice(0, 90)}` : ""}`,
     "",
     lastAudit.length ? "  Last decisions:" : "  No audit entries yet.",
     ...lastAudit.map((l) => `    ${l}`),

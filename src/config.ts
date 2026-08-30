@@ -36,6 +36,11 @@ export interface BlitzConfig {
     enabled: boolean;
     api_endpoint: string;
   };
+  feeds: {
+    /** Package feed (OSV): enforce = a known-malicious package install is blocked; monitor = recorded and shown. */
+    packages: "enforce" | "monitor" | "off";
+    cache_ttl_hours: number;
+  };
 }
 
 function getDefaultRunDir(): string {
@@ -75,6 +80,10 @@ const DEFAULT_CONFIG: BlitzConfig = {
   threat_api: {
     enabled: false,
     api_endpoint: process.env.BLITZ_THREAT_API || "http://localhost:9001/threat/check",
+  },
+  feeds: {
+    packages: "enforce",
+    cache_ttl_hours: 24,
   },
 };
 
@@ -162,6 +171,10 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
     threat_api: {
       enabled: config.threat_api?.enabled ?? DEFAULT_CONFIG.threat_api.enabled,
       api_endpoint: (config.threat_api?.api_endpoint as string) ?? DEFAULT_CONFIG.threat_api.api_endpoint,
+    },
+    feeds: {
+      packages: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.packages) ?? DEFAULT_CONFIG.feeds.packages,
+      cache_ttl_hours: typeof config.feeds?.cache_ttl_hours === "number" ? config.feeds.cache_ttl_hours : DEFAULT_CONFIG.feeds.cache_ttl_hours,
     },
   };
 }

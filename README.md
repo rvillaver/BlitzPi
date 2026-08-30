@@ -72,6 +72,7 @@ blitzpi --help          # all Pi flags/subcommands pass through
 blitzpi audit           # query the audit trail (--project PATH, --type, --prune for housekeeping)
 blitzpi report [PATH]   # one project across sessions: files read/written/deleted, URLs, commands, governance, usage
 blitzpi projects        # projects managed by BlitzPi (prune | forget PATH)
+blitzpi feeds           # detection feeds: status · check <pkg…> (ask OSV without installing) · parse <command> · clear-cache
 blitzpi demo            # capability demo (writes it from real runs)
 ```
 
@@ -101,6 +102,7 @@ you choose otherwise).
 | Bash sandbox | `bash` tool override + guard | confine shell — see below |
 | Governance gate | `input` event → block; `before_provider_request` → abort | stop a prompt (injection / disallowed model) before a turn; check every model call with the governance provider and **stop** denied ones (`governance.mode: enforce`, default) or only record them (`monitor`) |
 | Threat detection | `tool_call` hook → block | pattern-based injection/PII detection on tool inputs |
+| Package feed (OSV) | `tool_call` hook → block | every package an install command names (`bun add`, `npm i`, `npx`, `pip install`, `cargo add`, `gem install`, `go get`) is checked against [osv.dev](https://osv.dev) before it runs; a known-malicious package (OSV `MAL` id) is blocked (`feeds.packages: enforce`, default) or recorded and shown (`monitor`). Advisories on legitimate packages (GHSA/CVE) never block. Answers are cached 24 h in `~/.blitz/feeds/`; an unreachable feed never blocks — the outage is audited |
 | Audit trail | all layers | JSONL decisions in `.blitz/audit/` |
 
 ### Bash confinement per OS

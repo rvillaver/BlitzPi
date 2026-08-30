@@ -4,6 +4,10 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+### Governance
+- **Package feed (OSV) — detection that updates itself.** Every `bash`/`powershell` call that installs packages (`bun|pnpm|yarn add`, `npm i`, `npx`/`bunx`, `pip|pipx|uv pip install`, `poetry|uv add`, `cargo add|install`, `gem install`, `go get|install`) is checked against osv.dev before it runs. A known-malicious package (an OSV `MAL-*` entry — >100,000 npm packages alone, maintained by OpenSSF) is **blocked** under `feeds.packages: enforce` (the default) with the OSV id and summary in the reason; `monitor` records and shows it; `off` disables. Advisories on legitimate packages (GHSA/CVE) never block — they need the resolved version, parked in the backlog. Verdicts are cached 24 h (`~/.blitz/feeds/osv-cache.json`); an unreachable feed never blocks — the install proceeds and `feed_unreachable` is audited, the same rule as governance outages. The feed hook runs before the bash gate, so a malicious install is refused, not asked about. New layer "Package feed (OSV)" in the banner and `/blitz-security`; `/blitz-security packages` lists this session's hits; `blitzpi feeds status | check <pkg…> | parse <command> | clear-cache`. Why an API and not a pulled dictionary: OSV's npm bundle is 221 MB and the ossf repo 273 MB — the dictionary *is* osv.dev. Audit: `docs/audit/01-attack-detection-feeds.md`; plan: `docs/plans/ROADMAP.md`.
+
+### Other
 - Versioning policy: next release is **1.2.100** (three-digit patch series, minor stays at 2); pushes accumulate here until a release is cut.
 
 ## 1.2.3 — 2026-08-30

@@ -5,19 +5,19 @@ import fs from "fs"; import os from "os"; import path from "path";
 
 const cfg: any = {
   threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" },
-  sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local", model_whitelist: [] }, goodbehavior: { profile: "development" }, threat_api: { enabled: false },
+  sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local", model_whitelist: [] }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", cache_ttl_hours: 24 },
 };
 
 describe("security status model", () => {
   test("one vocabulary: per-call governance is monitor, gates are enforce, pinned bash is monitor", () => {
     const L = Object.fromEntries(layers(cfg, "bwrap").map((l) => [l.key, l.mode]));
-    expect(L).toEqual({ input: "enforce", governance: "enforce", profiles: "enforce", sandbox: "enforce", bash: "enforce", threat: "enforce", audit: "enforce" });
+    expect(L).toEqual({ input: "enforce", governance: "enforce", profiles: "enforce", sandbox: "enforce", bash: "enforce", threat: "enforce", feeds: "enforce", audit: "enforce" });
     expect(layers({ ...cfg, governance: { ...cfg.governance, mode: "monitor" } }, "bwrap").find((l) => l.key === "governance")!.mode).toBe("monitor");
     expect(layers(cfg, "pinned").find((l) => l.key === "bash")!.mode).toBe("monitor");
     expect(layers({ ...cfg, governance: { ...cfg.governance, enabled: false } }, "bwrap").find((l) => l.key === "governance")!.mode).toBe("off");
   });
   test("summary line names provider, backend, profile, tier with modes", () => {
-    expect(summaryLine(cfg, "bwrap")).toBe("governance local (enforce) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · audit (enforce)");
+    expect(summaryLine(cfg, "bwrap")).toBe("governance local (enforce) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · packages osv (enforce) · audit (enforce)");
   });
   test("status bar is steady when fine and loud on a denial", () => {
     stats.governance.lastDenial = "";

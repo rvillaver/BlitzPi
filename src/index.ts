@@ -15,6 +15,7 @@ import { setupWorkspaceInit } from "./workspace-init";
 import { setupBlitzPiBranding } from "./ui/blitzpi-branding";
 import { setupCompaction } from "./compaction";
 import { setupProjectRegistry } from "./projects-hook";
+import { setupFeeds } from "./feeds";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -43,6 +44,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     setupAccessProfiles(pi, config, auditLogger);
     setupGovernance(pi, config, auditLogger, caller);
     setupSandbox(pi, config, auditLogger, gate);
+    setupFeeds(pi, config, auditLogger); // before the bash gate: a known-malicious install is refused, not asked about
     setupSandboxedBash(pi, config, auditLogger, gate);
 
     // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)

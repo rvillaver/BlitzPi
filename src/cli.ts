@@ -3,6 +3,8 @@ import path from "path";
 import { queryAudit, AuditFilter } from "./audit";
 import { listProjects, pruneProjects, forgetProject, renderProjects } from "./projects";
 import { buildReport, renderReport } from "./report";
+import { parseInstalls, type PackageRef } from "./feeds/packages";
+import { OsvClient, maliciousOf } from "./feeds/osv";
 
 /**
  * R3.2: CLI command for querying audit trail
@@ -248,4 +250,32 @@ export async function handleReportCommand(args: string[]): Promise<void> {
   }
   const r = buildReport(project, { since, auditPath });
   console.log(format === "json" ? JSON.stringify(r, null, 2) : renderReport(r));
+}
+
+export async function handleFeedsCommand(args: string[]): Promise<void> {
+  const sub = args[0];
+  const client = new OsvClient();
+  if (sub === "check") {
+    const refs: PackageRef[] = [];
+    for (const a of args.slice(1)) {
+      const m = a.match(/^(npm|pypi|crates\.io|rubygems|go):(.+)$/i);
+      const eco = (m ? { npm: "npm", pypi: "PyPI", "crates.io": "crates.io", rubygems: "RubyGems", go: "Go" }[m[1].toLowerCase()] : "npm") as PackageRef["ecosystem"];
+      const name = m ? m[2] : a;
+      refs.push(...(parseInstalls(`${eco === "PyPI" ? "pip install" : eco === "npm" ? "npm i" : eco === "crates.io" ? "cargo add" : eco === "RubyGems" ? "gem install" : "go get"} ${name}`).length ? [{ ecosystem: eco, name }] : []));
+    }
+    if (!refs.length) { console.log("Usage: blitzpi feeds check <package> [pypi:<package>] …   (default ecosystem: npm)"); return; }
+    const r = await client.check(refs);
+    if (r.unreachable) console.log(`[Blitz] OSV unreachable: ${r.error ?? "no response"}`);
+    for (const v of r.verdicts) console.log(`  ${v.malicious.length ? "✗ MALICIOUS" : "✓ clean    "}  ${v.ecosystem}:${v.name}${v.malicious.length ? `  ${v.malicious.join(", ")}${v.summary ? " — " + v.summary : ""}` : ""}${v.cached ? "  (cached)" : ""}`);
+    if (maliciousOf(r).length) process.exitCode = 3;
+    return;
+  }
+  if (sub === "clear-cache") { client.clearCache(); console.log("[Blitz] OSV cache cleared."); return; }
+  if (sub === "parse") { console.log(JSON.stringify(parseInstalls(args.slice(1).join(" ")))); return; }
+  if (sub === "--help" || sub === "-h") {
+    console.log("Usage: blitzpi feeds [status]            sources and cache state\n       blitzpi feeds check <pkg…>        ask OSV without installing (npm default; pypi:<name>, crates.io:<name>, rubygems:<name>, go:<path>)\n       blitzpi feeds parse <command>     which packages a shell command would install\n       blitzpi feeds clear-cache");
+    return;
+  }
+  const c = client.cacheStats();
+  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command; known-malicious (MAL-*) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  next       gitleaks (secrets), Sigma (command shapes), URLhaus (URLs) — see docs/plans/ROADMAP.md`);
 }

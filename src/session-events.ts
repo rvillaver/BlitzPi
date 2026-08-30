@@ -3,7 +3,7 @@
  * WHAT the counters count (which files, which commands, which denials) — the audit trail has the same facts
  * on disk, this is the live, inspectable view. Bounded ring; oldest entries drop.
  */
-export type EventKind = "file" | "bash" | "governance" | "profile" | "threat" | "compaction" | "other";
+export type EventKind = "file" | "bash" | "governance" | "profile" | "threat" | "compaction" | "feed" | "other";
 
 export interface SessionEvent {
   time: string; // ISO
@@ -40,6 +40,13 @@ export function classify(entry: Record<string, unknown>): SessionEvent | null {
     case "threat_detection_check":
     case "threat_detected":
       return entry.allowed === false ? { time, kind: "threat", label: s(entry.tool_name ?? entry.tool), allowed: false, detail: s(entry.reason ?? entry.threat_category) } : null;
+    case "feed_check": {
+      const mal = (entry.malicious as string[] | undefined) ?? [];
+      if (!mal.length) return null; // clean installs are counted, not listed
+      return { time, kind: "feed", label: mal.join(", "), allowed: entry.allowed !== false, detail: s(`malicious package (${entry.mode}) — ${entry.command ?? ""}`) };
+    }
+    case "feed_unreachable":
+      return { time, kind: "feed", label: s((entry.packages as string[] | undefined)?.join(", ")), allowed: true, detail: s(`feed unreachable, installed unchecked: ${entry.error ?? ""}`) };
     case "compaction":
       return { time, kind: "compaction", label: `compacted (${s(entry.reason)})`, allowed: true, detail: s(`${(entry.read_files as string[] | undefined)?.length ?? 0} read, ${(entry.modified_files as string[] | undefined)?.length ?? 0} modified summarised`) };
     default:

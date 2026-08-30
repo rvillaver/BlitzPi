@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-/** BlitzPi — the one command. `audit`, `report`, `projects`, `demo`, `update`, `versions`, `rollback`, `use`, `uninstall` and `--version` are handled
+/** BlitzPi — the one command. `audit`, `report`, `projects`, `feeds`, `demo`, `update`, `versions`, `rollback`, `use`, `uninstall` and `--version` are handled
  *  here; everything else (including Pi's own subcommands) passes through to Pi. */
 import { launchBlitzPi, REPO_ROOT, selfServiceCommand } from "../src/launcher";
 
@@ -11,10 +11,10 @@ if (sub === "audit") {
   await handleAuditCommand(args.slice(1));
   process.exit(0);
 }
-if (sub === "report" || sub === "projects") {
+if (sub === "report" || sub === "projects" || sub === "feeds") {
   const cli = await import("../src/cli");
-  await (sub === "report" ? cli.handleReportCommand : cli.handleProjectsCommand)(args.slice(1));
-  process.exit(0);
+  await (sub === "report" ? cli.handleReportCommand : sub === "projects" ? cli.handleProjectsCommand : cli.handleFeedsCommand)(args.slice(1));
+  process.exit(process.exitCode ?? 0);
 }
 if (sub === "demo") {
   const { handleDemoCommand } = await import("../src/cli-demo");
