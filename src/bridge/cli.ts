@@ -13,10 +13,10 @@ import type { Binding, ConvRef } from "./types";
 
 const USAGE = `Usage: blitzpi bridge <command>
   run [--project DIR] "<prompt>"       run one request against a project here, in this terminal
-  start                                 the daemon: control socket + platform adapters (foreground)
+  start | shutdown | restart            the daemon: control socket + platform adapters (start is foreground)
   post [--project DIR|--conv P:ID] "<text>"    post into the bound conversation
   ask  [--project DIR|--conv P:ID] "<question>" [option…]   ask and print the answer
-  stop | status [--project DIR|--conv P:ID]
+  stop | status [--project DIR|--conv P:ID]      stop = abort the conversation's current run
   projects                              bound conversations
   bind <platform:id> [DIR] [--trigger mentions|all|operators] [--activity full|tools|quiet] [--context N] [--operator ID…]
   unbind <platform:id>`;
@@ -76,11 +76,26 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
     return;
   }
 
+  if (sub === "shutdown" || sub === "restart") {
+    const pidFile = path.join(path.dirname(socketPath), "daemon.pid");
+    let pid = 0; try { pid = Number(require("node:fs").readFileSync(pidFile, "utf8")); } catch { /* none */ }
+    if (pid) { try { process.kill(pid, "SIGTERM"); } catch { pid = 0; } }
+    if (pid) { for (let i = 0; i < 50; i++) { try { process.kill(pid, 0); await new Promise((r) => setTimeout(r, 100)); } catch { break; } } console.log(`daemon ${pid} stopped`); } else console.log("no daemon was running");
+    try { require("node:fs").unlinkSync(pidFile); } catch { /* fine */ }
+    if (sub === "shutdown") return;
+    const { spawn } = require("node:child_process") as typeof import("node:child_process");
+    const log = path.join(path.dirname(socketPath), "daemon.log");
+    const fd = require("node:fs").openSync(log, "a");
+    const child = spawn(process.execPath, [path.join(__dirname, "..", "..", "bin", "blitzpi.ts"), "bridge", "start"], { detached: true, stdio: ["ignore", fd, fd], env: { ...process.env } });
+    child.unref();
+    for (let i = 0; i < 60; i++) { await new Promise((r) => setTimeout(r, 500)); try { await bridgeCall(socketPath, "projects", {}, 2000); console.log(`daemon restarted (pid ${child.pid}); log: ${log}`); return; } catch { /* not yet */ } }
+    console.error("daemon did not come up within 30 s — see " + log); process.exitCode = 1; return;
+  }
   if (sub === "start") {
     const log = (l: string) => process.stdout.write(`${new Date().toISOString().slice(11, 19)} ${l}\n`);
     // One daemon per machine: a second gateway connection on the same bot token would answer every interaction twice.
     const pidFileEarly = path.join(path.dirname(socketPath), "daemon.pid");
-    try { const pid = Number(require("node:fs").readFileSync(pidFileEarly, "utf8")); if (pid && pid !== process.pid) { process.kill(pid, 0); console.error(`[bridge] a daemon is already running (pid ${pid}) — blitzpi bridge status, or stop it first`); process.exitCode = 1; return; } } catch { /* stale or absent */ }
+    try { const pid = Number(require("node:fs").readFileSync(pidFileEarly, "utf8")); if (pid && pid !== process.pid) { process.kill(pid, 0); console.error(`[bridge] a daemon is already running (pid ${pid}) — blitzpi bridge restart picks up new code; blitzpi bridge shutdown stops it (blitzpi bridge stop only aborts a run)`); process.exitCode = 1; return; } } catch { /* stale or absent */ }
     const bridge = new Bridge({ bindings: store, socketPath, log });
     bridge.attach(new ConsoleAdapter(log, false));
     const platforms = ["console"];

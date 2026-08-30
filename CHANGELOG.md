@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.113 — 2026-08-31
+
+- **Bridge: a dead run never blocks a channel.** `stop` clears a run whose agent process is already gone; a mention into such a run clears it and starts fresh instead of "Could not queue that: rpc child is not running".
+- **`blitzpi bridge restart` / `shutdown`** — restart or stop the daemon (detached; log `~/.blitz/bridge/daemon.log`); `blitzpi bridge stop` aborts a conversation's run, as before. `/blitz-bridge restart` in a session does the same. A second `bridge start` now says which of the two you probably meant.
+
 ## 1.2.112 — 2026-08-31
 
 - **A command ends when its shell ends.** A backgrounded process (`bun run dev &`, `sleep 120 &`, even detached with output redirected) used to keep the bash tool call open until the run was aborted — under bwrap the sandbox waits for every process, elsewhere the leftovers held the output pipes. Now the shell's exit ends the command and whatever it left behind is terminated with it (the documented rule: start a server and probe it in the same command). Commands without a timeout are capped at 10 minutes (exit 124, with an explanation in the output).

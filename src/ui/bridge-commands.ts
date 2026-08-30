@@ -13,7 +13,7 @@ import { show } from "./blitzpi-branding";
 
 const HELP = `/blitz-bridge status                      daemon, platforms, this project's binding
 /blitz-bridge setup discord               store the bot token (asked privately) + the portal checklist
-/blitz-bridge start | stop                the daemon (detached; log ~/.blitz/bridge/daemon.log)
+/blitz-bridge start | stop | restart      the daemon (detached; log ~/.blitz/bridge/daemon.log)
 /blitz-bridge bind [#channel] [dir]       bind this project (default: a channel named after the folder)
 /blitz-bridge unbind | post <text> | run <prompt>
 /blitz-bridge trigger mentions|all|operators · activity full|tools|quiet · threads on|answer|off · context <n> · operators add|remove <user id>`;
@@ -53,6 +53,7 @@ export function setupBridgeCommands(pi: ExtensionAPI): void {
           return out("Stored. Start with /blitz-bridge start, then /blitz-bridge bind.");
         }
         if (sub === "start") return startDaemon(out);
+        if (sub === "restart") { const pidFile = path.join(bridgeDir(), "daemon.pid"); try { const pid = Number(fs.readFileSync(pidFile, "utf8")); process.kill(pid, "SIGTERM"); await new Promise((r) => setTimeout(r, 1500)); } catch { /* none running */ } try { fs.unlinkSync(pidFile); } catch { /* fine */ } return startDaemon(out); }
         if (sub === "stop") {
           const pidFile = path.join(bridgeDir(), "daemon.pid");
           try { const pid = Number(fs.readFileSync(pidFile, "utf8")); process.kill(pid, "SIGTERM"); return out(`Stopped the daemon (pid ${pid}).`); } catch { return out("No running daemon found (no pid file)."); }

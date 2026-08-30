@@ -69,6 +69,19 @@ test("questions go to the adapter and the answer reaches the child; non-operator
   adapter.fire({ kind: "mention", conv, message: msg("m4", { id: "op1" }, "stop"), text: "stop!" });
   await new Promise((r) => setTimeout(r, 100));
   expect(texts(adapter)[0]).toBe("Nothing is running.");
+  // a run whose child died must not stay "running": a new mention clears it and starts fresh
+  const cc = (bridge as any).convs.get("fake:chan"); cc.running = true; adapter.posts = [];
+  await cc.host.stop(); await new Promise((r) => setTimeout(r, 100));
+  expect(cc.running).toBe(false); expect(texts(adapter)[0]).toMatch(/stopped while a run was open/); // the child's exit closes the run
+  adapter.posts = [];
+  adapter.fire({ kind: "mention", conv, message: msg("m5", { id: "op1" }, "hello again"), text: "hello again" });
+  await bridge.waitIdle(conv, 10_000);
+  expect(texts(adapter).some((t) => t.includes("Hello world"))).toBe(true); // and the next mention simply runs
+  // no exit observed at all (state drifted): the next mention clears it and starts fresh
+  await cc.host.stop(); cc.running = true; cc.host = undefined; adapter.posts = [];
+  adapter.fire({ kind: "mention", conv, message: msg("m6", { id: "op1" }, "once more"), text: "once more" });
+  await bridge.waitIdle(conv, 10_000);
+  expect(texts(adapter)[0]).toMatch(/previous run's agent process is gone/); expect(texts(adapter).some((t) => t.includes("Hello world"))).toBe(true);
   await bridge.stop();
 });
 test("default threads=answer: activity in the shared thread, the answer in the channel, no ▶/✅ channel lines", async () => {

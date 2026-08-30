@@ -95,11 +95,16 @@ export class Bridge {
       // in the run thread → steer; a new mention in the conversation → follow-up
       const inThread = !!t.thread || t.kind === "thread";
       const msg = `[caller ${caller}]\n${t.text}`;
-      try { if (inThread) await c.host!.steer(msg); else await c.host!.followUp(msg); } catch (e) { await c.adapter.post(t.thread ?? t.conv, `Could not queue that: ${e instanceof Error ? e.message : e}`); return; }
-      const quietMs = Date.now() - (c.lastEventAt ?? c.startedAt ?? Date.now());
-      const stale = quietMs > 5 * 60_000 ? ` ⚠️ no activity from the agent for ${Math.round(quietMs / 60_000)} min — if it looks stuck, \`stop\` aborts the run.` : "";
-      await c.adapter.post(t.thread ?? c.thread ?? t.conv, (inThread ? "↪ steering the current run with that." : "🕓 queued — runs after the current one.") + stale);
-      return;
+      if (!c.host || c.host.state !== "ready") { c.running = false; await c.adapter.post(t.thread ?? t.conv, "The previous run's agent process is gone — clearing it and starting fresh with your message."); }
+      else {
+        try { if (inThread) await c.host.steer(msg); else await c.host.followUp(msg); } catch (e) { await c.adapter.post(t.thread ?? t.conv, `Could not queue that: ${e instanceof Error ? e.message : e}`); return; }
+      }
+      if (c.running) {
+        const quietMs = Date.now() - (c.lastEventAt ?? c.startedAt ?? Date.now());
+        const stale = quietMs > 5 * 60_000 ? ` ⚠️ no activity from the agent for ${Math.round(quietMs / 60_000)} min — if it looks stuck, \`stop\` aborts the run.` : "";
+        await c.adapter.post(t.thread ?? c.thread ?? t.conv, (inThread ? "↪ steering the current run with that." : "🕓 queued — runs after the current one.") + stale);
+        return;
+      }
     }
     const context = await this.contextFor(c, t);
     const attached = await this.pullAttachments(c, t.message);
@@ -147,10 +152,13 @@ export class Bridge {
 
   async control(c: Conversation, word: ControlWord, target: ConvRef | ThreadRef): Promise<void> {
     if (word === "stop") {
-      if (!c.running || !c.host) { await c.adapter.post(target, "Nothing is running."); return; }
+      if (!c.running) { await c.adapter.post(target, "Nothing is running."); return; }
       c.queue = [];
-      try { await c.host.abort(); } catch { /* child may be gone */ }
-      await c.adapter.post(target, "⏹ stopped."); return;
+      let aborted = false;
+      if (c.host && c.host.state === "ready") { try { await c.host.abort(); aborted = true; } catch { /* child may be gone */ } }
+      // A run whose child is gone (idle-stopped, crashed) must not stay "running" — stop always clears it.
+      if (!aborted) { c.running = false; await c.pacer?.flush(); }
+      await c.adapter.post(target, aborted ? "⏹ stopped." : "⏹ stopped (the agent process was already gone — the run is cleared; mention me to continue)."); return;
     }
     if (word === "status") { await c.adapter.post(target, await this.statusText(c)); return; }
     if (word === "new") {
