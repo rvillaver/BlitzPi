@@ -70,6 +70,7 @@ export class DiscordAdapter implements ChatAdapter {
         { type: 1, name: "unbind", description: "Unbind this channel" },
         { type: 1, name: "trigger", description: "When BlitzPi acts: mentions | all | operators", options: [{ type: 3, name: "mode", description: "mentions | all | operators", required: true, choices: [{ name: "mentions", value: "mentions" }, { name: "all", value: "all" }, { name: "operators", value: "operators" }] }] },
         { type: 1, name: "activity", description: "How much of a run streams into the thread", options: [{ type: 3, name: "level", description: "full | tools | quiet", required: true, choices: [{ name: "full", value: "full" }, { name: "tools", value: "tools" }, { name: "quiet", value: "quiet" }] }] },
+        { type: 1, name: "threads", description: "Where runs post: on = all in the shared thread · answer = activity in the thread, answer here · off = all here", options: [{ type: 3, name: "mode", description: "on | answer | off", required: true, choices: [{ name: "on", value: "on" }, { name: "answer", value: "answer" }, { name: "off", value: "off" }] }] },
         { type: 1, name: "context", description: "Recent channel messages handed to the agent on mention (0 = off)", options: [{ type: 4, name: "messages", description: "0–20", required: true, min_value: 0, max_value: 20 }] },
         { type: 1, name: "operators", description: "Who may drive BlitzPi here", options: [{ type: 3, name: "action", description: "add | remove", required: true, choices: [{ name: "add", value: "add" }, { name: "remove", value: "remove" }] }, { type: 6, name: "user", description: "The member", required: true }] },
       ],
@@ -151,17 +152,18 @@ export class DiscordAdapter implements ChatAdapter {
     if (!c || !("send" in c)) throw new Error(`channel ${id} is not a text channel the bot can see`);
     return c as TextChannel | ThreadChannel;
   }
-  async openThread(conv: ConvRef, seed: Message, name: string): Promise<ThreadRef> {
+  async openThread(conv: ConvRef, name: string, existingId?: string): Promise<ThreadRef> {
     const ch = (await this.channel(conv.id)) as TextChannel;
     let thread: ThreadChannel | undefined;
-    try { const msg = await ch.messages.fetch(seed.id); thread = msg.thread ?? (await msg.startThread({ name: (name || "blitzpi run").slice(0, 100), autoArchiveDuration: 1440 })); }
-    catch { thread = await ch.threads.create({ name: (name || "blitzpi run").slice(0, 100), autoArchiveDuration: 1440 }); }
+    if (existingId) { try { const t = await this.client.channels.fetch(existingId); if (t?.isThread()) { thread = t as ThreadChannel; if (thread.archived) await thread.setArchived(false); } } catch { /* deleted → create anew */ } }
+    if (!thread) thread = await ch.threads.create({ name: name.slice(0, 100) || "blitzpi", autoArchiveDuration: 10080, reason: "blitzpi bridge work thread" });
     this.ourThreads.add(thread.id);
     return { platform: "discord", id: thread.id, conv };
   }
-  async post(target: ConvRef | ThreadRef, text: string): Promise<void> {
+  async post(target: ConvRef | ThreadRef, text: string, opts?: { replyTo?: string }): Promise<void> {
     const ch = await this.channel(target.id);
-    for (const chunk of chunks(text, MAX)) await ch.send({ content: chunk, allowedMentions: { parse: [] } });
+    let first = true;
+    for (const chunk of chunks(text, MAX)) { await ch.send({ content: chunk, allowedMentions: { parse: [] }, ...(first && opts?.replyTo ? { reply: { messageReference: opts.replyTo, failIfNotExists: false } } : {}) }); first = false; }
   }
   async ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean): Promise<UiResponse | undefined> {
     const ch = await this.channel(target.id);

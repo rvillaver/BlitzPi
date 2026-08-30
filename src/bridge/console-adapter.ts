@@ -12,8 +12,8 @@ export class ConsoleAdapter implements ChatAdapter {
   async stop(): Promise<void> {}
   onTrigger(cb: (t: Trigger) => void): void { this.triggerCb = cb; }
   trigger(t: Trigger): void { this.triggerCb?.(t); }
-  async openThread(conv: ConvRef, _seed: Message, _name: string): Promise<ConvRef> { return conv; }
-  async post(target: ConvRef | ThreadRef, text: string): Promise<void> { this.out(`[${target.id}] ${text}`); }
+  async openThread(conv: ConvRef, _name: string, _existingId?: string): Promise<ConvRef> { return conv; }
+  async post(target: ConvRef | ThreadRef, text: string, _opts?: { replyTo?: string }): Promise<void> { this.out(`[${target.id}] ${text}`); }
   async ask(target: ConvRef | ThreadRef, req: UiRequest, _canAnswer: (u: UserRef) => boolean): Promise<UiResponse | undefined> {
     const opts = req.options ?? [];
     this.out(`[${target.id}] ❓ ${req.title ?? req.message ?? "?"}${opts.length ? "\n" + opts.map((o, i) => `   ${i + 1}. ${o}`).join("\n") : ""}`);

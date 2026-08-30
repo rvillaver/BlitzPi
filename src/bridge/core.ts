@@ -5,7 +5,7 @@
  */
 import { RpcHost, type RpcEvent, type UiRequest, type UiResponse } from "./rpc-host";
 import { BindingsStore } from "./bindings";
-import { type Binding, type ChatAdapter, type ConvRef, type Message, type ThreadRef, type Trigger, type UserRef, convKey } from "./types";
+import { type Binding, type ChatAdapter, type ConvRef, type Message, type ThreadMode, type ThreadRef, type Trigger, type UserRef, convKey } from "./types";
 import { OUT_HINT, changedOut, ensureTransferDirs, fileHash, inboundPath, isUnderOut, snapshotOut, type OutSnapshot } from "./transfer";
 import fs from "node:fs";
 import path from "node:path";
@@ -23,16 +23,19 @@ export function controlWord(text: string): ControlWord | null {
 /** Append-only output with pacing: activity lines are coalesced per window, answer text is chunked under the cap. */
 export class Pacer {
   private lines: string[] = []; private text = ""; private timer?: NodeJS.Timeout; private chain: Promise<void> = Promise.resolve();
-  constructor(private send: (text: string) => Promise<void>, private windowMs: number, private maxChars: number) {}
+  private sendText: (text: string, first: boolean) => Promise<void>; private sentText = false;
+  constructor(private send: (text: string) => Promise<void>, private windowMs: number, private maxChars: number, sendText?: (text: string, first: boolean) => Promise<void>) { this.sendText = sendText ?? (async (t) => send(t)); }
   activity(line: string): void { this.lines.push(line); this.schedule(); }
   delta(t: string): void { this.text += t; if (this.text.length >= this.maxChars) this.flush(); else this.schedule(); }
   private schedule(): void { if (!this.timer) this.timer = setTimeout(() => this.flush(), this.windowMs); }
   flush(): Promise<void> {
     if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
-    const out: string[] = [];
-    if (this.lines.length) { out.push(this.lines.join("\n")); this.lines = []; }
-    while (this.text.length) { const cut = this.text.length > this.maxChars ? this.breakAt(this.text, this.maxChars) : this.text.length; out.push(this.text.slice(0, cut)); this.text = this.text.slice(cut); }
-    for (const m of out) this.chain = this.chain.then(() => this.send(m)).catch(() => {});
+    if (this.lines.length) { const m = this.lines.join("\n"); this.lines = []; this.chain = this.chain.then(() => this.send(m)).catch(() => {}); }
+    while (this.text.length) {
+      const cut = this.text.length > this.maxChars ? this.breakAt(this.text, this.maxChars) : this.text.length;
+      const m = this.text.slice(0, cut); this.text = this.text.slice(cut); const first = !this.sentText; this.sentText = true;
+      this.chain = this.chain.then(() => this.sendText(m, first)).catch(() => {});
+    }
     return this.chain;
   }
   private breakAt(s: string, max: number): number { const nl = s.lastIndexOf("\n", max); return nl > max * 0.5 ? nl + 1 : max; }
@@ -40,7 +43,7 @@ export class Pacer {
 
 interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
-  running: boolean; thread?: ThreadRef | ConvRef; pacer?: Pacer; startedAt?: number; lastBotMessageId?: string; queue: string[];
+  running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastBotMessageId?: string; queue: string[];
   outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
 export interface BridgeOptions {
@@ -127,7 +130,7 @@ export class Bridge {
         files.push({ path: p, name: path.basename(p) });
       } catch { /* vanished */ }
     }
-    if (files.length) await c.adapter.postFiles(c.thread ?? c.conv, files, `📎 ${files.map((f) => f.name).join(", ")}`);
+    if (files.length) await c.adapter.postFiles(c.answerTarget ?? c.thread ?? c.conv, files, `📎 ${files.map((f) => f.name).join(", ")}`);
     if (only === undefined) c.outSnapshot = snapshotOut(c.binding.project);
   }
 
@@ -156,7 +159,7 @@ export class Bridge {
     }
   }
   async statusText(c: Conversation): Promise<string> {
-    const lines = [`**Project:** ${c.binding.project}`, `**State:** ${c.running ? "running" : c.host?.state === "ready" ? "idle (session open)" : "idle"}`, `**Trigger:** ${c.binding.trigger} · **activity:** ${c.binding.activity} · **context:** ${c.binding.context_window} · **operators:** ${c.binding.operators.length ? c.binding.operators.join(", ") : "everyone"}`];
+    const lines = [`**Project:** ${c.binding.project}`, `**State:** ${c.running ? "running" : c.host?.state === "ready" ? "idle (session open)" : "idle"}`, `**Trigger:** ${c.binding.trigger} · **activity:** ${c.binding.activity} · **threads:** ${c.binding.threads ?? "answer"} · **context:** ${c.binding.context_window} · **operators:** ${c.binding.operators.length ? c.binding.operators.join(", ") : "everyone"}`];
     if (c.host?.state === "ready") { try { const s: any = (await c.host.getSessionStats()).data; lines.push(`**Session:** ${String(s.sessionId ?? "").slice(0, 8)}… · ${s.userMessages} turns · ${s.toolCalls} tools · ${s.tokens?.total ?? 0} tokens${s.contextUsage?.percent != null ? ` · context ${Math.round(Number(s.contextUsage.percent) * 10) / 10}%` : ""}`); } catch { /* fine */ } }
     return lines.join("\n");
   }
@@ -180,17 +183,25 @@ export class Bridge {
 
   async startRun(c: Conversation, seed: Message | undefined, prompt: string, shown: string): Promise<ThreadRef | ConvRef> {
     const cap = c.adapter.capabilities;
-    const thread = seed ? await c.adapter.openThread(c.conv, seed, shown.slice(0, 60)) : c.conv;
-    c.thread = thread; c.running = true; c.startedAt = Date.now();
+    const mode: ThreadMode = cap.threads ? (c.binding.threads ?? "answer") : "off";
+    let thread: ThreadRef | ConvRef = c.conv;
+    if (mode !== "off") {
+      try {
+        thread = await c.adapter.openThread(c.conv, `blitzpi · ${c.binding.name ?? path.basename(c.binding.project)}`, c.binding.threadId);
+        if ("conv" in thread && thread.id !== c.binding.threadId) this.opts.bindings.update(c.conv, { threadId: thread.id });
+      } catch (e) { this.opts.log?.(`[bridge] thread unavailable, posting in the channel: ${e instanceof Error ? e.message : e}`); thread = c.conv; }
+    }
+    const activityTarget = thread; const answerTarget = mode === "on" ? thread : c.conv;
+    c.thread = thread; c.answerTarget = answerTarget; c.running = true; c.startedAt = Date.now(); c.seedId = seed?.id;
     try { ensureTransferDirs(c.binding.project); c.outSnapshot = snapshotOut(c.binding.project); } catch { /* read-only project: no transfer */ }
-    c.pacer = new Pacer((t) => c.adapter.post(thread, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100));
-    if (cap.threads && "conv" in thread) await c.adapter.post(c.conv, `▶ started — ${shown.split("\n")[0].slice(0, 80)}`);
+    c.pacer = new Pacer((t) => c.adapter.post(activityTarget, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100), (t, first) => c.adapter.post(answerTarget, t, first && answerTarget === c.conv && seed ? { replyTo: seed.id } : undefined));
+    if (mode === "on" && "conv" in thread) await c.adapter.post(c.conv, `▶ started — ${shown.split("\n")[0].slice(0, 80)}`);
     try {
       const host = await this.host(c);
       await host.prompt(c.adapter.postFiles ? `${prompt}\n\n${OUT_HINT}` : prompt);
     } catch (e) {
       c.running = false;
-      await c.adapter.post(thread, `⚠️ could not start the run: ${e instanceof Error ? e.message : e}`);
+      await c.adapter.post(activityTarget, `⚠️ could not start the run: ${e instanceof Error ? e.message : e}`);
     }
     return thread;
   }
@@ -221,7 +232,7 @@ export class Bridge {
     let first = "";
     try { first = String(((await c.host!.getLastAssistantText()).data as { text?: string } | undefined)?.text ?? "").split("\n").find((l) => l.trim()) ?? ""; } catch { /* fine */ }
     await c.adapter.post(c.thread ?? c.conv, `✅ done in ${(ms / 1000).toFixed(1)} s${stats}`);
-    if (c.binding.announce_done && c.thread && "conv" in c.thread) await c.adapter.post(c.conv, `✅ done — ${first.slice(0, 120)}`);
+    if ((c.binding.threads ?? "answer") === "on" && c.binding.announce_done && c.thread && "conv" in c.thread) await c.adapter.post(c.conv, `✅ done — ${first.slice(0, 120)}`);
   }
 
   // ---- control surface ops (socket / CLI / channel_post) ---------------------------------------------------------
@@ -243,7 +254,7 @@ export class Bridge {
       else if (adapter.resolveConversation) { const r = await adapter.resolveConversation(name, payload.create !== false); if (r) { conv = r.conv; created = r.created; owner = r.owner; } }
       if (!conv) throw new Error(`no channel ${name} in ${platform} (and it could not be created)`);
       const settings: Record<string, unknown> = {};
-      for (const k of ["trigger", "activity", "context_window", "announce_done", "name"]) if (payload[k] !== undefined) settings[k] = payload[k];
+      for (const k of ["trigger", "activity", "context_window", "announce_done", "name", "threads"]) if (payload[k] !== undefined) settings[k] = payload[k];
       if (Array.isArray(payload.operators) && payload.operators.length) settings.operators = payload.operators.map(String);
       const prev = this.opts.bindings.get(conv);
       if (!settings.operators && !(prev?.operators.length) && owner) settings.operators = [owner.id]; // the owner is the default operator
@@ -256,7 +267,7 @@ export class Bridge {
       const conv = this.resolveConv(payload as any); if (!conv) throw new Error("nothing bound for that");
       const b = this.opts.bindings.get(conv); if (!b) throw new Error("nothing bound for that");
       const patch: Record<string, unknown> = {};
-      for (const k of ["trigger", "activity", "context_window", "announce_done"]) if (payload[k] !== undefined) patch[k] = payload[k];
+      for (const k of ["trigger", "activity", "context_window", "announce_done", "threads"]) if (payload[k] !== undefined) patch[k] = payload[k];
       if (payload.add_operator) patch.operators = [...new Set([...b.operators, String(payload.add_operator)])];
       if (payload.remove_operator) patch.operators = b.operators.filter((o) => o !== String(payload.remove_operator));
       const nb = this.opts.bindings.update(conv, patch as any); this.convs.delete(convKey(conv)); return nb;

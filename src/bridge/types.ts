@@ -20,9 +20,9 @@ export interface ChatAdapter {
   start(): Promise<void>;
   stop(): Promise<void>;
   onTrigger(cb: (t: Trigger) => void): void;
-  /** Open the run thread off the triggering message; adapters without threads return the conversation itself. */
-  openThread(conv: ConvRef, seed: Message, name: string): Promise<ThreadRef | ConvRef>;
-  post(target: ConvRef | ThreadRef, text: string): Promise<void>;
+  /** The channel's shared work thread: reuse `existingId` (unarchive if needed) or create one; adapters without threads return the conversation. */
+  openThread(conv: ConvRef, name: string, existingId?: string): Promise<ThreadRef | ConvRef>;
+  post(target: ConvRef | ThreadRef, text: string, opts?: { replyTo?: string }): Promise<void>;
   /** Render a dialog request (select/confirm/input/editor) and resolve with the answer of a user `canAnswer` accepts. */
   ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean): Promise<UiResponse | undefined>;
   /** The last `n` messages in the conversation after `sinceId` (for the context window); [] where not permitted. */
@@ -38,9 +38,13 @@ export interface ChatAdapter {
 
 export type TriggerMode = "mentions" | "all" | "operators";
 export type ActivityLevel = "full" | "tools" | "quiet";
+/** on = activity + answer in the channel's shared thread; answer = activity in the thread, the answer in the channel
+ *  (default); off = everything in the channel. One shared thread per channel — never one per request. */
+export type ThreadMode = "on" | "answer" | "off";
 export interface Binding {
   project: string; sessionId?: string; name?: string;
   trigger: TriggerMode; activity: ActivityLevel; operators: string[]; context_window: number; announce_done: boolean;
+  threads?: ThreadMode; threadId?: string;
 }
 export const convKey = (c: ConvRef) => `${c.platform}:${c.id}`;
 export const defaultBinding = (project: string, partial: Partial<Binding> = {}): Binding => ({ project, trigger: "mentions", activity: "full", operators: [], context_window: 5, announce_done: true, ...partial });

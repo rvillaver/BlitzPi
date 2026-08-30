@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.110 — 2026-08-30
+
+- **Chat bridge — one thread per channel, answers in the channel.** Runs no longer open a thread per request. Each channel gets one shared work thread (`blitzpi · <project>`, reused) and a `threads` setting: `answer` (default) — tool activity and the closing summary in the thread, the answer in the channel as a reply to your mention, files alongside it; `on` — everything in the thread with `▶ started` / `✅ done —` lines in the channel; `off` — everything in the channel. `/blitz threads <mode>` in Discord, `/blitz-bridge threads <mode>` in a session.
+- **Bridge daemon** refuses to start twice on the same machine (a second gateway connection on one bot token made every button race).
+
 ## 1.2.109 — 2026-08-30
 
 - **Chat bridge — file transfer.** Attachments on a triggering message are fetched into `<project>/.blitz/transfer/in/` and named in the prompt; anything the agent saves under `.blitz/transfer/out/` (during the run or by its end) is posted to the thread as an attachment, once per content. The transfer directory is workspace space (no security-config prompt) and git-ignores itself. Project writes still go through the write ladder — in Discord the "allow this write?" prompt appears as buttons for operators, and "Always" remembers it for the project.

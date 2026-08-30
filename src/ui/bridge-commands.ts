@@ -16,7 +16,7 @@ const HELP = `/blitz-bridge status                      daemon, platforms, this 
 /blitz-bridge start | stop                the daemon (detached; log ~/.blitz/bridge/daemon.log)
 /blitz-bridge bind [#channel] [dir]       bind this project (default: a channel named after the folder)
 /blitz-bridge unbind | post <text> | run <prompt>
-/blitz-bridge trigger mentions|all|operators · activity full|tools|quiet · context <n> · operators add|remove <user id>`;
+/blitz-bridge trigger mentions|all|operators · activity full|tools|quiet · threads on|answer|off · context <n> · operators add|remove <user id>`;
 
 async function daemonUp(sock: string): Promise<boolean> { try { await bridgeCall(sock, "projects", {}, 3000); return true; } catch { return false; } }
 
@@ -69,7 +69,7 @@ export function setupBridgeCommands(pi: ExtensionAPI): void {
         if (sub === "unbind") { await bridgeCall(sock, "unbind", { conv }); return out(`Unbound ${conv}.`); }
         if (sub === "post") { await bridgeCall(sock, "post", { conv, text: rest.join(" ") }); return out("Posted."); }
         if (sub === "run") { const r = await bridgeCall(sock, "run", { conv, prompt: rest.join(" "), caller: `session:${process.env.USER ?? "user"}` }); return out(`Run: ${JSON.stringify(r)}`); }
-        if (sub === "trigger" || sub === "activity") { await bridgeCall(sock, "settings", { conv, [sub]: rest[0] }); return out(`${sub} → ${rest[0]}`); }
+        if (sub === "trigger" || sub === "activity" || sub === "threads") { await bridgeCall(sock, "settings", { conv, [sub]: rest[0] }); return out(`${sub} → ${rest[0]}`); }
         if (sub === "context") { await bridgeCall(sock, "settings", { conv, context_window: Number(rest[0] ?? 5) }); return out(`context window → ${rest[0] ?? 5}`); }
         if (sub === "operators") { await bridgeCall(sock, "settings", { conv, [rest[0] === "remove" ? "remove_operator" : "add_operator"]: rest[1] }); return out(`operators: ${rest[0]} ${rest[1]}`); }
         return out(HELP);

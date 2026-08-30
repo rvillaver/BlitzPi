@@ -29,9 +29,10 @@ class XferAdapter implements ChatAdapter {
   platform = "fake"; posts: string[] = []; files: { target: string; names: string[]; text?: string }[] = []; onStarted?: () => void;
   capabilities: AdapterCapabilities = { threads: true, buttons: 5, selectMenu: 25, modal: true, messageChars: 2000, paceWindowMs: 30, attachmentBytes: 1024 * 1024, seesAllMessages: false };
   private cb?: (t: Trigger) => void;
-  async start() {} async stop() {} onTrigger(cb: (t: Trigger) => void) { this.cb = cb; } fire(t: Trigger) { this.cb!(t); }
-  async openThread(conv: ConvRef, seed: Message): Promise<ThreadRef> { return { platform: "fake", id: `t-${seed.id}`, conv }; }
-  async post(_t: ConvRef | ThreadRef, text: string) { this.posts.push(text); if (text.startsWith("▶ started")) this.onStarted?.(); }
+  private armed = false;
+  async start() {} async stop() {} onTrigger(cb: (t: Trigger) => void) { this.cb = cb; } fire(t: Trigger) { this.armed = true; this.cb!(t); }
+  async openThread(conv: ConvRef, _name: string, existingId?: string): Promise<ThreadRef> { return { platform: "fake", id: existingId ?? "t-shared", conv }; }
+  async post(_t: ConvRef | ThreadRef, text: string) { this.posts.push(text); if (this.armed && text.startsWith("Hello")) { this.armed = false; this.onStarted?.(); } } // "the agent writes a file" while its answer streams (after the run's snapshot; the size warning posts earlier)
   async ask() { return undefined; } async recent() { return []; } identity(u: UserRef) { return `fake:${u.id}`; }
   async download(file: Attachment, to: string) { fs.mkdirSync(path.dirname(to), { recursive: true }); fs.writeFileSync(to, `content of ${file.name}`); return to; }
   async postFiles(target: ConvRef | ThreadRef, files: { path: string; name: string }[], text?: string) { this.files.push({ target: target.id, names: files.map((f) => f.name), text }); }
@@ -48,7 +49,7 @@ test("attachments land in .blitz/transfer/in and are named; files written to out
   await bridge.waitIdle(conv, 10_000);
   expect(fs.readFileSync(path.join(inboundDir(project), "m1-spec_v2.pdf"), "utf8")).toBe("content of spec v2.pdf");
   expect(adapter.posts.some((p) => p.includes("huge.bin is over the size limit"))).toBe(true);
-  expect(adapter.files).toEqual([{ target: "t-m1", names: ["report.md"], text: "📎 report.md" }]);
+  expect(adapter.files).toEqual([{ target: "c", names: ["report.md"], text: "📎 report.md" }]); // files go with the answer (channel, default mode)
   // same content again → not re-delivered; changed content → delivered
   adapter.onStarted = () => { fs.writeFileSync(path.join(outboundDir(project), "report.md"), "# done"); };
   adapter.fire({ kind: "mention", conv, message: { id: "m2", author: { id: "op" }, text: "again", time: 0 }, text: "again" });

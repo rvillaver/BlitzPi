@@ -101,6 +101,7 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
           if (cmd === "new") { await bridge.op("new", { conv: key }); return "🆕 next request starts a fresh session."; }
           if (cmd === "trigger") { await bridge.op("settings", { conv: key, trigger: options.mode }); return `Trigger: **${options.mode}**.`; }
           if (cmd === "activity") { await bridge.op("settings", { conv: key, activity: options.level }); return `Activity: **${options.level}**.`; }
+          if (cmd === "threads") { await bridge.op("settings", { conv: key, threads: options.mode }); return `Threads: **${options.mode}** — ${options.mode === "on" ? "activity and answers in the shared thread" : options.mode === "answer" ? "activity in the shared thread, answers here" : "everything here"}.`; }
           if (cmd === "context") { await bridge.op("settings", { conv: key, context_window: Number(options.messages) }); return `Context window: **${options.messages}** message(s).`; }
           if (cmd === "operators") { await bridge.op("settings", { conv: key, [options.action === "add" ? "add_operator" : "remove_operator"]: String(options.user) }); return `Operator ${options.action === "add" ? "added" : "removed"}: <@${options.user}>.`; }
           return "Unknown command.";
