@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.103 — 2026-08-30
 
 ### Install
 - **Feed downloads show progress and sizes.** In the TUI the status bar shows `⬇ commands 1.4 MB / 3.0 MB (46%)` while feeds install; in the shell `blitzpi feeds update` draws a per-feed progress bar. Every completion line and `blitzpi feeds list` report *downloaded → stored* per feed (e.g. Sigma: 3.0 MB downloaded → 203 KB stored; URLhaus: 1.3 MB → 709 KB hashed) plus the total on disk (current + previous copies, OSV cache); `blitzpi feeds status` and `/blitz-security` show the total too. The manifest records `stored_bytes`. Servers usually gzip these lists, so `Content-Length` is the wire size, not the received size — progress shows a percentage only for identity responses and bytes-only otherwise.
