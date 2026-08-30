@@ -57,7 +57,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
 
     fs.mkdirSync(path.join(cwd, ".blitz"), { recursive: true });
     const cfg = path.join(cwd, ".blitz", "blitz.config.yaml");
-    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n  # cache: shared   # package-manager caches: shared = ~/.blitz/cache/<tool> (default) | project | off\nfeeds:\n  # allow: []       # rule ids accepted as false positives (audit feed_* hits[].id)\n");
+    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n  # cache: shared   # package-manager caches: shared = ~/.blitz/cache/<tool> (default) | project | off\nfeeds:\n  # allow: []       # rule ids accepted as false positives (audit feed_* hits[].id)\n  # min_release_age: 3d   # Bun: no versions newer than this (off to disable)\n");
     const n = adoptGoodBehavior(cwd).installed.filter((f) => f.endsWith("SKILL.md")).length;
     pinPackageManager(cwd);
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt

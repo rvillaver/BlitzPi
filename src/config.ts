@@ -49,6 +49,8 @@ export interface BlitzConfig {
     commands: "enforce" | "monitor" | "off";
     /** Rule ids (Sigma / gitleaks) this project accepts as known false positives: their hits are neither recorded nor shown. */
     allow: string[];
+    /** Bun install policy: versions published more recently than this are not selected ("3d" default; "off"). */
+    min_release_age: string;
     /** URL feed (URLhaus, opt-in download): a URL in a command that is listed as distributing malware. Default enforce (1.2.106). */
     urls: "enforce" | "monitor" | "off";
     cache_ttl_hours: number;
@@ -101,6 +103,7 @@ const DEFAULT_CONFIG: BlitzConfig = {
     commands: "monitor", // Sigma shapes fire on normal work (touch -t, grep password) — allowlist per project, then flip
     urls: "enforce",
     allow: [],
+    min_release_age: "3d",
     cache_ttl_hours: 24,
   },
 };
@@ -198,6 +201,7 @@ function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
       commands: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.commands) ?? DEFAULT_CONFIG.feeds.commands,
       urls: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.urls) ?? DEFAULT_CONFIG.feeds.urls,
       allow: Array.isArray(config.feeds?.allow) ? (config.feeds.allow as unknown[]).filter((x): x is string => typeof x === "string") : DEFAULT_CONFIG.feeds.allow,
+      min_release_age: config.feeds?.min_release_age === undefined ? DEFAULT_CONFIG.feeds.min_release_age : String(config.feeds.min_release_age),
       cache_ttl_hours: typeof config.feeds?.cache_ttl_hours === "number" ? config.feeds.cache_ttl_hours : DEFAULT_CONFIG.feeds.cache_ttl_hours,
     },
   };

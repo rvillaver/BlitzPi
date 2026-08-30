@@ -2,8 +2,9 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.106 — 2026-08-30
 
+- **Bun install policy inside the sandbox.** `feeds.min_release_age` (default `3d`; `off`) — Bun does not select a version published more recently than that (the "malicious version published an hour ago, pulled after a day" window OSV cannot know yet). The policy travels as a BlitzPi-owned `.bunfig.toml` via `XDG_CONFIG_HOME`; the project is untouched. After every Bun install the tool output ends with `[Blitz] install policy: …` — packages whose lifecycle scripts Bun refused to run (with the `bun pm trust` hint) and the tree's advisories by severity (`bun audit`) — audited as `install_policy`. Cache and policy env now override whatever the launching shell exports.
 - **Governance: the secrets and URL feeds now enforce by default** (`feeds.secrets: enforce`, `feeds.urls: enforce`). Measured before the flip: across the trails on both development machines every `feed_secret` and `feed_url` entry was a deliberate probe — no false positive on real work — while the Sigma command-shapes feed fired on ordinary commands (`touch -t`, `grep password`) and therefore **stays in `monitor`**; use `feeds.allow` to accept its known false positives per project, then set `feeds.commands: enforce` yourself. A project that set a mode explicitly keeps it. Feeds that are not installed stay off — the opt-in is unchanged.
 
 ## 1.2.105 — 2026-08-30

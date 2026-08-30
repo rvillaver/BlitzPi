@@ -16,6 +16,8 @@ import { dangerousShape, extractTargets } from "./bash-guard";
 import { selectBackend, type SandboxBackend, type BackendPref, type Grant } from "./sandbox-backends";
 import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
+import { ensureSandboxConfig, isBunInstall, parseAge, parseUntrusted, renderPolicy, summarizeAudit } from "./feeds/install-policy";
+import { homedir } from "node:os";
 import { debug } from "./log";
 import { bashFacts } from "./bash-facts";
 import { redactCommand } from "./feeds/secrets";
@@ -33,7 +35,22 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
   // Toolchain caches: one BlitzPi-owned root, routed via env and opened read-write in every confined command (G3).
   const cache = cacheRoot(config.sandbox.cache ?? "shared", runDir);
   const cacheGrant: Grant[] = cache ? [{ path: cache, write: true }] : [];
-  const withCache = (env: NodeJS.ProcessEnv | undefined) => (cache ? { ...cacheEnv(cache), ...env } : env);
+  // Bun install policy (minimumReleaseAge) rides in as XDG_CONFIG_HOME → a BlitzPi-owned .bunfig.toml, read-only.
+  const policyAge = parseAge(config.feeds?.min_release_age);
+  const policyDir = ensureSandboxConfig(resolve(process.env.HOME || homedir(), ".blitz", "sandbox-config"), policyAge);
+  const policyGrant: Grant[] = policyDir ? [{ path: policyDir, write: false }] : [];
+  // Policy env wins over the session env Pi passes through: a shell that exports XDG_CONFIG_HOME or a cache dir
+  // must not steer a sandboxed command past the cache root or the install policy.
+  const withCache = (env: NodeJS.ProcessEnv | undefined) => ({ ...env, ...(cache ? cacheEnv(cache) : {}), ...(policyDir ? { XDG_CONFIG_HOME: policyDir } : {}) });
+  /** After a Bun install inside the sandbox: what Bun refused to run, and what the tree's advisories look like. */
+  const postInstall = async (run: (cmd: string, sink: (s: string) => void) => Promise<unknown>): Promise<string> => {
+    let untrustedOut = "", auditOut = "";
+    await run("bun pm untrusted 2>/dev/null", (t) => { untrustedOut += t; });
+    await run("bun audit --json 2>/dev/null", (t) => { auditOut += t; });
+    const untrusted = parseUntrusted(untrustedOut), summary = summarizeAudit(auditOut);
+    audit.log({ type: "install_policy", tool: "bash", untrusted, advisories: summary?.total ?? 0, by_severity: summary?.bySeverity ?? {}, min_release_age: policyAge });
+    return renderPolicy(untrusted, summary);
+  };
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     if ((event as any).toolName !== "bash") return;
@@ -60,8 +77,13 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         const t0 = Date.now();
         if (plan.confined && backend) {
           audit.log({ type: "bash_exec", confined: true, backend: backend.name, command: redactCommand(command), ...bashFacts(command), ...(plan.grants.length ? { grants: plan.grants } : {}) });
-          return backend.exec(command, runDir, { ...options, env: withCache(options.env), grants: [...cacheGrant, ...plan.grants] }).then((r) => {
+          const execOpts = { ...options, env: withCache(options.env), grants: [...cacheGrant, ...policyGrant, ...plan.grants] };
+          return backend.exec(command, runDir, execOpts).then(async (r) => {
             audit.log({ type: "bash_exit", backend: backend.name, exit_code: r.exitCode, aborted: !!options.signal?.aborted, ms: Date.now() - t0, command: redactCommand(command).slice(0, 120) });
+            if (r.exitCode === 0 && isBunInstall(command) && !options.signal?.aborted) {
+              const line = await postInstall((cmd, sink) => backend.exec(cmd, runDir, { ...execOpts, onData: (b) => sink(b.toString()), timeout: 60_000 }));
+              if (line) options.onData(Buffer.from(`\n${line}\n`));
+            }
             return r;
           });
         }
@@ -87,5 +109,5 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     },
   });
   pi.registerTool(def);
-  console.log(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}`);
+  console.log(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}${policyDir ? `; bun minimumReleaseAge ${policyAge}s` : "; bun install policy off"}`);
 }

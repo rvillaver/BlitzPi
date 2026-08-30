@@ -131,7 +131,7 @@ describe("feeds hook on bash tool calls", () => {
     const cfg: any = { threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "monitor", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
     expect(layers(cfg, "bwrap").find((l) => l.key === "feeds")).toMatchObject({ name: "Package feed (OSV)", mode: "monitor" });
     expect(summaryLine(cfg, "bwrap")).toContain("packages osv (monitor)");
-    expect(loadConfig().feeds).toEqual({ packages: "enforce", secrets: "enforce", commands: "monitor", urls: "enforce", allow: [], cache_ttl_hours: 24 });
+    expect(loadConfig().feeds).toEqual({ packages: "enforce", secrets: "enforce", commands: "monitor", urls: "enforce", allow: [], min_release_age: "3d", cache_ttl_hours: 24 });
     expect(describeBlock({ unreachable: false, verdicts: [{ ecosystem: "npm", name: "e", malicious: ["MAL-1"], summary: "Malicious code in e (npm)", cached: false }] })).toBe('npm "e" is a known malicious package (MAL-1: Malicious code in e (npm))');
   });
 });
