@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.111 — 2026-08-30
+
+- **Chat bridge — one project, one conversation.** Binding refuses a project directory that is already bound to another channel (two agents in one working directory would race on files and git state); rebinding the same channel to change its settings still works, and `force` overrides for deliberate cases. Inside a channel's shared thread, operators need no mention: a message there steers the current run or starts the next one.
+
 ## 1.2.110 — 2026-08-30
 
 - **Chat bridge — one thread per channel, answers in the channel.** Runs no longer open a thread per request. Each channel gets one shared work thread (`blitzpi · <project>`, reused) and a `threads` setting: `answer` (default) — tool activity and the closing summary in the thread, the answer in the channel as a reply to your mention, files alongside it; `on` — everything in the thread with `▶ started` / `✅ done —` lines in the channel; `off` — everything in the channel. `/blitz threads <mode>` in Discord, `/blitz-bridge threads <mode>` in a session.
