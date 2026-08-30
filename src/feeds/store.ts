@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { compileGitleaks } from "./adapters/gitleaks";
 import { compileSigma, type SigmaRule } from "./adapters/sigma";
+import { compileUrlhaus } from "./adapters/urlhaus";
 
 export type RuleCategory = "secret" | "command" | "url";
 export interface CompiledRule {
@@ -29,6 +30,8 @@ export interface CompiledRule {
   flags?: string;
   /** Sigma-style command-shape rule (command rules). */
   sigma?: SigmaRule;
+  /** Set-based rule (url feeds): exact URL keys and host → listing count. */
+  set?: { urls: string[]; hosts: Record<string, number> };
   /** Attribution and hints from the source (never used for matching). */
   meta?: { file?: string; tags?: string[]; falsepositives?: string[]; author?: string; license?: string };
   /** Cheap case-insensitive prefilter: the text must contain one of these before the regex runs. */
@@ -36,7 +39,7 @@ export interface CompiledRule {
   /** Matches that must be ignored (source allowlists). */
   allow?: { regex: string; flags: string }[];
 }
-export interface CompiledFeed { rules: CompiledRule[]; skipped: { id: string; reason: string }[]; sourceVersion?: string }
+export interface CompiledFeed { rules: CompiledRule[]; skipped: { id: string; reason: string }[]; sourceVersion?: string; /** entries, when one rule carries a set */ count?: number }
 export interface FeedManifest {
   name: string; source: string; fetched_at: string; sha256: string; etag?: string; bytes: number;
   rules: number; skipped: number; source_version?: string; blitzpi_version?: string;
@@ -60,6 +63,13 @@ export const FEEDS: FeedDef[] = [
     license: "Detection Rule License 1.1 (SigmaHQ)",
     binary: true,
     compile: compileSigma,
+  },
+  {
+    name: "urls", category: "url", defaultMode: "monitor",
+    description: "URLhaus (abuse.ch) — URLs currently distributing malware; hosts too, except shared platforms (GitHub, Drive …) which match by exact URL only (hourly)",
+    source: process.env.BLITZ_FEED_URLS_URL || "https://urlhaus.abuse.ch/downloads/text_online/",
+    license: "CC0 (abuse.ch URLhaus)",
+    compile: compileUrlhaus,
   },
 ];
 export const feedDef = (name: string): FeedDef | undefined => FEEDS.find((f) => f.name === name);
@@ -115,7 +125,7 @@ export class FeedStore {
       if (!compiled.rules.length) throw new Error("compiled to zero rules — refusing to install an empty feed");
       const manifest: FeedManifest = {
         name, source: def.source, fetched_at: new Date().toISOString(), sha256, etag: res.headers.get("etag") ?? undefined, bytes: Buffer.isBuffer(raw) ? raw.length : Buffer.byteLength(raw),
-        rules: compiled.rules.length, skipped: compiled.skipped.length, source_version: compiled.sourceVersion, blitzpi_version: opts.version,
+        rules: compiled.count ?? compiled.rules.length, skipped: compiled.skipped.length, source_version: compiled.sourceVersion, blitzpi_version: opts.version,
       };
       const dir = this.feedDir(name);
       const staged = path.join(dir, "staged");

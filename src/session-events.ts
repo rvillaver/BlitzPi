@@ -53,6 +53,10 @@ export function classify(entry: Record<string, unknown>): SessionEvent | null {
       const hits = (entry.hits as { id: string; title: string }[] | undefined) ?? [];
       return { time, kind: "feed", label: hits.map((h) => h.title).join("; "), allowed: entry.allowed !== false, detail: s(`command shape (${entry.mode}) — ${entry.command ?? ""}`) };
     }
+    case "feed_url": {
+      const hits = (entry.hits as { url: string; kind: string }[] | undefined) ?? [];
+      return { time, kind: "feed", label: hits.map((h) => h.url).join(", "), allowed: entry.allowed !== false, detail: s(`malicious URL (${entry.mode}) — ${hits.map((h) => h.kind).join(",")}`) };
+    }
     case "feed_unreachable":
       return { time, kind: "feed", label: s((entry.packages as string[] | undefined)?.join(", ")), allowed: true, detail: s(`feed unreachable, installed unchecked: ${entry.error ?? ""}`) };
     case "compaction":

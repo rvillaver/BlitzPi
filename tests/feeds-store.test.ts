@@ -134,7 +134,7 @@ describe("secrets feed hook + layer", () => {
     expect((await harness("monitor", false).run()).registered).toBe(false);
   });
   test("layer reflects opt-in state", async () => {
-    const cfg: any = { threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", commands: "monitor", cache_ttl_hours: 24 } };
+    const cfg: any = { threat_detection: { enabled: true, tier: 2 }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
     const prev = process.env.BLITZ_FEEDS_DIR;
     process.env.BLITZ_FEEDS_DIR = tmp();
     try {

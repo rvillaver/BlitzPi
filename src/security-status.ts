@@ -16,7 +16,7 @@ export interface Layer { key: string; name: string; mode: Mode; detail: string; 
 export const stats = {
   governance: { checked: 0, denied: 0, unreachable: 0, lastDenial: "" },
   blocked: { profile: 0, sandbox: 0, bash: 0, threat: 0, input: 0, feed: 0 },
-  feeds: { checked: 0, malicious: 0, unreachable: 0, last: "", secrets: 0, commands: 0 },
+  feeds: { checked: 0, malicious: 0, unreachable: 0, last: "", secrets: 0, commands: 0, urls: 0 },
 };
 
 export function layers(config: BlitzConfig, backendName: string | null): Layer[] {
@@ -90,6 +90,15 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
       configured: ".blitz/blitz.config.yaml feeds.commands (enforce | monitor | off) · blitzpi feeds update",
     },
     {
+      key: "urls",
+      name: "Malicious URLs (URLhaus)",
+      mode: config.feeds.urls === "off" ? "off" : feedInstalled("urls") ? config.feeds.urls : "off",
+      detail: config.feeds.urls !== "off" && !feedInstalled("urls")
+        ? `not installed — security feeds are opt-in: blitzpi feeds opt-in (then ${config.feeds.urls} as configured)`
+        : `a URL in a command that URLhaus lists as distributing malware ${config.feeds.urls === "enforce" ? "is blocked before the command runs" : "is recorded and shown"}; shared platforms (GitHub, Drive …) match by exact URL only`,
+      configured: ".blitz/blitz.config.yaml feeds.urls (enforce | monitor | off) · blitzpi feeds update",
+    },
+    {
       key: "audit",
       name: "Audit trail",
       mode: config.audit.enabled ? "enforce" : "off",
@@ -99,14 +108,14 @@ export function layers(config: BlitzConfig, backendName: string | null): Layer[]
   ];
 }
 
-const short: Record<string, string> = { input: "input", governance: "governance", profiles: "profile", sandbox: "files", bash: "bash", threat: "threat", feeds: "packages", secrets: "secrets", commands: "commands", audit: "audit" };
+const short: Record<string, string> = { input: "input", governance: "governance", profiles: "profile", sandbox: "files", bash: "bash", threat: "threat", feeds: "packages", secrets: "secrets", commands: "commands", urls: "urls", audit: "audit" };
 
 /** One row for the startup banner: `governance local (monitor) · bash bwrap (enforce) · …` */
 export function summaryLine(config: BlitzConfig, backendName: string | null): string {
   return layers(config, backendName)
     .filter((l) => l.key !== "input")
     .map((l) => {
-      const what = l.key === "governance" ? config.governance.provider : l.key === "bash" ? backendName ?? "none" : l.key === "profiles" ? config.profiles.default : l.key === "threat" ? `tier ${config.threat_detection.tier}` : l.key === "feeds" ? "osv" : l.key === "secrets" ? "gitleaks" : l.key === "commands" ? "sigma" : "";
+      const what = l.key === "governance" ? config.governance.provider : l.key === "bash" ? backendName ?? "none" : l.key === "profiles" ? config.profiles.default : l.key === "threat" ? `tier ${config.threat_detection.tier}` : l.key === "feeds" ? "osv" : l.key === "secrets" ? "gitleaks" : l.key === "commands" ? "sigma" : l.key === "urls" ? "urlhaus" : "";
       return `${short[l.key]}${what ? " " + what : ""} (${l.mode})`;
     })
     .join(" · ");
@@ -142,7 +151,7 @@ export function panel(config: BlitzConfig, backendName: string | null, lastAudit
     "",
     `  Model calls checked: ${g.checked}   denied (shown): ${g.denied}   provider unreachable: ${g.unreachable}`,
     `  Blocked: tools by profile ${b.profile} · file ops ${b.sandbox} · bash ${b.bash} · threat ${b.threat} · prompts ${b.input} · packages ${b.feed}`,
-    `  Package feed: ${stats.feeds.checked} checked · ${stats.feeds.malicious} malicious · ${stats.feeds.unreachable} unreachable${stats.feeds.last ? `   last: ${stats.feeds.last.slice(0, 90)}` : ""}   Secrets feed: ${stats.feeds.secrets} credential(s) seen   Command shapes: ${stats.feeds.commands} hit(s)`,
+    `  Package feed: ${stats.feeds.checked} checked · ${stats.feeds.malicious} malicious · ${stats.feeds.unreachable} unreachable${stats.feeds.last ? `   last: ${stats.feeds.last.slice(0, 90)}` : ""}   Secrets feed: ${stats.feeds.secrets} credential(s) seen   Command shapes: ${stats.feeds.commands} hit(s)   URLs: ${stats.feeds.urls} listed`,
     "",
     lastAudit.length ? "  Last decisions:" : "  No audit entries yet.",
     ...lastAudit.map((l) => `    ${l}`),
