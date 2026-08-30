@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- Versioning policy: next release is **1.2.100** (three-digit patch series, minor stays at 2); pushes accumulate here until a release is cut.
+
 ## 1.2.3 — 2026-08-30
 
 ### Install
@@ -18,7 +22,7 @@ Governance changes are called out explicitly in every release: what the runtime 
 - **Rollback is a command.** `blitzpi rollback` switches `current` back to the version you updated from — instant and offline (it just repoints the symlink and re-runs the self-check); run it again to return. `blitzpi versions` lists what is installed with the current and previous marked; `blitzpi use <version>` switches to any installed one. Before, the "previous version kept for rollback" could only be used by hand (`ln -sfn`).
 - `blitzpi update --version vX.Y.Z` switches to that version if it is already installed instead of downloading it again (`--reinstall` forces a download).
 - `BLITZPI_KEEP` (default 2) sets how many installed versions stay; the new one and the one you left are never removed.
-- Versioning from here on: every push is a patch release (1.2.x); the minor moves for a real feature jump.
+- Versioning from here on: three-digit patch numbers — the next release is 1.2.100, then 1.2.101, … Pushes are not releases; a release is cut when there is an improvement worth a `blitzpi update`.
 
 ## 1.2.0 — 2026-08-30
 

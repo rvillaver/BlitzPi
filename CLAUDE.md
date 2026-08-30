@@ -44,7 +44,7 @@ Label every claim **verified or unverified**. "I wrote it" ≠ "the constraint w
 - **Language:** TypeScript
 - **Package manager / build:** Bun; **no build step** — Pi loads `src/index.ts` natively
 - **Local dev loop:** `bun link` once, then `blitzpi` (= Pi 0.84.3 + `-e <repo>` + bundled packages); `blitzpi -p "…" </dev/null` for headless probes
-- **Deploy / release:** npm package `@blitz/pi-coding-agent` (pending) + GitHub releases; Pi is rebranded via a committed `bun patch` (`patches/`). A push is not released until it is tagged **and** `gh release create vX.Y.Z` has run (`blitzpi update` reads `releases/latest`). **Versioning:** every push is a patch bump (1.2.1, 1.2.2, …); the minor moves only for a real feature jump; CHANGELOG entry per release.
+- **Deploy / release:** npm package `@blitz/pi-coding-agent` (pending) + GitHub releases; Pi is rebranded via a committed `bun patch` (`patches/`). A push is not released until it is tagged **and** `gh release create vX.Y.Z` has run (`blitzpi update` reads `releases/latest`). **Versioning:** we are on **1.2.1xx** — the next release is 1.2.100, then 1.2.101, … (three-digit patch; leading zeros are invalid semver, so the series starts at 100). The minor stays at 2; we ship improvements, not major features. **Pushes are not releases**: push to `master` freely, cut a release only when asked or when there is a user-visible improvement worth a `blitzpi update`; until then CHANGELOG notes go under an `## Unreleased` heading.
 - **Credentials:** Pi `/login` only (`~/.pi/agent/auth.json`); never API keys in env
 - **Verify target:** Local Pi instance running with Blitz extension + live governance API
 - **CI / test framework:** Jest + GitHub Actions
