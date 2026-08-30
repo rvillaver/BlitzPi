@@ -63,7 +63,7 @@ OS="$(uname -s)"; ARCH="$(uname -m)"
 case "$OS" in
   Darwin) PLATFORM="darwin"; DEFAULT_HOME="$HOME/Library/Application Support/BlitzPi" ;;
   Linux)  PLATFORM="linux";  DEFAULT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/blitzpi" ;;
-  MINGW*|MSYS*|CYGWIN*|Windows_NT) die "Windows is not supported by this installer yet (a PowerShell installer is planned)." ;;
+  MINGW*|MSYS*|CYGWIN*|Windows_NT) die "on Windows use the PowerShell installer:  irm https://raw.githubusercontent.com/$REPO/master/install.ps1 | iex" ;;
   *) die "unsupported operating system: $OS" ;;
 esac
 APP="${BLITZPI_HOME:-$DEFAULT_HOME}"

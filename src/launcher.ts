@@ -27,6 +27,7 @@ const PI_SUBCOMMANDS = new Set(["install", "remove", "list", "config", "auth"]);
 /** `blitzpi update` / `blitzpi uninstall`: run the bundled install.sh against the installed copy. */
 export type SelfServiceCommand = "update" | "uninstall" | "versions" | "rollback" | "use";
 const INSTALLER_FLAG: Record<SelfServiceCommand, string> = { update: "--update", uninstall: "--uninstall", versions: "--list", rollback: "--rollback", use: "--use" };
+const INSTALLER_FLAG_PS: Record<SelfServiceCommand, string> = { update: "-Update", uninstall: "-Uninstall", versions: "-List", rollback: "-Rollback", use: "-Use" };
 const SOURCE_HINT: Record<SelfServiceCommand, string> = {
   update: "Update it with: git pull && bun install",
   uninstall: "Nothing to uninstall; delete the checkout instead.",
@@ -44,17 +45,25 @@ export function selfServiceCommand(cmd: SelfServiceCommand, extra: string[] = []
   }
   // The app-level installer is the newest one that ran (kept outside versions/ so it survives a rollback).
   // Missing = this copy was installed by an older installer: place ours there and rewrite the command first.
-  const appScript = join(paths.home, "install.sh");
-  const ownScript = join(REPO_ROOT, "install.sh");
+  const win = process.platform === "win32";
+  const scriptName = win ? "install.ps1" : "install.sh";
+  const runInstaller = (script: string, flags: string[], stdio: "inherit" = "inherit") =>
+    win
+      ? spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, ...flags], { stdio, env: { ...process.env, BLITZPI_HOME: paths.home } })
+      : spawn("sh", [script, ...flags], { stdio, env: { ...process.env, BLITZPI_HOME: paths.home } });
+  const appScript = join(paths.home, scriptName);
+  const ownScript = join(REPO_ROOT, scriptName);
   if (!existsSync(appScript) && existsSync(ownScript)) {
-    spawnSync("sh", [ownScript, "--refresh"], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
+    if (win) spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ownScript, "-Refresh"], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
+    else spawnSync("sh", [ownScript, "--refresh"], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
   }
-  const script = existsSync(appScript) ? appScript : join(paths.current, "install.sh");
+  const script = existsSync(appScript) ? appScript : join(paths.current, scriptName);
   if (!existsSync(script)) {
     console.error(`[BlitzPi] installer not found: ${script}`);
     return Promise.resolve(1);
   }
-  const child = spawn("sh", [script, INSTALLER_FLAG[cmd], ...extra], { stdio: "inherit", env: { ...process.env, BLITZPI_HOME: paths.home } });
+  const flag = win ? INSTALLER_FLAG_PS[cmd] : INSTALLER_FLAG[cmd];
+  const child = runInstaller(script, [flag, ...extra]);
   return new Promise((done) => {
     child.on("error", (err) => {
       console.error("[BlitzPi] Failed to run installer:", err.message);

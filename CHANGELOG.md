@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Windows (preview, being verified):** `install.ps1` — one line in PowerShell installs a private Bun and BlitzPi under `%LOCALAPPDATA%\BlitzPi` with `blitzpi` on the user PATH; `blitzpi update|versions|rollback|use|uninstall` work through it. Zones understand Windows paths (drive letters, backslashes, case). The `pinned` backend (PowerShell, cwd/HOME pinned) is the guard-level confinement today; AppContainer isolation follows.
+
 ## 1.2.107 — 2026-08-30
 
 - **`question` tool.** The agent can ask you to pick from short options (or type an answer) — a picker in the TUI, buttons over the RPC bridge. In print/JSON mode it says no one is there to answer instead of guessing.

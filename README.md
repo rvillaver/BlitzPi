@@ -27,6 +27,12 @@ packages) into one app directory — nothing else on your machine is touched, no
 curl -fsSL https://raw.githubusercontent.com/rvillaver/BlitzPi/master/install.sh | sh
 ```
 
+Windows 11 (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/rvillaver/BlitzPi/master/install.ps1 | iex
+```
+
 It shows you where things go and asks before installing:
 
 | | app directory (runtime + versions) | the `blitzpi` command |
@@ -34,7 +40,7 @@ It shows you where things go and asks before installing:
 | macOS | `~/Library/Application Support/BlitzPi` | `~/.local/bin/blitzpi` |
 | Linux | `~/.local/share/blitzpi` (`$XDG_DATA_HOME`) | `~/.local/bin/blitzpi` |
 
-(`BLITZPI_HOME=<dir>` picks another app directory. Windows: not yet — a PowerShell installer is planned.)
+(`BLITZPI_HOME=<dir>` picks another app directory. Windows: `%LOCALAPPDATA%\BlitzPi`, command on the user PATH.)
 
 Then open a new terminal and run `blitzpi`. First time: `/login` inside the session to sign in to a
 provider (stored in `~/.pi/agent/auth.json`).
