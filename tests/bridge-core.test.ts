@@ -18,6 +18,7 @@ class FakeAdapter implements ChatAdapter {
   async ask(_t: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean) { this.asks.push(req); return canAnswer({ id: "op1" }) ? this.answer : undefined; }
   async recent() { return this.recentMsgs; }
   identity(u: UserRef) { return `fake:${u.id}#${u.name ?? ""}`; }
+  threadLink(t: ThreadRef) { return `<#${t.id}>`; }
 }
 const conv: ConvRef = { platform: "fake", id: "chan" };
 const msg = (id: string, author: UserRef, text: string): Message => ({ id, author, text, time: Date.now() });
@@ -47,7 +48,7 @@ test("threads=on: a mention opens the shared thread, streams there, closes with 
   adapter.fire({ kind: "mention", conv, message: msg("m2", { id: "op1", name: "alice" }, "hello"), text: "hello" });
   await bridge.waitIdle(conv, 10_000);
   const t = texts(adapter);
-  expect(t[0]).toMatch(/^▶ started — hello/); expect(t.some((x) => x.includes("Hello world"))).toBe(true); expect(t[t.length - 2]).toMatch(/^✅ done in/); expect(t[t.length - 1]).toMatch(/^✅ done — Hello world/);
+  expect(t[0]).toMatch(/^▶ started in <#thread-1> — hello/); expect(t.some((x) => x.includes("Hello world"))).toBe(true); expect(t[t.length - 2]).toMatch(/^✅ done in \d/); expect(t[t.length - 1]).toMatch(/^✅ done in <#thread-1> — Hello world/);
   expect(adapter.posts.filter((p) => p.target === "thread-1").length).toBeGreaterThan(0);
   expect(store.get(conv)!.sessionId).toBe("fake-session"); expect(store.get(conv)!.threadId).toBe("thread-1");
   await bridge.stop();
@@ -92,6 +93,27 @@ test("default threads=answer: activity in the shared thread, the answer in the c
   expect(inChan).toEqual(["Hello world"]);
   expect(inThread.some((t) => t.startsWith("✅ done in"))).toBe(true);
   expect(adapter.posts.some((p) => p.text.startsWith("▶ started") || p.text.startsWith("✅ done —"))).toBe(false);
+  await bridge.stop();
+});
+test("threads=answer: a message in the shared thread is answered in the thread, with a linked summary in the channel", async () => {
+  const { adapter, bridge } = setup();
+  const thread: ThreadRef = { platform: "fake", id: "thread-1", conv };
+  adapter.fire({ kind: "thread", conv, thread, message: msg("t1", { id: "op1", name: "alice" }, "hi there"), text: "hi there" });
+  await bridge.waitIdle(conv, 10_000);
+  const inChan = adapter.posts.filter((p) => p.target === "chan").map((p) => p.text);
+  const inThread = adapter.posts.filter((p) => p.target === "thread-1").map((p) => p.text);
+  expect(inThread.join("")).toContain("Hello world"); // the answer stays where the user asked
+  expect(inChan).toEqual(["✅ done in <#thread-1> — Hello world"]); // one linked summary line in the channel
+  await bridge.stop();
+});
+test("a prompt that finds the agent still processing steers the surviving run instead of failing", async () => {
+  const { adapter, bridge } = setup();
+  adapter.fire({ kind: "mention", conv, message: msg("g1", { id: "op1", name: "alice" }, "ghost run please"), text: "ghost run please" });
+  await bridge.waitIdle(conv, 10_000);
+  const t = texts(adapter);
+  expect(t.some((x) => x.includes("steering it with your message"))).toBe(true);
+  expect(t.some((x) => x.includes("Hello world"))).toBe(true);
+  expect(t.some((x) => x.startsWith("⚠️ could not start the run"))).toBe(false);
   await bridge.stop();
 });
 test("ops: projects, post, run (by project dir), status, unknown", async () => {

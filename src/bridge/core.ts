@@ -100,15 +100,16 @@ export class Bridge {
         try { if (inThread) await c.host.steer(msg); else await c.host.followUp(msg); } catch (e) { await c.adapter.post(t.thread ?? t.conv, `Could not queue that: ${e instanceof Error ? e.message : e}`); return; }
       }
       if (c.running) {
+        if (inThread && c.thread && "conv" in c.thread) c.answerTarget = c.thread; // answer where the user is asking from
         const quietMs = Date.now() - (c.lastEventAt ?? c.startedAt ?? Date.now());
         const stale = quietMs > 5 * 60_000 ? ` ⚠️ no activity from the agent for ${Math.round(quietMs / 60_000)} min — if it looks stuck, \`stop\` aborts the run.` : "";
-        await c.adapter.post(t.thread ?? c.thread ?? t.conv, (inThread ? "↪ steering the current run with that." : "🕓 queued — runs after the current one.") + stale);
+        await c.adapter.post(t.thread ?? c.thread ?? t.conv, (inThread ? "↪ steering the current run with that — the answer lands here." : "🕓 queued — runs after the current one.") + stale);
         return;
       }
     }
     const context = await this.contextFor(c, t);
     const attached = await this.pullAttachments(c, t.message);
-    await this.startRun(c, t.message, `[caller ${caller}]\n${context}${t.text}${attached}`, t.text);
+    await this.startRun(c, t.message, `[caller ${caller}]\n${context}${t.text}${attached}`, t.text, t.thread);
   }
 
   /** Download the message's attachments into <project>/.blitz/transfer/in and name them for the agent. */
@@ -196,7 +197,7 @@ export class Bridge {
     return c.host;
   }
 
-  async startRun(c: Conversation, seed: Message | undefined, prompt: string, shown: string): Promise<ThreadRef | ConvRef> {
+  async startRun(c: Conversation, seed: Message | undefined, prompt: string, shown: string, origin?: ThreadRef): Promise<ThreadRef | ConvRef> {
     const cap = c.adapter.capabilities;
     const mode: ThreadMode = cap.threads ? (c.binding.threads ?? "answer") : "off";
     let thread: ThreadRef | ConvRef = c.conv;
@@ -206,17 +207,26 @@ export class Bridge {
         if ("conv" in thread && thread.id !== c.binding.threadId) this.opts.bindings.update(c.conv, { threadId: thread.id });
       } catch (e) { this.opts.log?.(`[bridge] thread unavailable, posting in the channel: ${e instanceof Error ? e.message : e}`); thread = c.conv; }
     }
-    const activityTarget = thread; const answerTarget = mode === "on" ? thread : c.conv;
+    // The answer lands where the request came from: mode `on` and thread-origin requests answer in the thread.
+    const activityTarget = thread; const answerTarget = mode === "on" || (origin && "conv" in thread) ? thread : c.conv;
     c.thread = thread; c.answerTarget = answerTarget; c.running = true; c.startedAt = Date.now(); c.seedId = seed?.id;
     try { ensureTransferDirs(c.binding.project); c.outSnapshot = snapshotOut(c.binding.project); } catch { /* read-only project: no transfer */ }
-    c.pacer = new Pacer((t) => c.adapter.post(activityTarget, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100), (t, first) => c.adapter.post(answerTarget, t, first && answerTarget === c.conv && seed ? { replyTo: seed.id } : undefined));
-    if (mode === "on" && "conv" in thread) await c.adapter.post(c.conv, `▶ started — ${shown.split("\n")[0].slice(0, 80)}`);
+    c.pacer = new Pacer((t) => c.adapter.post(activityTarget, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100), (t, first) => { const to = c.answerTarget ?? c.conv; return c.adapter.post(to, t, first && to === c.conv && seed ? { replyTo: seed.id } : undefined); });
+    if (mode === "on" && "conv" in thread) { const link = c.adapter.threadLink?.(thread); await c.adapter.post(c.conv, `▶ started${link ? ` in ${link}` : ""} — ${shown.split("\n")[0].slice(0, 80)}`); }
+    const message = c.adapter.postFiles ? `${prompt}\n\n${OUT_HINT}` : prompt;
     try {
       const host = await this.host(c);
-      await host.prompt(c.adapter.postFiles ? `${prompt}\n\n${OUT_HINT}` : prompt);
+      await host.prompt(message);
     } catch (e) {
+      const why = e instanceof Error ? e.message : String(e);
+      // Pi keeps steer/follow-up messages queued across an abort, so a "stopped" run can still be winding down when
+      // the next request arrives ("Agent is already processing"). Steer that surviving run instead of failing.
+      if (/already processing/i.test(why) && c.host && c.host.state === "ready") {
+        try { await c.host.steer(message); await c.adapter.post(activityTarget, "↪ the agent was still busy with the previous run — steering it with your message."); return thread; }
+        catch { /* fall through to the plain error */ }
+      }
       c.running = false;
-      await c.adapter.post(activityTarget, `⚠️ could not start the run: ${e instanceof Error ? e.message : e}`);
+      await c.adapter.post(activityTarget, `⚠️ could not start the run: ${why}`);
     }
     return thread;
   }
@@ -248,7 +258,10 @@ export class Bridge {
     let first = "";
     try { first = String(((await c.host!.getLastAssistantText()).data as { text?: string } | undefined)?.text ?? "").split("\n").find((l) => l.trim()) ?? ""; } catch { /* fine */ }
     await c.adapter.post(c.thread ?? c.conv, `✅ done in ${(ms / 1000).toFixed(1)} s${stats}`);
-    if ((c.binding.threads ?? "answer") === "on" && c.binding.announce_done && c.thread && "conv" in c.thread) await c.adapter.post(c.conv, `✅ done — ${first.slice(0, 120)}`);
+    if (c.binding.announce_done && c.thread && "conv" in c.thread && c.answerTarget === c.thread) {
+      const link = c.adapter.threadLink?.(c.thread);
+      await c.adapter.post(c.conv, `✅ done${link ? ` in ${link}` : ""} — ${first.slice(0, 120)}`);
+    }
   }
 
   // ---- control surface ops (socket / CLI / channel_post) ---------------------------------------------------------

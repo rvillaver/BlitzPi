@@ -28,6 +28,8 @@ export interface ChatAdapter {
   /** The last `n` messages in the conversation after `sinceId` (for the context window); [] where not permitted. */
   recent(conv: ConvRef, n: number, sinceId?: string): Promise<Message[]>;
   identity(u: UserRef): string;
+  /** A chat-renderable link/mention for a thread (Discord `<#id>`), for channel summary lines. Optional. */
+  threadLink?(t: ThreadRef): string;
   /** Fetch an attachment to a local path (size-capped by the adapter). Optional. */
   download?(file: Attachment, to: string): Promise<string>;
   /** Post local files (with an optional caption) into a conversation or thread. Optional. */
@@ -38,8 +40,9 @@ export interface ChatAdapter {
 
 export type TriggerMode = "mentions" | "all" | "operators";
 export type ActivityLevel = "full" | "tools" | "quiet";
-/** on = activity + answer in the channel's shared thread; answer = activity in the thread, the answer in the channel
- *  (default); off = everything in the channel. One shared thread per channel — never one per request. */
+/** on = activity + answer in the channel's shared thread; answer (default) = activity in the thread, the answer where
+ *  the request came from — the channel for a channel mention, the thread for a thread message; off = everything in the
+ *  channel. One shared thread per channel — never one per request. */
 export type ThreadMode = "on" | "answer" | "off";
 export interface Binding {
   project: string; sessionId?: string; name?: string;

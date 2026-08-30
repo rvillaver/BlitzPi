@@ -57,6 +57,7 @@ export class DiscordAdapter implements ChatAdapter {
   async stop(): Promise<void> { for (const p of this.pending.values()) { clearTimeout(p.timer); p.resolve(undefined); } this.pending.clear(); await this.client.destroy(); }
   onTrigger(cb: (t: Trigger) => void): void { this.triggerCb = cb; }
   identity(u: UserRef): string { return `discord:${u.id}${u.name ? `#${u.name}` : ""}`; }
+  threadLink(t: ThreadRef): string { return `<#${t.id}>`; }
 
   // ---- slash commands -------------------------------------------------------------------------------------------
   private async registerSlash(): Promise<void> {
@@ -70,7 +71,7 @@ export class DiscordAdapter implements ChatAdapter {
         { type: 1, name: "unbind", description: "Unbind this channel" },
         { type: 1, name: "trigger", description: "When BlitzPi acts: mentions | all | operators", options: [{ type: 3, name: "mode", description: "mentions | all | operators", required: true, choices: [{ name: "mentions", value: "mentions" }, { name: "all", value: "all" }, { name: "operators", value: "operators" }] }] },
         { type: 1, name: "activity", description: "How much of a run streams into the thread", options: [{ type: 3, name: "level", description: "full | tools | quiet", required: true, choices: [{ name: "full", value: "full" }, { name: "tools", value: "tools" }, { name: "quiet", value: "quiet" }] }] },
-        { type: 1, name: "threads", description: "Where runs post: on = all in the shared thread · answer = activity in the thread, answer here · off = all here", options: [{ type: 3, name: "mode", description: "on | answer | off", required: true, choices: [{ name: "on", value: "on" }, { name: "answer", value: "answer" }, { name: "off", value: "off" }] }] },
+        { type: 1, name: "threads", description: "Where runs post: on = all in the thread · answer = answers follow where you ask · off = all here", options: [{ type: 3, name: "mode", description: "on | answer | off", required: true, choices: [{ name: "on", value: "on" }, { name: "answer", value: "answer" }, { name: "off", value: "off" }] }] },
         { type: 1, name: "context", description: "Recent channel messages handed to the agent on mention (0 = off)", options: [{ type: 4, name: "messages", description: "0–20", required: true, min_value: 0, max_value: 20 }] },
         { type: 1, name: "operators", description: "Who may drive BlitzPi here", options: [{ type: 3, name: "action", description: "add | remove", required: true, choices: [{ name: "add", value: "add" }, { name: "remove", value: "remove" }] }, { type: 6, name: "user", description: "The member", required: true }] },
       ],

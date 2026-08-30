@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Bridge: answers land where you asked.** A message in the channel's shared thread is now answered in the thread (and steering a live run from the thread retargets the rest of its answer there); a channel mention still gets its answer in the channel under `threads: answer`. Whenever a run answers in the thread, the channel gets one linked summary line — `✅ done in <#thread> — …` — so the channel stays low-noise but navigable; `▶ started` (threads: on) links the thread too. The in-thread steering ack now says the answer lands there.
+- **Bridge: a request right after `stop` no longer fails with "Agent is already processing".** Pi keeps steer/follow-up messages queued across an abort, so a "stopped" run can still be winding down when the next request arrives; the bridge now steers that surviving run with the new message instead of erroring out.
+
 ## 1.2.113 — 2026-08-31
 
 - **Bridge: a dead run never blocks a channel.** `stop` clears a run whose agent process is already gone; a mention into such a run clears it and starts fresh instead of "Could not queue that: rpc child is not running".
