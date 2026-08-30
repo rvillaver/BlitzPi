@@ -30,7 +30,7 @@ describe("gitleaks adapter", () => {
     const aws = c.rules.find((r) => r.id === "aws-access-token")!;
     expect(aws).toMatchObject({ category: "secret", severity: "critical" });
     expect(aws.keywords!.every((k) => k === k.toLowerCase())).toBe(true);
-    for (const r of c.rules) expect(() => new RegExp(r.regex, r.flags)).not.toThrow();
+    for (const r of c.rules) expect(() => new RegExp(r.regex!, r.flags)).not.toThrow();
     const broken = compileGitleaks('[[rules]]\nid = "bad"\nregex = \'\'\'(?<x\'\'\'\nkeywords = ["b"]\n[[rules]]\nid = "ok"\nregex = \'\'\'ok\'\'\'\n');
     expect(broken.rules.map((r) => r.id)).toEqual(["ok"]);
     expect(broken.skipped[0]).toMatchObject({ id: "bad" });
@@ -105,6 +105,38 @@ describe("feed store: opt-in, update, hash, ETag, rollback, failure keeps previo
     expect(bad.optOut(true)).toEqual(["secrets"]); expect(bad.installed("secrets")).toBe(false);
     expect(await store.update("nope")).toMatchObject({ type: "feed_update_failed", error: expect.stringContaining("unknown feed") });
     expect(new FeedStore(tmp()).rollback("secrets")).toMatchObject({ type: "feed_update_failed" });
+  });
+});
+
+describe("download progress + sizes", () => {
+  test("progress reports received/total from a streamed body; manifest records stored bytes; sizes() adds up", async () => {
+    const body = FIXTURE; const enc = new TextEncoder().encode(body);
+    const chunked: any = async () => new Response(new ReadableStream({ start(c) { for (let i = 0; i < enc.length; i += 4096) c.enqueue(enc.slice(i, i + 4096)); c.close(); } }), { status: 200, headers: { "content-length": String(enc.length) } });
+    const dir = tmp(); const store = new FeedStore(dir, chunked); store.optIn();
+    const seen: [string, number, number | undefined][] = [];
+    const ev = await store.update("secrets", { onProgress: (f, r, t) => seen.push([f, r, t]) });
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen[0][0]).toBe("secrets"); expect(seen[0][2]).toBe(enc.length);
+    expect(seen[seen.length - 1][1]).toBe(enc.length);
+    expect(seen.every(([, r], i) => i === 0 || r >= seen[i - 1][1])).toBe(true);
+    expect((ev as any).stored).toBeGreaterThan(1000);
+    expect(store.manifest("secrets")!.stored_bytes).toBe((ev as any).stored);
+    const sz = store.sizes();
+    expect(sz.feeds.find((f) => f.name === "secrets")!.stored).toBeGreaterThan(1000);
+    expect(sz.total).toBe(sz.feeds.reduce((n, f) => n + f.stored + f.previous, 0) + sz.cache);
+    await store.update("secrets", { force: true });
+    expect(store.sizes().feeds.find((f) => f.name === "secrets")!.previous).toBeGreaterThan(1000);
+    // a gzip'd response: Content-Length is the wire size, not what we receive → total unknown until the end
+    const gz: any = async () => new Response(new ReadableStream({ start(c) { c.enqueue(enc.slice(0, 4096)); c.enqueue(enc.slice(4096)); c.close(); } }), { status: 200, headers: { "content-length": "1234", "content-encoding": "gzip" } });
+    const seen2: [number, number | undefined][] = [];
+    await new FeedStore(tmp(), gz).update("secrets", { onProgress: (_f, r, t) => seen2.push([r, t]) });
+    expect(seen2.slice(0, -1).every(([, t]) => t === undefined)).toBe(true);
+    expect(seen2[seen2.length - 1]).toEqual([enc.length, enc.length]);
+    // a wrong Content-Length that gets overtaken is dropped rather than reporting >100%
+    const wrong: any = async () => new Response(new ReadableStream({ start(c) { c.enqueue(enc.slice(0, 4096)); c.enqueue(enc.slice(4096)); c.close(); } }), { status: 200, headers: { "content-length": "100" } });
+    const seen3: [number, number | undefined][] = [];
+    await new FeedStore(tmp(), wrong).update("secrets", { onProgress: (_f, r, t) => seen3.push([r, t]) });
+    expect(seen3.every(([r, t]) => t === undefined || r <= t)).toBe(true);
   });
 });
 

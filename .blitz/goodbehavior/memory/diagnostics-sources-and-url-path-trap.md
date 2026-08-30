@@ -16,3 +16,6 @@
 **Installer transition rule:** `blitzpi update` always runs the *previous* version's app-level installer, so a new installer flag or step (e.g. `--feeds`, the feeds question) only works from the update *after* the one that ships it. Say so in the release notes; the new installer ignores unknown `--options` with a notice (since 1.2.100+) so a newer command never aborts an older installer. The "already the latest version" path must still run `feeds_step`.
 
 **Ask in the app, not only in the installer.** Anything the user must be asked (feeds opt-in) belongs in `session_start` (TUI) with a recorded decision — the installer only runs on update and is always the previous version's, so an installer-only question reached the Mac never. Feed hooks use `store.liveRules()` (mtime-cached) so an in-app install is active without restart.
+
+**Test-check trap:** `bunx jest | grep "^Tests:"` hides suites that fail to *compile* ("● Test suite failed to run" has no `›`). Two suites (feeds-store, feeds-onboard) silently ran 0 tests for several commits. Always check the `Test Suites:` line (and `grep "failed to run"`). Also: the repo's TS lib is ES2020 — no `.at()` in tests.
+**Progress trap:** fetch decompresses gzip; `Content-Length` is the wire size. Never use it as the total when `content-encoding` is set.

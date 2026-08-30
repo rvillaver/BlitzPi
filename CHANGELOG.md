@@ -2,6 +2,12 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+### Install
+- **Feed downloads show progress and sizes.** In the TUI the status bar shows `⬇ commands 1.4 MB / 3.0 MB (46%)` while feeds install; in the shell `blitzpi feeds update` draws a per-feed progress bar. Every completion line and `blitzpi feeds list` report *downloaded → stored* per feed (e.g. Sigma: 3.0 MB downloaded → 203 KB stored; URLhaus: 1.3 MB → 709 KB hashed) plus the total on disk (current + previous copies, OSV cache); `blitzpi feeds status` and `/blitz-security` show the total too. The manifest records `stored_bytes`. Servers usually gzip these lists, so `Content-Length` is the wire size, not the received size — progress shows a percentage only for identity responses and bytes-only otherwise.
+- Test hygiene: two test suites had been failing to *compile* (type errors after `regex` became optional and `.at()` under the ES2020 lib) without showing up as test failures in the checks I ran; 13 tests were not executing. Fixed, and the suite-level line is now part of every check.
+
 ## 1.2.102 — 2026-08-30
 
 ### Install

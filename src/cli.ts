@@ -6,6 +6,7 @@ import { buildReport, renderReport } from "./report";
 import { parseInstalls, type PackageRef } from "./feeds/packages";
 import { OsvClient, maliciousOf } from "./feeds/osv";
 import { FeedStore, FEEDS, feedsDir } from "./feeds/store";
+import { fmtBytes, progressText } from "./feeds/onboard";
 import { scanSecrets } from "./feeds/secrets";
 import { scanCommand } from "./feeds/commands";
 import { scanUrls } from "./feeds/urls";
@@ -290,13 +291,24 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
     const force = args.includes("--force");
     const audit = cliAudit();
     let failed = 0;
+    const tty = !!process.stdout.isTTY;
     for (const f of names.length ? names : FEEDS.map((x) => x.name)) {
-      const ev = await store.update(f, { force, version });
+      let lastLine = "";
+      const ev = await store.update(f, { force, version, onProgress: (feed, received, total) => {
+        if (!tty) return;
+        const pct = total ? Math.min(100, Math.round((received / total) * 100)) : 0;
+        const bar = total ? `${"▉".repeat(Math.round(pct / 10))}${"░".repeat(10 - Math.round(pct / 10))} ${String(pct).padStart(3)}%` : "…";
+        const line = `  ${feed.padEnd(10)} ${bar}  ${fmtBytes(received)}${total ? ` / ${fmtBytes(total)}` : ""}`;
+        if (line !== lastLine) { process.stdout.write(`\r${line.padEnd(70)}`); lastLine = line; }
+      } });
+      if (tty && lastLine) process.stdout.write("\r" + " ".repeat(72) + "\r");
       audit?.log(ev as any);
-      if (ev.type === "feed_update") console.log(`  ${f.padEnd(10)} ${ev.changed ? "updated " : "unchanged"}  ${ev.rules} rules${ev.skipped ? ` (${ev.skipped} skipped)` : ""}  ${(ev.bytes / 1024).toFixed(0)} KB  sha256 ${shortSha(ev.to)}${ev.changed && ev.from ? `  (was ${shortSha(ev.from)} — blitzpi feeds rollback ${f})` : ""}`);
+      if (ev.type === "feed_update") console.log(`  ${f.padEnd(10)} ${ev.changed ? "updated " : "unchanged"}  ${ev.rules} rules${ev.skipped ? ` (${ev.skipped} skipped)` : ""}  ${fmtBytes(ev.bytes)} downloaded → ${fmtBytes(ev.stored ?? 0)} stored  sha256 ${shortSha(ev.to)}${ev.changed && ev.from ? `  (was ${shortSha(ev.from)} — blitzpi feeds rollback ${f})` : ""}`);
       else if (ev.type === "feed_update_failed") { failed++; console.log(`  ${f.padEnd(10)} FAILED    ${ev.error}${ev.kept ? `  (previous feed ${shortSha(ev.kept)} kept)` : ""}`); }
     }
     await audit?.close();
+    const sz = store.sizes();
+    console.log(`  total on disk: ${fmtBytes(sz.total)} in ${feedsDir()} (current + previous copies${sz.cache ? `, OSV cache ${fmtBytes(sz.cache)}` : ""})`);
     if (failed) process.exitCode = 1;
     return;
   }
@@ -309,10 +321,12 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
   }
   if (sub === "list") {
     console.log(`Security feeds (${store.optedIn() ? "opted in" : "NOT opted in — blitzpi feeds opt-in"}), ${feedsDir()}`);
+    const sz = store.sizes();
     for (const f of store.list()) {
-      const m = f.manifest;
-      console.log(`  ${f.name.padEnd(10)} ${f.installed ? "installed" : "absent   "}  ${m ? `${m.rules} rules${m.skipped ? ` (${m.skipped} skipped)` : ""}, fetched ${m.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(m.sha256)}${f.previous ? `, previous ${shortSha(f.previous.sha256)}` : ""}` : ""}\n             ${f.description}\n             source: ${FEEDS.find((d) => d.name === f.name)?.source}  (${FEEDS.find((d) => d.name === f.name)?.license})`);
+      const m = f.manifest; const z = sz.feeds.find((x) => x.name === f.name)!;
+      console.log(`  ${f.name.padEnd(10)} ${f.installed ? "installed" : "absent   "}  ${m ? `${m.rules} rules${m.skipped ? ` (${m.skipped} skipped)` : ""}, fetched ${m.fetched_at.slice(0, 16)}Z, ${fmtBytes(m.bytes)} downloaded → ${fmtBytes(z.stored)} stored${z.previous ? ` (+ ${fmtBytes(z.previous)} previous)` : ""}, sha256 ${shortSha(m.sha256)}` : ""}\n             ${f.description}\n             source: ${FEEDS.find((d) => d.name === f.name)?.source}  (${FEEDS.find((d) => d.name === f.name)?.license})`);
     }
+    console.log(`  total on disk: ${fmtBytes(sz.total)}${sz.cache ? ` (incl. OSV cache ${fmtBytes(sz.cache)})` : ""}`);
     return;
   }
   if (sub === "scan") {
@@ -349,6 +363,6 @@ export async function handleFeedsCommand(args: string[]): Promise<void> {
     return;
   }
   const c = client.cacheStats();
-  const sec = store.manifest("secrets"); const cmd = store.manifest("commands"); const url = store.manifest("urls");
-  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : store.decision() === "out" ? "declined" : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  commands   Sigma rules — ${store.optedIn() ? (cmd ? `installed: ${cmd.rules} rules (${cmd.skipped} skipped), fetched ${cmd.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(cmd.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}\n  urls       URLhaus — ${store.optedIn() ? (url ? `installed: ${url.rules} URLs, fetched ${url.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(url.sha256)} (hourly source: blitzpi feeds update)` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}`);
+  const sec = store.manifest("secrets"); const cmd = store.manifest("commands"); const url = store.manifest("urls"); const sz = store.sizes();
+  console.log(`Detection feeds\n  packages   OSV (osv.dev) — queried per install command, nothing to install; known-malicious (MAL ids) blocks under feeds.packages: enforce\n             cache: ${c.entries} package(s), ${c.malicious} malicious, oldest ${c.oldest ?? "—"}  (${c.path})\n  secrets    gitleaks rules — ${store.optedIn() ? (sec ? `installed: ${sec.rules} rules, fetched ${sec.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(sec.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : store.decision() === "out" ? "declined" : "NOT opted in (blitzpi feeds opt-in) — security feeds are a separate, optional download"}\n  commands   Sigma rules — ${store.optedIn() ? (cmd ? `installed: ${cmd.rules} rules (${cmd.skipped} skipped), fetched ${cmd.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(cmd.sha256)}` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}\n  urls       URLhaus — ${store.optedIn() ? (url ? `installed: ${url.rules} URLs, fetched ${url.fetched_at.slice(0, 16)}Z, sha256 ${shortSha(url.sha256)} (hourly source: blitzpi feeds update)` : "opted in but not downloaded yet: blitzpi feeds update") : "NOT opted in"}\n  on disk    ${fmtBytes(sz.total)} in ${feedsDir()}${sz.feeds.some((f) => f.previous) ? " (current + previous copies for rollback)" : ""}`);
 }

@@ -10,7 +10,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import fs from "node:fs";
 import path from "node:path";
 import type { AuditLogger } from "../audit";
-import { FeedStore, FEEDS, feedsDir } from "./store";
+import { FeedStore, FEEDS, feedsDir, type Progress } from "./store";
+
+export const fmtBytes = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
+export const progressText = (feed: string, received: number, total?: number) => `⬇ ${feed} ${fmtBytes(received)}${total ? ` / ${fmtBytes(total)} (${Math.min(100, Math.round((received / total) * 100))}%)` : ""}`;
 
 export const FEEDS_QUESTION = "Security feeds (optional): detection rules pulled from public sources — credentials in commands (gitleaks), command shapes (Sigma), malicious URLs (URLhaus). First download ≈ 4.5 MB, kept in ~/.blitz/feeds, updated only when you say so. Install now?";
 export const CHOICES = ["Yes — install the security feeds now", "Not now — ask me again after the next update", "No — don't ask again (blitzpi feeds opt-in later)"];
@@ -18,13 +21,13 @@ export const CHOICES = ["Yes — install the security feeds now", "Not now — a
 const askedMarker = (version: string, dir = feedsDir()) => path.join(dir, `asked-${version}`);
 
 /** Install (or refresh) every feed in-process, reporting progress through `note`. Returns the failed feed names. */
-export async function installFeeds(store: FeedStore, audit: AuditLogger | undefined, version: string | undefined, note: (m: string, kind: "info" | "warning" | "error") => void): Promise<string[]> {
+export async function installFeeds(store: FeedStore, audit: AuditLogger | undefined, version: string | undefined, note: (m: string, kind: "info" | "warning" | "error") => void, onProgress?: Progress): Promise<string[]> {
   store.optIn();
   const failed: string[] = [];
   for (const f of FEEDS) {
-    const ev = await store.update(f.name, { version });
+    const ev = await store.update(f.name, { version, onProgress });
     audit?.log(ev as any);
-    if (ev.type === "feed_update") note(`Security feeds: ${f.name} ${ev.changed ? "installed" : "up to date"} — ${ev.rules} ${f.category === "url" ? "URLs" : "rules"}`, "info");
+    if (ev.type === "feed_update") note(`Security feeds: ${f.name} ${ev.changed ? "installed" : "up to date"} — ${ev.rules} ${f.category === "url" ? "URLs" : "rules"}, ${fmtBytes(ev.bytes)} downloaded → ${fmtBytes(ev.stored ?? 0)} stored`, "info");
     else if (ev.type === "feed_update_failed") { failed.push(f.name); note(`Security feeds: ${f.name} failed — ${ev.error}`, "error"); }
   }
   return failed;
@@ -51,8 +54,16 @@ export function setupFeedsOnboarding(pi: ExtensionAPI, audit: AuditLogger, store
     }
     audit.log({ type: "feeds_onboarding", decision: "in", version });
     ctx.ui.notify("Installing security feeds…", "info");
-    const failed = await installFeeds(store, audit, version, (m, k) => ctx.ui.notify(m, k));
-    ctx.ui.notify(failed.length ? `Security feeds: ${failed.join(", ")} failed — retry with blitzpi feeds update` : "Security feeds installed and active (see /blitz-security).", failed.length ? "warning" : "info");
+    let last = 0;
+    const failed = await installFeeds(store, audit, version, (m, k) => ctx.ui.notify(m, k), (feed, received, total) => {
+      const now = Date.now();
+      if (now - last < 150 && received !== total) return; // throttle status redraws
+      last = now;
+      ctx.ui.setStatus?.("blitz-feeds", progressText(feed, received, total));
+    });
+    ctx.ui.setStatus?.("blitz-feeds", undefined);
+    const sz = store.sizes();
+    ctx.ui.notify(failed.length ? `Security feeds: ${failed.join(", ")} failed — retry with blitzpi feeds update` : `Security feeds installed and active (see /blitz-security) — ${fmtBytes(sz.total)} in ~/.blitz/feeds.`, failed.length ? "warning" : "info");
   });
 }
 

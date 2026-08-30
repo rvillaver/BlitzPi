@@ -9,6 +9,11 @@ import { FeedStore } from "./feeds/store";
 /** Is the (opt-in) secrets feed present on this machine? Read once per render; cheap (two stat calls). */
 export function secretsFeedInstalled(store: FeedStore = new FeedStore()): boolean { return store.optedIn() && store.installed("secrets"); }
 export function feedInstalled(name: string, store: FeedStore = new FeedStore()): boolean { return store.optedIn() && store.installed(name); }
+export function feedsOnDisk(store: FeedStore = new FeedStore()): string {
+  const sz = store.sizes(); const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
+  if (!store.optedIn()) return store.decision() === "out" ? "declined" : "not installed (opt-in)";
+  return `${mb(sz.total)} — ${sz.feeds.map((f) => `${f.name} ${mb(f.stored)}`).join(" · ")}${sz.feeds.some((f) => f.previous) ? " (+ previous copies)" : ""}`;
+}
 
 export type Mode = "enforce" | "monitor" | "off";
 export interface Layer { key: string; name: string; mode: Mode; detail: string; configured: string }
@@ -161,6 +166,7 @@ export function panel(config: BlitzConfig, backendName: string | null, lastAudit
     `  Blocked: tools by profile ${b.profile} · file ops ${b.sandbox} · bash ${b.bash} · threat ${b.threat} · prompts ${b.input} · packages ${b.feed}`,
     `  Package feed: ${stats.feeds.checked} checked · ${stats.feeds.malicious} malicious · ${stats.feeds.unreachable} unreachable${stats.feeds.last ? `   last: ${stats.feeds.last.slice(0, 90)}` : ""}   Secrets feed: ${stats.feeds.secrets} credential(s) seen   Command shapes: ${stats.feeds.commands} hit(s)   URLs: ${stats.feeds.urls} listed`,
     `  Content scan: ${stats.content.scanned} results scanned · ${stats.content.flagged} with instruction-shaped text`,
+    `  Feeds on disk: ${feedsOnDisk()}`,
     "",
     lastAudit.length ? "  Last decisions:" : "  No audit entries yet.",
     ...lastAudit.map((l) => `    ${l}`),

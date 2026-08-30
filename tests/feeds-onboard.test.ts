@@ -14,8 +14,9 @@ function harness(store: FeedStore, answer: string | undefined, version = "1.2.10
   const handlers: Record<string, any> = {}; const pi: any = { on: (n: string, h: any) => { handlers[n] = h; } };
   const logged: any[] = []; const notes: string[] = []; let asked = 0;
   setupFeedsOnboarding(pi, { log: (e: any) => logged.push(e) } as any, store, version);
-  const ctx: any = { mode: "tui", hasUI: true, ui: { select: async () => { asked++; return answer; }, notify: (m: string) => notes.push(m) } };
-  return { start: () => handlers.session_start({}, ctx), startPrint: () => handlers.session_start({}, { ...ctx, mode: "print", hasUI: false }), logged, notes, asked: () => asked };
+  const status: string[] = [];
+  const ctx: any = { mode: "tui", hasUI: true, ui: { select: async () => { asked++; return answer; }, notify: (m: string) => notes.push(m), setStatus: (_k: string, t?: string) => status.push(t ?? "<clear>") } };
+  return { start: () => handlers.session_start({}, ctx), startPrint: () => handlers.session_start({}, { ...ctx, mode: "print", hasUI: false }), logged, notes, status, asked: () => asked };
 }
 
 describe("in-app feeds onboarding (asks once per version while undecided)", () => {
@@ -34,7 +35,9 @@ describe("in-app feeds onboarding (asks once per version while undecided)", () =
     expect(store.list().every((f) => f.installed)).toBe(true);
     expect(h.logged[0]).toMatchObject({ type: "feeds_onboarding", decision: "in", version: "1.2.102" });
     expect(h.logged.filter((e) => e.type === "feed_update")).toHaveLength(3);
-    expect(h.notes.at(-1)).toContain("installed and active");
+    expect(h.notes[h.notes.length - 1]).toMatch(/installed and active .* in ~\/.blitz\/feeds/);
+    expect(h.notes.find((n) => n.includes("secrets installed"))).toMatch(/downloaded → .* stored/);
+    expect(h.status.some((t) => t.startsWith("⬇ "))).toBe(true); expect(h.status[h.status.length - 1]).toBe("<clear>");
     // same hook, now live
     await hooks.tool_call({ toolName: "bash", input: { command: "echo AKIAZZ7XQ2BR4TSTKEYA" } }, { hasUI: false });
     expect(audited[0]).toMatchObject({ type: "feed_secret" });
@@ -55,7 +58,7 @@ describe("in-app feeds onboarding (asks once per version while undecided)", () =
     const p = harness(new FeedStore(tmp(), fetchAll), CHOICES[0]); await p.startPrint(); expect(p.asked()).toBe(0);
   });
   test("installFeeds reports failures per feed and keeps going", async () => {
-    const store = new FeedStore(tmp(), async (url: string) => (url.includes("zip") ? new Response("nope", { status: 500 }) : fetchAll(url)));
+    const store = new FeedStore(tmp(), (async (url: string) => (url.includes("zip") ? new Response("nope", { status: 500 }) : fetchAll(url))) as any);
     const notes: string[] = [];
     expect(await installFeeds(store, undefined, "x", (m) => notes.push(m))).toEqual(["commands"]);
     expect(store.installed("secrets")).toBe(true); expect(store.installed("urls")).toBe(true);

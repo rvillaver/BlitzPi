@@ -45,10 +45,14 @@ export interface CompiledFeed { rules: CompiledRule[]; skipped: { id: string; re
 export interface FeedManifest {
   name: string; source: string; fetched_at: string; sha256: string; etag?: string; bytes: number;
   rules: number; skipped: number; source_version?: string; blitzpi_version?: string;
+  /** Size of the compiled rules.json on disk. */
+  stored_bytes?: number;
 }
+export type Progress = (feed: string, received: number, total: number | undefined) => void;
+export interface FeedSizes { feeds: { name: string; stored: number; previous: number }[]; total: number; cache: number }
 export interface FeedDef { name: string; category: RuleCategory; description: string; source: string; license: string; binary?: boolean; compile: (raw: any) => CompiledFeed; defaultMode: "enforce" | "monitor" }
 export interface FeedStatus { name: string; description: string; category: RuleCategory; installed: boolean; manifest?: FeedManifest; previous?: FeedManifest }
-export type FeedEvent = { type: "feed_update"; feed: string; changed: boolean; from?: string; to: string; rules: number; skipped: number; bytes: number } | { type: "feed_rollback"; feed: string; from?: string; to: string } | { type: "feed_update_failed"; feed: string; error: string; kept?: string };
+export type FeedEvent = { type: "feed_update"; feed: string; changed: boolean; from?: string; to: string; rules: number; skipped: number; bytes: number; stored?: number } | { type: "feed_rollback"; feed: string; from?: string; to: string } | { type: "feed_update_failed"; feed: string; error: string; kept?: string };
 
 export const FEEDS: FeedDef[] = [
   {
@@ -128,9 +132,39 @@ export class FeedStore {
     return FEEDS.map((f) => ({ name: f.name, description: f.description, category: f.category, installed: this.installed(f.name), manifest: this.manifest(f.name), previous: this.previousManifest(f.name) }));
   }
 
+  /** Bytes on disk per feed (current + previous copies), the OSV cache, and the directory total. */
+  sizes(): FeedSizes {
+    const size = (f: string) => { try { return fs.statSync(f).size; } catch { return 0; } };
+    const feeds = FEEDS.map((f) => ({
+      name: f.name,
+      stored: size(path.join(this.feedDir(f.name), "rules.json")) + size(path.join(this.feedDir(f.name), "manifest.json")),
+      previous: size(path.join(this.feedDir(f.name), "previous", "rules.json")) + size(path.join(this.feedDir(f.name), "previous", "manifest.json")),
+    }));
+    const cache = size(path.join(this.dir, "osv-cache.json"));
+    return { feeds, cache, total: feeds.reduce((n, f) => n + f.stored + f.previous, 0) + cache };
+  }
+
+  /** Read a response body in chunks, reporting progress (total from Content-Length when the server sends it). */
+  private async download(res: Response, name: string, onProgress?: Progress): Promise<Buffer> {
+    // Content-Length counts the bytes on the wire; fetch hands us the DEcompressed stream, so with a content-encoding
+    // the header is not the total we will receive. Only trust it for identity responses, and drop it if overtaken.
+    let total = res.headers.get("content-encoding") ? undefined : Number(res.headers.get("content-length")) || undefined;
+    if (!res.body || !onProgress) { const b = Buffer.from(await res.arrayBuffer()); onProgress?.(name, b.length, b.length); return b; }
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) { chunks.push(value); received += value.length; if (total !== undefined && received > total) total = undefined; onProgress(name, received, total); }
+    }
+    onProgress(name, received, received);
+    return Buffer.concat(chunks);
+  }
+
   // ---- update / rollback ----------------------------------------------------------------------------------
   /** Fetch, hash, compile, swap. Never leaves a half-written feed; a compile failure keeps the previous one. */
-  async update(name: string, opts: { force?: boolean; version?: string } = {}): Promise<FeedEvent> {
+  async update(name: string, opts: { force?: boolean; version?: string; onProgress?: Progress } = {}): Promise<FeedEvent> {
     const def = feedDef(name);
     if (!def) return { type: "feed_update_failed", feed: name, error: `unknown feed "${name}" (known: ${FEEDS.map((f) => f.name).join(", ")})` };
     const current = this.manifest(name);
@@ -138,11 +172,12 @@ export class FeedStore {
       const headers: Record<string, string> = {};
       if (current?.etag && !opts.force) headers["if-none-match"] = current.etag;
       const res = await this.fetchImpl(def.source, { headers });
-      if (res.status === 304 && current) return { type: "feed_update", feed: name, changed: false, from: current.sha256, to: current.sha256, rules: current.rules, skipped: current.skipped, bytes: current.bytes };
+      if (res.status === 304 && current) return { type: "feed_update", feed: name, changed: false, from: current.sha256, to: current.sha256, rules: current.rules, skipped: current.skipped, bytes: current.bytes, stored: current.stored_bytes };
       if (!res.ok) throw new Error(`HTTP ${res.status} from ${def.source}`);
-      const raw: Buffer | string = def.binary ? Buffer.from(await res.arrayBuffer()) : await res.text();
-      const sha256 = crypto.createHash("sha256").update(raw).digest("hex");
-      if (current && current.sha256 === sha256 && !opts.force) return { type: "feed_update", feed: name, changed: false, from: sha256, to: sha256, rules: current.rules, skipped: current.skipped, bytes: current.bytes };
+      const bytes = await this.download(res, name, opts.onProgress);
+      const raw: Buffer | string = def.binary ? bytes : bytes.toString("utf-8");
+      const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+      if (current && current.sha256 === sha256 && !opts.force) return { type: "feed_update", feed: name, changed: false, from: sha256, to: sha256, rules: current.rules, skipped: current.skipped, bytes: current.bytes, stored: current.stored_bytes };
       const compiled = def.compile(raw); // throws on a broken source → previous feed kept
       if (!compiled.rules.length) throw new Error("compiled to zero rules — refusing to install an empty feed");
       const manifest: FeedManifest = {
@@ -152,8 +187,9 @@ export class FeedStore {
       const dir = this.feedDir(name);
       const staged = path.join(dir, "staged");
       fs.rmSync(staged, { recursive: true, force: true });
-      this.writeJson(path.join(staged, "manifest.json"), manifest);
       this.writeJson(path.join(staged, "rules.json"), { rules: compiled.rules, skipped: compiled.skipped });
+      manifest.stored_bytes = fs.statSync(path.join(staged, "rules.json")).size;
+      this.writeJson(path.join(staged, "manifest.json"), manifest);
       if (this.installed(name)) {
         fs.rmSync(path.join(dir, "previous"), { recursive: true, force: true });
         fs.mkdirSync(path.join(dir, "previous"), { recursive: true });
@@ -170,7 +206,7 @@ export class FeedStore {
         } catch { /* no previous */ }
       }
       fs.rmSync(staged, { recursive: true, force: true });
-      return { type: "feed_update", feed: name, changed: true, from: current?.sha256, to: sha256, rules: manifest.rules, skipped: manifest.skipped, bytes: manifest.bytes };
+      return { type: "feed_update", feed: name, changed: true, from: current?.sha256, to: sha256, rules: manifest.rules, skipped: manifest.skipped, bytes: manifest.bytes, stored: manifest.stored_bytes };
     } catch (e) {
       return { type: "feed_update_failed", feed: name, error: e instanceof Error ? e.message : String(e), kept: current?.sha256 };
     }
