@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.112 — 2026-08-31
+
+- **A command ends when its shell ends.** A backgrounded process (`bun run dev &`, `sleep 120 &`, even detached with output redirected) used to keep the bash tool call open until the run was aborted — under bwrap the sandbox waits for every process, elsewhere the leftovers held the output pipes. Now the shell's exit ends the command and whatever it left behind is terminated with it (the documented rule: start a server and probe it in the same command). Commands without a timeout are capped at 10 minutes (exit 124, with an explanation in the output).
+- **Bridge:** steering a run that has shown no activity for 5+ minutes gets a hint that `stop` aborts it; when the agent process stops while a run is open (idle stop, crash), the run is closed out and said so instead of staying "running" forever; changing a channel's settings no longer detaches its live session.
+
 ## 1.2.111 — 2026-08-30
 
 - **Chat bridge — one project, one conversation.** Binding refuses a project directory that is already bound to another channel (two agents in one working directory would race on files and git state); rebinding the same channel to change its settings still works, and `force` overrides for deliberate cases. Inside a channel's shared thread, operators need no mention: a message there steers the current run or starts the next one.

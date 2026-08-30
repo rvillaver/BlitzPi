@@ -43,7 +43,7 @@ export class Pacer {
 
 interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
-  running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastBotMessageId?: string; queue: string[];
+  running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastEventAt?: number; lastBotMessageId?: string; queue: string[];
   outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
 export interface BridgeOptions {
@@ -96,7 +96,9 @@ export class Bridge {
       const inThread = !!t.thread || t.kind === "thread";
       const msg = `[caller ${caller}]\n${t.text}`;
       try { if (inThread) await c.host!.steer(msg); else await c.host!.followUp(msg); } catch (e) { await c.adapter.post(t.thread ?? t.conv, `Could not queue that: ${e instanceof Error ? e.message : e}`); return; }
-      await c.adapter.post(t.thread ?? c.thread ?? t.conv, inThread ? "↪ steering the current run with that." : "🕓 queued — runs after the current one.");
+      const quietMs = Date.now() - (c.lastEventAt ?? c.startedAt ?? Date.now());
+      const stale = quietMs > 5 * 60_000 ? ` ⚠️ no activity from the agent for ${Math.round(quietMs / 60_000)} min — if it looks stuck, \`stop\` aborts the run.` : "";
+      await c.adapter.post(t.thread ?? c.thread ?? t.conv, (inThread ? "↪ steering the current run with that." : "🕓 queued — runs after the current one.") + stale);
       return;
     }
     const context = await this.contextFor(c, t);
@@ -172,7 +174,12 @@ export class Bridge {
     const hooks = {
       onEvent: (e: RpcEvent) => this.onEvent(c, e),
       onUiRequest: (r: UiRequest) => c.adapter.ask(c.thread ?? c.conv, r, (u) => this.isOperator(c, u)),
-      onExit: (code: number | null, unexpected: boolean) => { if (unexpected) { c.running = false; void c.adapter.post(c.thread ?? c.conv, `⚠️ the agent process exited unexpectedly (${code}); restarting.`); } },
+      onExit: (code: number | null, unexpected: boolean) => {
+        const wasRunning = c.running; c.running = false; c.queue = [];
+        void c.pacer?.flush();
+        if (unexpected) void c.adapter.post(c.thread ?? c.conv, `⚠️ the agent process exited unexpectedly (${code}); restarting.`);
+        else if (wasRunning) void c.adapter.post(c.thread ?? c.conv, "⏹ the agent process was stopped while a run was open — the run is over; mention me to continue.");
+      },
     };
     const factory = this.opts.hostFactory ?? ((project, sessionId, env2, h) => new RpcHost({ project, session: sessionId, env: env2, idleMs: this.opts.idleMs ?? 30 * 60_000, ...h, onStderr: (t) => this.opts.log?.(t.trimEnd()) }));
     c.host = factory(c.binding.project, c.binding.sessionId, env, hooks);
@@ -207,6 +214,7 @@ export class Bridge {
   }
 
   private onEvent(c: Conversation, e: RpcEvent): void {
+    c.lastEventAt = Date.now();
     const p = c.pacer; if (!p) return;
     const lvl = c.binding.activity;
     switch (e.type) {
@@ -262,8 +270,7 @@ export class Bridge {
       const other = this.opts.bindings.byProject(project);
       if (other && convKey(other.conv) !== convKey(conv) && payload.force !== true) throw new Error(`${project} is already bound to ${convKey(other.conv)} — one project, one conversation (unbind it first, or pass force)`);
       if (!settings.operators && !(prev?.operators.length) && owner) settings.operators = [owner.id]; // the owner is the default operator
-      const b = this.opts.bindings.bind(conv, project, settings as any);
-      this.convs.delete(convKey(conv));
+      const b = this.opts.bindings.bind(conv, project, settings as any); // conversation() re-reads the binding on next use; the live host stays
       return { conv: convKey(conv), created, ...b };
     }
     if (name === "unbind") { const conv = this.resolveConv(payload as any); if (!conv) throw new Error("nothing bound for that"); const c = this.convs.get(convKey(conv)); await c?.host?.stop(); this.convs.delete(convKey(conv)); return { removed: this.opts.bindings.unbind(conv) }; }
@@ -274,7 +281,7 @@ export class Bridge {
       for (const k of ["trigger", "activity", "context_window", "announce_done", "threads"]) if (payload[k] !== undefined) patch[k] = payload[k];
       if (payload.add_operator) patch.operators = [...new Set([...b.operators, String(payload.add_operator)])];
       if (payload.remove_operator) patch.operators = b.operators.filter((o) => o !== String(payload.remove_operator));
-      const nb = this.opts.bindings.update(conv, patch as any); this.convs.delete(convKey(conv)); return nb;
+      const nb = this.opts.bindings.update(conv, patch as any); return nb;
     }
     const conv = this.resolveConv(payload as { conv?: string; project?: string });
     if (!conv) throw new Error(`no conversation bound for ${payload.conv ?? payload.project ?? "(nothing given)"} — blitzpi bridge bind <platform:id> <dir>`);

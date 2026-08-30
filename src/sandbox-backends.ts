@@ -71,21 +71,38 @@ function trackChild(child: ReturnType<typeof spawn>): void {
   }
 }
 
-function pump(child: ReturnType<typeof spawn>, options: ExecOptions): Promise<{ exitCode: number | null }> {
+/** Default ceiling for one command when the model gave no timeout: a hung tool must not hang a run. */
+export const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60_000;
+
+function pump(child: ReturnType<typeof spawn>, options: ExecOptions, groupLeader = false): Promise<{ exitCode: number | null }> {
   trackChild(child);
   child.stdout?.on("data", (d: Buffer) => options.onData(d));
   child.stderr?.on("data", (d: Buffer) => options.onData(d));
-  let timer: NodeJS.Timeout | undefined;
-  if (options.timeout && options.timeout > 0) timer = setTimeout(() => child.kill("SIGKILL"), options.timeout);
-  const onAbort = () => child.kill("SIGKILL");
+  const killAll = () => { if (groupLeader && child.pid) { try { process.kill(-child.pid, "SIGKILL"); } catch { /* gone */ } } try { child.kill("SIGKILL"); } catch { /* gone */ } };
+  const limit = options.timeout && options.timeout > 0 ? options.timeout : DEFAULT_COMMAND_TIMEOUT_MS;
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; options.onData(Buffer.from(`\n[BASH] command exceeded ${Math.round(limit / 1000)} s and was stopped (pass a timeout for long jobs; start servers and probe them in the same command)\n`)); killAll(); }, limit);
+  const onAbort = () => killAll();
   options.signal?.addEventListener("abort", onAbort, { once: true });
   return new Promise((res) => {
-    child.on("error", (err) => { options.onData(Buffer.from(`[BASH] failed to start: ${err.message}\n`)); res({ exitCode: 126 }); });
-    child.on("close", (code) => { if (timer) clearTimeout(timer); options.signal?.removeEventListener("abort", onAbort); res({ exitCode: code }); });
+    let done = false;
+    const finish = (code: number | null) => { if (done) return; done = true; clearTimeout(timer); options.signal?.removeEventListener("abort", onAbort); res({ exitCode: timedOut ? 124 : code }); };
+    child.on("error", (err) => { options.onData(Buffer.from(`[BASH] failed to start: ${err.message}\n`)); finish(126); });
+    child.on("close", (code) => finish(code));
+    // The shell exited but something it left behind still holds the pipes: the command is over — end the leftovers.
+    child.on("exit", (code) => { setTimeout(() => { if (!done) { killAll(); finish(code); } }, 300).unref(); });
   });
 }
 
 const RO_SYSTEM_DIRS = ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt", "/run"];
+
+/** bwrap's init waits for EVERY process in the pid namespace, so `server &` kept the tool call open forever (the
+ *  app-stack hang, 2026-08-30). A command ends when its shell ends: run it in a subshell, then kill whatever it left
+ *  behind inside the namespace (`kill -9 -1` reaches only sandbox processes there), and return its own exit code. */
+export function wrapForNamespace(command: string): string {
+  return `( ${command}
+); __rc=$?; kill -9 -1 2>/dev/null; exit $__rc`;
+}
 /** The runtime running BlitzPi (the private Bun when installed) must be reachable inside the sandbox. */
 const RUNTIME_DIR = dirname(process.execPath);
 
@@ -103,7 +120,7 @@ class BwrapBackend implements SandboxBackend {
       "--bind", runDir, runDir, "--chdir", runDir,
       "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
       "--setenv", "HOME", runDir,
-      "/bin/bash", "-c", command);
+      "/bin/bash", "-c", wrapForNamespace(command));
     const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir }, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);
   }
@@ -118,8 +135,8 @@ class PinnedBackend implements SandboxBackend {
     const shell = isWin ? "powershell.exe" : "/bin/bash";
     const shellArgs = isWin ? ["-NoProfile", "-Command", command] : ["-c", command];
     const env = { ...process.env, ...options.env, HOME: runDir };
-    const child = spawn(shell, shellArgs, { cwd: runDir, env, stdio: ["ignore", "pipe", "pipe"] });
-    return pump(child, options);
+    const child = spawn(shell, shellArgs, { cwd: runDir, env, stdio: ["ignore", "pipe", "pipe"], detached: !isWin });
+    return pump(child, options, !isWin);
   }
 }
 
@@ -147,8 +164,8 @@ class SandboxExecBackend implements SandboxBackend {
     let real = runDir; try { real = realpathSync(runDir); } catch { /* keep runDir */ }
     const env = { ...process.env, ...options.env, HOME: real };
     const args = ["-p", this.profile(real, options.grants ?? []), "/bin/bash", "-c", command];
-    const child = spawn("/usr/bin/sandbox-exec", args, { cwd: real, env, stdio: ["ignore", "pipe", "pipe"] });
-    return pump(child, options);
+    const child = spawn("/usr/bin/sandbox-exec", args, { cwd: real, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    return pump(child, options, true);
   }
 }
 
