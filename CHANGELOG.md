@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.109 — 2026-08-30
 
 - **Chat bridge — file transfer.** Attachments on a triggering message are fetched into `<project>/.blitz/transfer/in/` and named in the prompt; anything the agent saves under `.blitz/transfer/out/` (during the run or by its end) is posted to the thread as an attachment, once per content. The transfer directory is workspace space (no security-config prompt) and git-ignores itself. Project writes still go through the write ladder — in Discord the "allow this write?" prompt appears as buttons for operators, and "Always" remembers it for the project.
 
