@@ -11,12 +11,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 export type ControlWord = "stop" | "status" | "new";
-/** `stop!`, `Cancel.`, `status` — exact control words only; "stop the tests and fix them" is a prompt. */
+/** `stop!`, `Cancel.`, `status` — exact control words only; "stop the tests and fix them" is a prompt.
+ *  `clear`/`reset`/`new session` mean `new`: people type them expecting a fresh session, and treating them as a
+ *  prompt runs the agent again — compounding the very context they are trying to drop. */
 export function controlWord(text: string): ControlWord | null {
   const t = text.trim().toLowerCase().replace(/[.!?…]+$/, "").trim();
   if (t === "stop" || t === "cancel" || t === "abort") return "stop";
   if (t === "status") return "status";
-  if (t === "new") return "new";
+  if (t === "new" || t === "clear" || t === "reset" || t === "new session") return "new";
   return null;
 }
 

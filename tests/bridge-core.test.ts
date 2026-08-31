@@ -34,6 +34,8 @@ const texts = (a: FakeAdapter) => a.posts.map((p) => p.text);
 
 test("controlWord", () => {
   expect(controlWord("stop")).toBe("stop"); expect(controlWord("  Cancel! ")).toBe("stop"); expect(controlWord("STATUS")).toBe("status"); expect(controlWord("new")).toBe("new");
+  expect(controlWord("clear")).toBe("new"); expect(controlWord("Reset.")).toBe("new"); expect(controlWord("new session")).toBe("new");
+  expect(controlWord("clear up the failing tests")).toBeNull();
   expect(controlWord("stop the tests and fix them")).toBeNull(); expect(controlWord("")).toBeNull();
 });
 test("Pacer coalesces activity per window, chunks answer text under the cap, never edits", async () => {

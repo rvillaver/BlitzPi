@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Bridge: `clear` and `reset` start a fresh session.** They were not control words, so each one ran the agent as a *prompt* — compounding the very context the user was trying to drop. `clear` / `reset` / `new session` now act like `new`; `blitzpi bridge new` does the same from the shell.
+
 - **Audit: the delete parser no longer reads past a newline.** `rm -f x` followed by another command on the next line recorded that line's tokens as deleted files (`(DB_PATH=/tmp/…` appeared in reports); a newline now ends the target list like `;` does.
 
 - **Sandbox: command timeouts were 1000× too short.** Pi's bash `timeout` is in seconds; the sandbox used the value as milliseconds, so any command that passed a timeout was killed almost immediately ("command exceeded 0 s", exit 124) — a 1.2.112 regression that crippled whole runs. Converted at the tool boundary; the 10-minute no-timeout ceiling is unchanged.

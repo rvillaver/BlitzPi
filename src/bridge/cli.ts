@@ -16,7 +16,7 @@ const USAGE = `Usage: blitzpi bridge <command>
   start | shutdown | restart            the daemon: control socket + platform adapters (start is foreground)
   post [--project DIR|--conv P:ID] "<text>"    post into the bound conversation
   ask  [--project DIR|--conv P:ID] "<question>" [option…]   ask and print the answer
-  stop | status [--project DIR|--conv P:ID]      stop = abort the conversation's current run
+  stop | status | new [--project DIR|--conv P:ID]   stop = abort the run · new = fresh session
   projects                              bound conversations
   bind <platform:id> [DIR] [--trigger mentions|all|operators] [--activity full|tools|quiet] [--context N] [--operator ID…]
   unbind <platform:id>`;
@@ -141,6 +141,7 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
     if (sub === "post") { await bridgeCall(socketPath, "post", { ...sel(), text: rest.join(" ") }); console.log("posted"); return; }
     if (sub === "ask") { const r = (await bridgeCall(socketPath, "ask", { ...sel(), question: rest[0] ?? "", options: rest.slice(1) })) as { answer: string | null }; if (r.answer == null) { process.exitCode = 1; return; } console.log(r.answer); return; }
     if (sub === "stop") { const r = (await bridgeCall(socketPath, "stop", sel())) as { message?: string }; console.log(r.message ?? "stopped"); return; }
+    if (sub === "new") { await bridgeCall(socketPath, "new", sel()); console.log("new session — the next request starts fresh"); return; }
     if (sub === "status") { const r = (await bridgeCall(socketPath, "status", sel())) as { text: string }; console.log(r.text); return; }
   } catch (e) { console.error(`[bridge] ${e instanceof Error ? e.message : e}`); process.exitCode = 1; return; }
   console.log(USAGE); process.exitCode = 2;
