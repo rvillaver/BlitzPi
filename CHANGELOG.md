@@ -4,7 +4,7 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
-- **Clearer prompt for unrememberable paths.** "(other — too broad to remember; asks every time)" read as if the *answer* were too broad; it now says what it means: an "Always" rule for this path would unlock too much (e.g. the whole home directory), so the gate asks each time.
+- **Permission prompts lead with the thing being approved.** Questions now read `Allow read? /home/user/.ssh/id_ed25519` — action + target, nothing else. Zone names, memory mechanics, and the duplicate "DANGEROUS" pre-notice are gone from the prompt (the "Always" options still carry their scope, and the audit trail keeps the detail). Paths that cannot get an "Always" rule simply offer Yes/No.
 
 - **Bridge: an unanswered permission question no longer freezes the run.** The gate waits without a timeout and the bridge sent nothing when a Discord question expired, so the agent hung inside the tool call forever — steering could not reach it. Expiry now answers the child with `cancelled`: the action is declined, the run continues, and the expired message says so ("declined — ask me to retry").
 

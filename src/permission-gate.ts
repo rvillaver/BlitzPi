@@ -50,7 +50,7 @@ export class PermissionGate {
 
   /** Treat a whole command as a dangerous out-of-project action (for shell-shape dangers like sudo). */
   async resolveDangerousCommand(command: string, why: string, ctx: ExtensionContext | undefined): Promise<GateResult> {
-    return this.resolve("write", "other", `${why}: ${command}`, "bash command — if allowed it runs OUTSIDE the OS sandbox", ctx);
+    return this.resolve("write", "other", `${why} — runs unsandboxed if allowed: ${command}`, "bash command", ctx);
   }
 
   /** Core resolver. `confined` = the action stays inside the project. */
@@ -71,19 +71,20 @@ export class PermissionGate {
       return { allow, reason: allow ? "auto-approved (non-interactive)" : "dangerous, refused (non-interactive)", ...base };
     }
 
-    const q = `${action === "write" ? "Write" : "Read"} ${label}\n  ${target}\n  zone: ${zone}`;
+    // The ask leads with the thing itself: action + target. Mechanics (zones, memory scope) stay out of the
+    // prompt — the "Always" options carry their own scope, and the audit trail holds the rest.
+    const what = redactCommand(String(target)).replace(/\s+/g, " ").slice(0, 160);
     let choice: string | undefined;
     if (level === "dangerous") {
-      ctx!.ui.notify(`DANGEROUS: ${action} outside your project (${zone}) — ${label}. ${target}`, "error");
-      choice = await ctx!.ui.select(`⚠ BlitzPi: allow DANGEROUS ${action}?`, ["No", "Yes (I understand the risk)"]);
+      choice = await ctx!.ui.select(`⚠ Allow DANGEROUS ${action}? ${what}`, ["No", "Yes (I understand the risk)"]);
       choice = choice?.startsWith("Yes") ? "Yes" : "No";
     } else if (level === "ask-noalways") {
-      choice = await ctx!.ui.select(`BlitzPi: allow ${action} to project security config?`, ["No", "Yes"]);
+      choice = await ctx!.ui.select(`Allow ${action} to security config? ${what}`, ["No", "Yes"]);
     } else if (!key) {
-      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone} — an "Always" rule here would unlock too much, e.g. your whole home dir, so it asks each time)`, ["Yes", "No"]);
+      choice = await ctx!.ui.select(`Allow ${action}? ${what}`, ["Yes", "No"]);
     } else {
       const scope = zone === "other" ? ` for ${key.slice(`${action}:${zone}:`.length)}` : "";
-      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone})`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);
+      choice = await ctx!.ui.select(`Allow ${action}? ${what}`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);
     }
 
     let allow = false;
