@@ -50,6 +50,7 @@ interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
   running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastEventAt?: number; lastBotMessageId?: string; queue: string[];
   statsAtStart?: { tokens: number; cost: number }; runError?: string;
+  retries: number; retryTimer?: NodeJS.Timeout;
   outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
 export interface BridgeOptions {
@@ -57,6 +58,8 @@ export interface BridgeOptions {
   socketPath?: string;
   hostFactory?: (project: string, sessionId: string | undefined, env: NodeJS.ProcessEnv, hooks: { onEvent: (e: RpcEvent) => void; onUiRequest: (r: UiRequest) => Promise<UiResponse | undefined>; onExit: (code: number | null, unexpected: boolean) => void }) => RpcHost;
   idleMs?: number;
+  /** Waits between automatic retries after a transient provider error (429/5xx); length = retry budget. */
+  retryBackoffMs?: number[];
   log?: (line: string) => void;
 }
 
@@ -78,7 +81,7 @@ export class Bridge {
     if (c) { c.binding = this.opts.bindings.get(conv) ?? c.binding; return c; }
     const binding = this.opts.bindings.get(conv); const adapter = this.adapters.get(conv.platform);
     if (!binding || !adapter) return undefined;
-    c = { conv, adapter, binding, running: false, queue: [], delivered: new Set() }; this.convs.set(key, c); return c;
+    c = { conv, adapter, binding, running: false, queue: [], delivered: new Set(), retries: 0 }; this.convs.set(key, c); return c;
   }
   isOperator(c: Conversation, u: UserRef): boolean { return c.binding.operators.length === 0 || c.binding.operators.includes(u.id) || c.binding.operators.includes(c.adapter.identity(u)); }
 
@@ -159,6 +162,7 @@ export class Bridge {
 
   async control(c: Conversation, word: ControlWord, target: ConvRef | ThreadRef): Promise<void> {
     if (word === "stop") {
+      if (c.retryTimer) { clearTimeout(c.retryTimer); c.retryTimer = undefined; c.retries = 0; await c.adapter.post(target, "⏹ cancelled the pending retry."); return; }
       if (!c.running) { await c.adapter.post(target, "Nothing is running."); return; }
       c.queue = [];
       let aborted = false;
@@ -215,6 +219,7 @@ export class Bridge {
     }
     // The answer lands where the request came from: mode `on` and thread-origin requests answer in the thread.
     const activityTarget = thread; const answerTarget = mode === "on" || (origin && "conv" in thread) ? thread : c.conv;
+    if (c.retryTimer) { clearTimeout(c.retryTimer); c.retryTimer = undefined; }
     c.thread = thread; c.answerTarget = answerTarget; c.running = true; c.startedAt = Date.now(); c.seedId = seed?.id; c.runError = undefined;
     try { ensureTransferDirs(c.binding.project); c.outSnapshot = snapshotOut(c.binding.project); } catch { /* read-only project: no transfer */ }
     c.pacer = new Pacer((t) => c.adapter.post(activityTarget, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100), (t, first) => { const to = c.answerTarget ?? c.conv; return c.adapter.post(to, t, first && to === c.conv && seed ? { replyTo: seed.id } : undefined); });
@@ -261,6 +266,7 @@ export class Bridge {
       // exactly the moment the agent goes quiet for a while and looks stuck.
       case "compaction_start": p.activity(`♻️ compacting context (${String(e.reason)}) — the agent pauses while it summarises`); break;
       case "compaction_end": p.activity(e.errorMessage ? `⚠️ compaction failed — ${String(e.errorMessage).slice(0, 160)}` : "♻️ context compacted"); break;
+      case "auto_retry_start": if (lvl !== "quiet") p.activity(`⏳ provider busy — retrying in ${Math.round(Number(e.delayMs ?? 0) / 1000)}s (attempt ${e.attempt}/${e.maxAttempts})`); break;
       case "agent_end": { const msgs = e.messages as { role?: string; stopReason?: string; errorMessage?: string }[] | undefined; const last = msgs?.[msgs.length - 1]; if (last?.role === "assistant" && last.stopReason === "error") c.runError = String(last.errorMessage ?? "unknown error"); break; }
       case "agent_settled": void this.finishRun(c); break;
     }
@@ -282,7 +288,25 @@ export class Bridge {
     } catch { /* fine */ }
     let first = "";
     try { first = String(((await c.host!.getLastAssistantText()).data as { text?: string } | undefined)?.text ?? "").split("\n").find((l) => l.trim()) ?? ""; } catch { /* fine */ }
-    if (c.runError) { const err = c.runError; c.runError = undefined; await c.adapter.post(c.thread ?? c.conv, `❌ the run ended with an error after ${(ms / 1000).toFixed(1)} s: ${err.slice(0, 400)}`); return; }
+    if (c.runError) {
+      const err = c.runError; c.runError = undefined;
+      // Free-tier providers shed traffic with transient 429/5xx: queue an automatic retry with growing waits.
+      // A far-off reset time (a weekly cap) makes retrying pointless — report it instead.
+      const transient = /\b429\b|rate.?limit|overload|too many requests|\b50[23]\b|server error/i.test(err);
+      const resetAt = Date.parse(/resets? (?:at|in)[:\s]*([0-9TZ:.+-]+)/i.exec(err)?.[1] ?? "");
+      const backoff = this.opts.retryBackoffMs ?? [20_000, 60_000, 180_000, 420_000];
+      if (transient && (Number.isNaN(resetAt) || resetAt - Date.now() < 15 * 60_000) && c.retries < backoff.length) {
+        const wait = backoff[c.retries++];
+        await c.adapter.post(c.thread ?? c.conv, `⏳ rate-limited — retrying in ${Math.round(wait / 1000)}s (${c.retries}/${backoff.length}). \`stop\` cancels.`);
+        c.retryTimer = setTimeout(() => { c.retryTimer = undefined; void this.startRun(c, undefined, "[caller bridge:retry]\ncontinue — the previous attempt failed with a transient provider error (rate limiting); pick up exactly where you left off", "retry after rate limit").catch(() => {}); }, wait);
+        c.retryTimer.unref?.();
+        return;
+      }
+      await c.adapter.post(c.thread ?? c.conv, `❌ the run ended with an error after ${(ms / 1000).toFixed(1)} s: ${err.slice(0, 400)}${transient && c.retries >= backoff.length ? " (gave up after retries)" : ""}${!Number.isNaN(resetAt) && resetAt - Date.now() >= 15 * 60_000 ? " — the limit resets too far out to retry" : ""}`);
+      c.retries = 0;
+      return;
+    }
+    c.retries = 0;
     await c.adapter.post(c.thread ?? c.conv, `✅ done in ${(ms / 1000).toFixed(1)} s${stats}`);
     if (c.binding.announce_done && c.thread && "conv" in c.thread && c.answerTarget === c.thread) {
       const link = c.adapter.threadLink?.(c.thread);
@@ -362,7 +386,7 @@ export class Bridge {
   /** For tests and the console runner: wait until the conversation is idle. */
   async waitIdle(conv: ConvRef, timeoutMs = 120_000): Promise<void> {
     const c = this.conversation(conv); const t0 = Date.now();
-    while ((this.inflight > 0 || c?.running) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 50));
+    while ((this.inflight > 0 || c?.running || c?.retryTimer) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 50));
   }
 }
 

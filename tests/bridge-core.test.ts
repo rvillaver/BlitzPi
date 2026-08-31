@@ -23,11 +23,11 @@ class FakeAdapter implements ChatAdapter {
 }
 const conv: ConvRef = { platform: "fake", id: "chan" };
 const msg = (id: string, author: UserRef, text: string): Message => ({ id, author, text, time: Date.now() });
-function setup(partial: Record<string, unknown> = {}) {
+function setup(partial: Record<string, unknown> = {}, opts: Record<string, unknown> = {}) {
   const store = new BindingsStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), "blitz-bridge-")), "bindings.json"));
   store.bind(conv, process.cwd(), { operators: ["op1"], ...partial });
   const adapter = new FakeAdapter();
-  const bridge = new Bridge({ bindings: store, socketPath: "/tmp/none.sock", hostFactory: (project, sessionId, env, hooks) => new RpcHost({ project, session: false, command: FAKE, env, idleMs: 0, ...hooks }) });
+  const bridge = new Bridge({ bindings: store, socketPath: "/tmp/none.sock", ...opts, hostFactory: (project, sessionId, env, hooks) => new RpcHost({ project, session: false, command: FAKE, env, idleMs: 0, ...hooks }) });
   bridge.attach(adapter);
   return { store, adapter, bridge };
 }
@@ -158,6 +158,16 @@ test("a run that dies on a model error reports the error, not done", async () =>
   const t = texts(adapter);
   expect(t.some((x) => x.includes("❌ the run ended with an error") && x.includes("401 authentication_error"))).toBe(true);
   expect(t.some((x) => x.startsWith("✅ done in"))).toBe(false);
+  await bridge.stop();
+});
+test("a transient 429 queues an automatic retry that finishes the run", async () => {
+  const { adapter, bridge } = setup({}, { retryBackoffMs: [60] });
+  adapter.fire({ kind: "mention", conv, message: msg("r1", { id: "op1", name: "alice" }, "flaky request"), text: "flaky request" });
+  await bridge.waitIdle(conv, 10_000);
+  const t = texts(adapter);
+  expect(t.some((x) => x.includes("⏳ rate-limited — retrying"))).toBe(true);
+  expect(t.some((x) => x.includes("Hello world"))).toBe(true); // the retry ran and answered
+  expect(t.some((x) => x.startsWith("❌"))).toBe(false);
   await bridge.stop();
 });
 test("op model: lists and switches the session's model", async () => {

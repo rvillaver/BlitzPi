@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Bridge: transient provider errors retry themselves.** Free-tier models shed traffic with 429s; a run that dies on 429/rate-limit/5xx now re-arms automatically with growing waits (20s → 1m → 3m → 7m), announced in the thread (`stop` cancels). Pi's own in-run retries are shown as activity too. A limit whose stated reset is more than 15 minutes out (a weekly cap) is reported instead of retried.
+
 - **Bridge: a run that dies on a model error says so.** Provider failures (usage caps, expired auth) ended runs instantly and the channel still saw "✅ done in 1.3 s · 0 tokens" — three times in a row before anyone knew the provider was down. The closing line is now "❌ the run ended with an error: …" with the provider's message.
 
 - **Bridge: switch the session's model.** `blitzpi bridge model` lists the session's available models; `blitzpi bridge model commandcode/claude-opus-5` switches the live session — for when a provider hits its usage limit mid-project (Codex's cap even fails auto-compaction's summarizer).
