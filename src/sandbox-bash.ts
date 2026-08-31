@@ -12,7 +12,7 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
-import { dangerousShape, extractTargets } from "./bash-guard";
+import { dangerousShape, dehomeTarget, extractTargets } from "./bash-guard";
 import { selectBackend, type SandboxBackend, type BackendPref, type Grant, toolTimeoutMs } from "./sandbox-backends";
 import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
@@ -57,7 +57,9 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     const command: string = (event as any).input?.command ?? "";
 
     const shape = dangerousShape(command);
-    const targets = shape ? [] : extractTargets(command);
+    // With a sandbox backend, HOME is pinned to the workspace: `~` targets are workspace paths and must classify
+    // that way (file tools and backend-less runs keep real-home resolution).
+    const targets = shape ? [] : extractTargets(command).map((t) => (backend ? { ...t, path: dehomeTarget(t.path, runDir) } : t));
     const res = shape
       ? await gate.resolveDangerousCommand(command, shape, ctx)
       : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx); })();

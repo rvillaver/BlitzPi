@@ -17,6 +17,13 @@ export function dangerousShape(command: string): string | null {
 
 export interface CmdTarget { path: string; write: boolean; }
 
+/** Confined commands run with HOME pinned to the workspace, so a `~` target IS a workspace path. Without this,
+ *  a sandbox-safe `ssh-keyscan github.com >> ~/.ssh/known_hosts` classifies as a DANGEROUS out-of-project write
+ *  (zones resolve `~` against the real home) — a false positive that blocks the agent's own correct fix. */
+export function dehomeTarget(p: string, runDir: string): string {
+  return p === "~" || p.startsWith("~/") || p.startsWith("~\\") ? runDir + p.slice(1) : p;
+}
+
 const WRITE_REDIR = /(^|[^0-9<>&])>>?\s*("?~?\/?[^\s"';|&)]+)/g;
 const WRITE_VERB = /(^|[\s;|&(])(rm|mv|cp|tee|dd|truncate|ln|touch|mkdir|rmdir|chmod|chown)\s+([^\n]*)/g;
 /** A download's output file is a write: `curl -o F` / `--output F`, `wget -O F` / `-o F` (log) / `--output-document F`.

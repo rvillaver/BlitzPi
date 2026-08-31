@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Sandbox: `~` in a bash command is the workspace, and the gate now knows it.** Confined commands run with HOME pinned to the project, so `ssh-keyscan github.com >> ~/.ssh/known_hosts` writes inside the sandbox — but zones resolved `~` against the real home and raised a false "DANGEROUS write outside your project" prompt, blocking the agent's own correct fix for ssh host verification. Bash targets starting with `~` now classify against the workspace when a sandbox backend is active; file tools keep real-home resolution, and reading a real key (e.g. `-i /home/user/.ssh/id_ed25519`) still prompts.
+
 - **Bridge: `clear` and `reset` start a fresh session.** They were not control words, so each one ran the agent as a *prompt* — compounding the very context the user was trying to drop. `clear` / `reset` / `new session` now act like `new`; `blitzpi bridge new` does the same from the shell.
 
 - **Audit: the delete parser no longer reads past a newline.** `rm -f x` followed by another command on the next line recorded that line's tokens as deleted files (`(DB_PATH=/tmp/…` appeared in reports); a newline now ends the target list like `;` does.

@@ -3,7 +3,7 @@
  * line; relative targets resolve against the directory a `cd` moved the statement into; an approved out-of-project
  * path becomes a grant for the backend instead of dropping confinement.
  */
-import { dangerousShape, extractTargets, segmentsWithCwd } from "../src/bash-guard";
+import { dangerousShape, extractTargets, segmentsWithCwd, dehomeTarget } from "../src/bash-guard";
 import { grantsFor } from "../src/permission-gate";
 import { grantMount } from "../src/sandbox-backends";
 import fs from "node:fs";
@@ -89,4 +89,11 @@ describe("download output files are writes (backlog P0 #1)", () => {
     ["curl -sS -o - https://a.example/f | head -c 10", []],        // stdout
     ["(cd apps && curl -o ../../x.bin https://a.example/f)", [{ path: "../x.bin", write: true }]],
   ])("%s", (c, expected) => expect(extractTargets(c)).toEqual(expected));
+});
+
+test("dehomeTarget: ~ is the workspace for confined commands", () => {
+  expect(dehomeTarget("~/.ssh/known_hosts", "/proj")).toBe("/proj/.ssh/known_hosts");
+  expect(dehomeTarget("~", "/proj")).toBe("/proj");
+  expect(dehomeTarget("/etc/hosts", "/proj")).toBe("/etc/hosts");
+  expect(dehomeTarget("~user/x", "/proj")).toBe("~user/x"); // another user's home is not ours to remap
 });
