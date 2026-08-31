@@ -127,7 +127,9 @@ export class RpcHost {
       const req = ev as unknown as UiRequest;
       const dialog = req.method === "select" || req.method === "confirm" || req.method === "input" || req.method === "editor";
       if (dialog) {
-        (this.opts.onUiRequest?.(req) ?? Promise.resolve(undefined)).then((r) => { if (r) this.respondUi(req.id, r); }, () => this.respondUi(req.id, { cancelled: true }));
+        // No answer (adapter TTL expired, no handler) must reach the child as `cancelled`: the gate has no timeout of
+        // its own, so silence left the agent frozen inside the tool call forever — steering could never reach it.
+        (this.opts.onUiRequest?.(req) ?? Promise.resolve(undefined)).then((r) => this.respondUi(req.id, r ?? { cancelled: true }), () => this.respondUi(req.id, { cancelled: true }));
       }
     }
     this.opts.onEvent?.(ev);

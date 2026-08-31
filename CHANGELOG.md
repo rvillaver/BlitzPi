@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Bridge: an unanswered permission question no longer freezes the run.** The gate waits without a timeout and the bridge sent nothing when a Discord question expired, so the agent hung inside the tool call forever — steering could not reach it. Expiry now answers the child with `cancelled`: the action is declined, the run continues, and the expired message says so ("declined — ask me to retry").
+
 - **Bridge: permission questions ping the operators.** Dangerous-write and out-of-project-read prompts posted silently, so on mobile nothing buzzed and questions expired unanswered ("⏳ no answer") — stalling runs at exactly the moments that need a human. Questions now @mention the channel's operators.
 
 - **Sandbox: `~` in a bash command is the workspace, and the gate now knows it.** Confined commands run with HOME pinned to the project, so `ssh-keyscan github.com >> ~/.ssh/known_hosts` writes inside the sandbox — but zones resolved `~` against the real home and raised a false "DANGEROUS write outside your project" prompt, blocking the agent's own correct fix for ssh host verification. Bash targets starting with `~` now classify against the workspace when a sandbox backend is active; file tools keep real-home resolution, and reading a real key (e.g. `-i /home/user/.ssh/id_ed25519`) still prompts.

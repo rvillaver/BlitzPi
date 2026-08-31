@@ -188,7 +188,7 @@ export class DiscordAdapter implements ChatAdapter {
     const msg = await ch.send({ content: body, components: rows, allowedMentions: { users: ping } });
     return new Promise<UiResponse | undefined>((resolve) => {
       const ttl = req.timeout && req.timeout > 0 ? req.timeout : QUESTION_TTL_MS;
-      const timer = setTimeout(() => { this.pending.delete(id); resolve(undefined); msg.edit({ content: `${body}\n⏳ no answer`, components: [] }).catch(() => {}); }, ttl);
+      const timer = setTimeout(() => { this.pending.delete(id); resolve(undefined); msg.edit({ content: `${body}\n⏳ no answer — declined (the question expired; ask me to retry)`, components: [] }).catch(() => {}); }, ttl);
       this.pending.set(id, { req, resolve, canAnswer, messageId: msg.id, timer });
     });
   }

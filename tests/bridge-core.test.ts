@@ -99,6 +99,16 @@ test("default threads=answer: activity in the shared thread, the answer in the c
   expect(adapter.posts.some((p) => p.text.startsWith("▶ started") || p.text.startsWith("✅ done —"))).toBe(false);
   await bridge.stop();
 });
+test("an unanswered question declines and the run finishes instead of freezing", async () => {
+  const { adapter, bridge } = setup();
+  adapter.answer = undefined; // the adapter's TTL expired — nobody pressed a button
+  adapter.fire({ kind: "mention", conv, message: msg("q1", { id: "op1", name: "alice" }, "please ask me"), text: "please ask me" });
+  await bridge.waitIdle(conv, 10_000);
+  const cc = (bridge as any).convs.get("fake:chan");
+  expect(cc.running).toBe(false); // without the cancelled response, the child never settles and this stays true
+  expect(texts(adapter).some((x) => x.includes("✅ done in") || x.includes("done in"))).toBe(true);
+  await bridge.stop();
+});
 test("threads=answer: a message in the shared thread is answered in the thread, with a linked summary in the channel", async () => {
   const { adapter, bridge } = setup();
   const thread: ThreadRef = { platform: "fake", id: "thread-1", conv };
