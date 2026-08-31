@@ -54,6 +54,7 @@ export class RpcHost {
     if (this.opts.session === false) args.push("--no-session"); else if (this.opts.session) args.push("--session", this.opts.session);
     const child = spawn(cmd, args, { cwd: this.opts.project, env: { ...process.env, ...this.opts.env }, stdio: ["pipe", "pipe", "pipe"] });
     this.child = child; this.buf = "";
+    child.stdin!.on("error", () => { /* child gone mid-write (EPIPE) — exit handling reports it */ });
     child.stdout!.on("data", (d: Buffer) => this.onData(d.toString("utf8")));
     child.stderr!.on("data", (d: Buffer) => this.opts.onStderr?.(d.toString("utf8")));
     child.on("exit", (code) => this.onChildExit(code));
@@ -91,7 +92,7 @@ export class RpcHost {
       this.touch();
     });
   }
-  send(obj: unknown): void { this.child?.stdin?.write(JSON.stringify(obj) + "\n"); }
+  send(obj: unknown): void { try { if (this.child?.stdin?.writable) this.child.stdin.write(JSON.stringify(obj) + "\n"); } catch { /* child gone */ } }
 
   // ---- the commands a bridge needs
   prompt(message: string, streamingBehavior?: "steer" | "followUp") { return this.request({ type: "prompt", message, ...(streamingBehavior ? { streamingBehavior } : {}) }); }
