@@ -187,7 +187,7 @@ export class Bridge {
     const env: NodeJS.ProcessEnv = { ...(this.opts.socketPath ? { BLITZ_BRIDGE_SOCKET: this.opts.socketPath } : {}), BLITZ_BRIDGE_CONV: key };
     const hooks = {
       onEvent: (e: RpcEvent) => this.onEvent(c, e),
-      onUiRequest: (r: UiRequest) => c.adapter.ask(c.thread ?? c.conv, r, (u) => this.isOperator(c, u)),
+      onUiRequest: (r: UiRequest) => c.adapter.ask(c.thread ?? c.conv, r, (u) => this.isOperator(c, u), c.binding.operators),
       onExit: (code: number | null, unexpected: boolean) => {
         const wasRunning = c.running; c.running = false; c.queue = [];
         void c.pacer?.flush();
@@ -325,7 +325,7 @@ export class Bridge {
     if (name === "post") { await c.adapter.post(c.running && c.thread ? c.thread : conv, String(payload.text ?? "")); return { ok: true }; }
     if (name === "ask") {
       const options = Array.isArray(payload.options) ? payload.options.map(String) : [];
-      const r = await c.adapter.ask(c.running && c.thread ? c.thread : conv, { id: `op-${Date.now()}`, method: options.length ? "select" : "input", title: String(payload.question ?? ""), options }, (u) => this.isOperator(c, u));
+      const r = await c.adapter.ask(c.running && c.thread ? c.thread : conv, { id: `op-${Date.now()}`, method: options.length ? "select" : "input", title: String(payload.question ?? ""), options }, (u) => this.isOperator(c, u), c.binding.operators);
       return { answer: r && "value" in r ? r.value : r && "confirmed" in r ? String(r.confirmed) : null };
     }
     if (name === "run") {

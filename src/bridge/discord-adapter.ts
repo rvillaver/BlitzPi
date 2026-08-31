@@ -166,7 +166,7 @@ export class DiscordAdapter implements ChatAdapter {
     let first = true;
     for (const chunk of chunks(text, MAX)) { await ch.send({ content: chunk, allowedMentions: { parse: [] }, ...(first && opts?.replyTo ? { reply: { messageReference: opts.replyTo, failIfNotExists: false } } : {}) }); first = false; }
   }
-  async ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean): Promise<UiResponse | undefined> {
+  async ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean, notify?: string[]): Promise<UiResponse | undefined> {
     const ch = await this.channel(target.id);
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const title = (req.title ?? req.message ?? "Question").slice(0, 1800);
@@ -181,8 +181,11 @@ export class DiscordAdapter implements ChatAdapter {
     } else {
       rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`q:${id}:other`).setLabel("Answer…").setStyle(ButtonStyle.Primary)));
     }
-    const body = `❓ ${title}${req.message && req.title ? `\n${req.message.slice(0, 500)}` : ""}${req.placeholder ? `\n_${req.placeholder}_` : ""}`;
-    const msg = await ch.send({ content: body, components: rows, allowedMentions: { parse: [] } });
+    // A question nobody sees is a stalled run: ping the operators (numeric ids only — `discord:id#name`
+    // identity strings are for matching, not mentioning).
+    const ping = [...new Set((notify ?? []).map((o) => (/^\d+$/.test(o) ? o : (/^discord:(\d+)/.exec(o)?.[1] ?? ""))).filter(Boolean))];
+    const body = `${ping.map((id) => `<@${id}>`).join(" ")}${ping.length ? " " : ""}❓ ${title}${req.message && req.title ? `\n${req.message.slice(0, 500)}` : ""}${req.placeholder ? `\n_${req.placeholder}_` : ""}`;
+    const msg = await ch.send({ content: body, components: rows, allowedMentions: { users: ping } });
     return new Promise<UiResponse | undefined>((resolve) => {
       const ttl = req.timeout && req.timeout > 0 ? req.timeout : QUESTION_TTL_MS;
       const timer = setTimeout(() => { this.pending.delete(id); resolve(undefined); msg.edit({ content: `${body}\n⏳ no answer`, components: [] }).catch(() => {}); }, ttl);

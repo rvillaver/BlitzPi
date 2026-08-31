@@ -23,8 +23,9 @@ export interface ChatAdapter {
   /** The channel's shared work thread: reuse `existingId` (unarchive if needed) or create one; adapters without threads return the conversation. */
   openThread(conv: ConvRef, name: string, existingId?: string): Promise<ThreadRef | ConvRef>;
   post(target: ConvRef | ThreadRef, text: string, opts?: { replyTo?: string }): Promise<void>;
-  /** Render a dialog request (select/confirm/input/editor) and resolve with the answer of a user `canAnswer` accepts. */
-  ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean): Promise<UiResponse | undefined>;
+  /** Render a dialog request (select/confirm/input/editor) and resolve with the answer of a user `canAnswer` accepts.
+   *  `notify`: user ids to ping with the question — an unanswered permission prompt is a stalled run. */
+  ask(target: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean, notify?: string[]): Promise<UiResponse | undefined>;
   /** The last `n` messages in the conversation after `sinceId` (for the context window); [] where not permitted. */
   recent(conv: ConvRef, n: number, sinceId?: string): Promise<Message[]>;
   identity(u: UserRef): string;

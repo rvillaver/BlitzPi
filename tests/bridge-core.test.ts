@@ -15,7 +15,8 @@ class FakeAdapter implements ChatAdapter {
   fire(t: Trigger) { this.cb!(t); }
   async openThread(conv: ConvRef, _name: string, existingId?: string): Promise<ThreadRef> { return { platform: "fake", id: existingId ?? "thread-1", conv }; }
   async post(target: ConvRef | ThreadRef, text: string) { this.posts.push({ target: target.id, text }); }
-  async ask(_t: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean) { this.asks.push(req); return canAnswer({ id: "op1" }) ? this.answer : undefined; }
+  askNotify: string[][] = [];
+  async ask(_t: ConvRef | ThreadRef, req: UiRequest, canAnswer: (u: UserRef) => boolean, notify?: string[]) { this.asks.push(req); this.askNotify.push(notify ?? []); return canAnswer({ id: "op1" }) ? this.answer : undefined; }
   async recent() { return this.recentMsgs; }
   identity(u: UserRef) { return `fake:${u.id}#${u.name ?? ""}`; }
   threadLink(t: ThreadRef) { return `<#${t.id}>`; }
@@ -63,6 +64,7 @@ test("questions go to the adapter and the answer reaches the child; non-operator
   adapter.fire({ kind: "mention", conv, message: msg("m2", { id: "op1", name: "alice" }, "please ask me"), text: "please ask me" });
   await bridge.waitIdle(conv, 10_000);
   expect(adapter.asks[0]).toMatchObject({ method: "select", title: "Pick", options: ["A", "B"] });
+  expect(adapter.askNotify[0]).toEqual(["op1"]); // operators are pinged so the question is seen before it expires
   expect(texts(adapter).some((x) => x.includes("✅ question") || x.includes("done"))).toBe(true);
   adapter.posts = [];
   adapter.fire({ kind: "mention", conv, message: msg("m3", { id: "op1" }, "status"), text: "status" });
