@@ -19,6 +19,7 @@ process.stdin.on("data", (d) => {
       for (const w of ["Hello", " ", "world"]) out({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: w } });
       if (String(cmd.message).includes("ask")) { out({ type: "extension_ui_request", id: "ui-1", method: "select", title: "Pick", options: ["A", "B"] }); continue; }
       if (String(cmd.message).includes("crash")) { process.exit(3); }
+      if (String(cmd.message).includes("llmfail")) { out({ type: "agent_end", messages: [{ role: "assistant", stopReason: "error", errorMessage: "401 authentication_error" }] }); out({ type: "agent_settled" }); continue; }
       out({ type: "agent_end" }); out({ type: "agent_settled" }); continue;
     }
     if (cmd.type === "steer" || cmd.type === "follow_up") {

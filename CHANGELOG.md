@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Bridge: a run that dies on a model error says so.** Provider failures (usage caps, expired auth) ended runs instantly and the channel still saw "✅ done in 1.3 s · 0 tokens" — three times in a row before anyone knew the provider was down. The closing line is now "❌ the run ended with an error: …" with the provider's message.
+
 - **Bridge: switch the session's model.** `blitzpi bridge model` lists the session's available models; `blitzpi bridge model commandcode/claude-opus-5` switches the live session — for when a provider hits its usage limit mid-project (Codex's cap even fails auto-compaction's summarizer).
 
 - **Bridge: the ✅ done line shows this run's tokens and cost, not the session's.** The session total counts every model call's full (mostly cached) input again and again, so it read as endlessly "compounding" even right after `clear`. The done line is now a per-run delta (human-readable k/M); `status` keeps the session totals, and `context %` remains the number that `clear` actually resets.

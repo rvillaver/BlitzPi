@@ -151,6 +151,15 @@ test("activity=tools drops thinking but still announces compaction", async () =>
   expect(texts(adapter).some((x) => x.includes("♻️ compacting context"))).toBe(true);
   await bridge.stop();
 });
+test("a run that dies on a model error reports the error, not done", async () => {
+  const { adapter, bridge } = setup();
+  adapter.fire({ kind: "mention", conv, message: msg("e1", { id: "op1", name: "alice" }, "llmfail now"), text: "llmfail now" });
+  await bridge.waitIdle(conv, 10_000);
+  const t = texts(adapter);
+  expect(t.some((x) => x.includes("❌ the run ended with an error") && x.includes("401 authentication_error"))).toBe(true);
+  expect(t.some((x) => x.startsWith("✅ done in"))).toBe(false);
+  await bridge.stop();
+});
 test("op model: lists and switches the session's model", async () => {
   const { bridge } = setup();
   expect(await bridge.op("model", { conv: "fake:chan" })).toEqual({ models: ["fake/model-1"] });

@@ -49,7 +49,7 @@ export class Pacer {
 interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
   running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastEventAt?: number; lastBotMessageId?: string; queue: string[];
-  statsAtStart?: { tokens: number; cost: number };
+  statsAtStart?: { tokens: number; cost: number }; runError?: string;
   outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
 export interface BridgeOptions {
@@ -215,7 +215,7 @@ export class Bridge {
     }
     // The answer lands where the request came from: mode `on` and thread-origin requests answer in the thread.
     const activityTarget = thread; const answerTarget = mode === "on" || (origin && "conv" in thread) ? thread : c.conv;
-    c.thread = thread; c.answerTarget = answerTarget; c.running = true; c.startedAt = Date.now(); c.seedId = seed?.id;
+    c.thread = thread; c.answerTarget = answerTarget; c.running = true; c.startedAt = Date.now(); c.seedId = seed?.id; c.runError = undefined;
     try { ensureTransferDirs(c.binding.project); c.outSnapshot = snapshotOut(c.binding.project); } catch { /* read-only project: no transfer */ }
     c.pacer = new Pacer((t) => c.adapter.post(activityTarget, t), cap.paceWindowMs, Math.max(200, cap.messageChars - 100), (t, first) => { const to = c.answerTarget ?? c.conv; return c.adapter.post(to, t, first && to === c.conv && seed ? { replyTo: seed.id } : undefined); });
     if (mode === "on" && "conv" in thread) { const link = c.adapter.threadLink?.(thread); await c.adapter.post(c.conv, `▶ started${link ? ` in ${link}` : ""} — ${shown.split("\n")[0].slice(0, 80)}`); }
@@ -261,6 +261,7 @@ export class Bridge {
       // exactly the moment the agent goes quiet for a while and looks stuck.
       case "compaction_start": p.activity(`♻️ compacting context (${String(e.reason)}) — the agent pauses while it summarises`); break;
       case "compaction_end": p.activity(e.errorMessage ? `⚠️ compaction failed — ${String(e.errorMessage).slice(0, 160)}` : "♻️ context compacted"); break;
+      case "agent_end": { const msgs = e.messages as { role?: string; stopReason?: string; errorMessage?: string }[] | undefined; const last = msgs?.[msgs.length - 1]; if (last?.role === "assistant" && last.stopReason === "error") c.runError = String(last.errorMessage ?? "unknown error"); break; }
       case "agent_settled": void this.finishRun(c); break;
     }
   }
@@ -281,6 +282,7 @@ export class Bridge {
     } catch { /* fine */ }
     let first = "";
     try { first = String(((await c.host!.getLastAssistantText()).data as { text?: string } | undefined)?.text ?? "").split("\n").find((l) => l.trim()) ?? ""; } catch { /* fine */ }
+    if (c.runError) { const err = c.runError; c.runError = undefined; await c.adapter.post(c.thread ?? c.conv, `❌ the run ended with an error after ${(ms / 1000).toFixed(1)} s: ${err.slice(0, 400)}`); return; }
     await c.adapter.post(c.thread ?? c.conv, `✅ done in ${(ms / 1000).toFixed(1)} s${stats}`);
     if (c.binding.announce_done && c.thread && "conv" in c.thread && c.answerTarget === c.thread) {
       const link = c.adapter.threadLink?.(c.thread);
