@@ -6,7 +6,9 @@
  */
 
 const URL_RE = /\bhttps?:\/\/[^\s'"`<>)\]]+/gi;
-const DELETE_CMDS = /\b(?:rm|rmdir|unlink|shred)\b((?:\s+(?:-\S+|--\S+))*)((?:\s+(?:"[^"]*"|'[^']*'|[^\s;&|]+))*)/g;
+// Separators are space/tab only: a newline terminates the command in shell, exactly like `;` — matching `\s` made
+// the parser swallow the next line's tokens as extra rm targets ("(DB_PATH=/tmp/…" showed up as a deleted file).
+const DELETE_CMDS = /\b(?:rm|rmdir|unlink|shred)\b((?:[ \t]+(?:-\S+|--\S+))*)((?:[ \t]+(?:"[^"]*"|'[^']*'|[^\s;&|]+))*)/g;
 
 export function extractUrls(command: string): string[] {
   return [...new Set((command.match(URL_RE) ?? []).map((u) => u.replace(/[.,;:]+$/, "")))];
@@ -22,8 +24,8 @@ export function extractDeletes(command: string): string[] {
     }
   }
   // `git rm`, `find … -delete`: record the targets so a report can show them
-  for (const m of command.matchAll(/\bgit\s+rm\b((?:\s+-\S+)*)((?:\s+[^\s;&|-][^\s;&|]*)+)/g)) for (const p of (m[2] ?? "").trim().split(/\s+/)) if (p) out.add(p);
-  for (const m of command.matchAll(/\bfind\s+((?:"[^"]*"|'[^']*'|[^\s;&|-][^\s;&|]*)+)[^;&|]*-delete\b/g)) out.add(`find:${m[1].trim().replace(/^["']|["']$/g, "")}`);
+  for (const m of command.matchAll(/\bgit[ \t]+rm\b((?:[ \t]+-\S+)*)((?:[ \t]+[^\s;&|-][^\s;&|]*)+)/g)) for (const p of (m[2] ?? "").trim().split(/\s+/)) if (p) out.add(p);
+  for (const m of command.matchAll(/\bfind[ \t]+((?:"[^"]*"|'[^']*'|[^\s;&|-][^\s;&|]*)+)[^;&|\n]*-delete\b/g)) out.add(`find:${m[1].trim().replace(/^["']|["']$/g, "")}`);
   return [...out];
 }
 

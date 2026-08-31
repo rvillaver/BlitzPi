@@ -17,6 +17,9 @@ describe("bash facts (what a command deletes / fetches, from its command line)",
     expect(extractDeletes("cd x && rm -f a.log; unlink b.tmp | cat")).toEqual(["a.log", "b.tmp"]);
     expect(extractDeletes("git rm --cached src/old.ts")).toEqual(["src/old.ts"]);
     expect(extractDeletes("find . -name '*.pyc' -delete")).toEqual(["find:."]);
+    // a newline ends the command: the next line's tokens are NOT rm targets (the "(DB_PATH=…" report junk)
+    expect(extractDeletes("rm -f /tmp/a.sqlite\n(DB_PATH=/tmp/a.sqlite bun index.ts > /tmp/x.log 2>&1 &)")).toEqual(["/tmp/a.sqlite"]);
+    expect(extractDeletes("find .\n-delete")).toEqual([]);
     expect(extractDeletes("echo remove")).toEqual([]);
   });
   test("urls are deduped and trailing punctuation dropped", () => {

@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Audit: the delete parser no longer reads past a newline.** `rm -f x` followed by another command on the next line recorded that line's tokens as deleted files (`(DB_PATH=/tmp/…` appeared in reports); a newline now ends the target list like `;` does.
+
 - **Sandbox: command timeouts were 1000× too short.** Pi's bash `timeout` is in seconds; the sandbox used the value as milliseconds, so any command that passed a timeout was killed almost immediately ("command exceeded 0 s", exit 124) — a 1.2.112 regression that crippled whole runs. Converted at the tool boundary; the 10-minute no-timeout ceiling is unchanged.
 - **Sandbox: ssh works again under bwrap (git push/pull).** OpenSSH refused to start because `/etc/ssh/ssh_config.d/*.conf` maps to `nobody` inside the user namespace ("Bad owner or permissions"); an empty tmpfs now covers the include dir. Keys stay protected: a push over ssh still prompts for read access to the named key (e.g. `GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519' git push`).
 
