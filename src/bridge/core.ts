@@ -22,15 +22,18 @@ export function controlWord(text: string): ControlWord | null {
 
 /** Append-only output with pacing: activity lines are coalesced per window, answer text is chunked under the cap. */
 export class Pacer {
-  private lines: string[] = []; private text = ""; private timer?: NodeJS.Timeout; private chain: Promise<void> = Promise.resolve();
+  private lines: string[] = []; private text = ""; private thought = ""; private timer?: NodeJS.Timeout; private chain: Promise<void> = Promise.resolve();
   private sendText: (text: string, first: boolean) => Promise<void>; private sentText = false;
   constructor(private send: (text: string) => Promise<void>, private windowMs: number, private maxChars: number, sendText?: (text: string, first: boolean) => Promise<void>) { this.sendText = sendText ?? (async (t) => send(t)); }
   activity(line: string): void { this.lines.push(line); this.schedule(); }
   delta(t: string): void { this.text += t; if (this.text.length >= this.maxChars) this.flush(); else this.schedule(); }
+  /** Thinking text — rendered to the activity target as `>`-quoted lines, visually distinct from the answer. */
+  thinking(t: string): void { this.thought += t; if (this.thought.length >= this.maxChars) this.flush(); else this.schedule(); }
   private schedule(): void { if (!this.timer) this.timer = setTimeout(() => this.flush(), this.windowMs); }
   flush(): Promise<void> {
     if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
     if (this.lines.length) { const m = this.lines.join("\n"); this.lines = []; this.chain = this.chain.then(() => this.send(m)).catch(() => {}); }
+    if (this.thought.length) { const q = this.thought.split("\n").map((l) => `> ${l}`).join("\n"); this.thought = ""; this.chain = this.chain.then(() => this.send(q)).catch(() => {}); }
     while (this.text.length) {
       const cut = this.text.length > this.maxChars ? this.breakAt(this.text, this.maxChars) : this.text.length;
       const m = this.text.slice(0, cut); this.text = this.text.slice(cut); const first = !this.sentText; this.sentText = true;
@@ -236,7 +239,12 @@ export class Bridge {
     const p = c.pacer; if (!p) return;
     const lvl = c.binding.activity;
     switch (e.type) {
-      case "message_update": { const ev = e.assistantMessageEvent as { type?: string; delta?: string } | undefined; if (ev?.type === "text_delta" && ev.delta) p.delta(ev.delta); break; }
+      case "message_update": {
+        const ev = e.assistantMessageEvent as { type?: string; delta?: string } | undefined;
+        if (ev?.type === "text_delta" && ev.delta) p.delta(ev.delta);
+        else if (ev?.type === "thinking_delta" && ev.delta && lvl === "full") p.thinking(ev.delta);
+        break;
+      }
       case "tool_execution_start": if (lvl !== "quiet") p.activity(`🔧 ${String(e.toolName)} ${summarizeArgs(e.args)}`); break;
       case "tool_execution_end": {
         const err = e.isError === true; if (err) p.activity(`❌ ${String(e.toolName)} — ${firstText(e.result).slice(0, 160)}`); else if (lvl === "full") p.activity(`✅ ${String(e.toolName)}`);
@@ -245,6 +253,10 @@ export class Bridge {
         break;
       }
       case "extension_ui_request": { const r = e as unknown as UiRequest; if (r.method === "notify" && (r.notifyType === "warning" || r.notifyType === "error")) p.activity(`⚠️ ${r.message ?? ""}`); break; }
+      // Auto-compaction is on by default in Pi (threshold/overflow); announce it at every activity level — it is
+      // exactly the moment the agent goes quiet for a while and looks stuck.
+      case "compaction_start": p.activity(`♻️ compacting context (${String(e.reason)}) — the agent pauses while it summarises`); break;
+      case "compaction_end": p.activity(e.errorMessage ? `⚠️ compaction failed — ${String(e.errorMessage).slice(0, 160)}` : "♻️ context compacted"); break;
       case "agent_settled": void this.finishRun(c); break;
     }
   }

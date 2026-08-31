@@ -116,6 +116,27 @@ test("a prompt that finds the agent still processing steers the surviving run in
   expect(t.some((x) => x.startsWith("⚠️ could not start the run"))).toBe(false);
   await bridge.stop();
 });
+test("activity=full streams thinking into the thread as quotes; compaction is announced", async () => {
+  const { adapter, bridge } = setup();
+  adapter.fire({ kind: "mention", conv, message: msg("th1", { id: "op1", name: "alice" }, "think and compact"), text: "think and compact" });
+  await bridge.waitIdle(conv, 10_000);
+  const inThread = adapter.posts.filter((p) => p.target === "thread-1").map((p) => p.text);
+  const inChan = adapter.posts.filter((p) => p.target === "chan").map((p) => p.text);
+  expect(inThread.some((x) => x.includes("> pondering deeply"))).toBe(true);
+  expect(inThread.some((x) => x.includes("♻️ compacting context (threshold)"))).toBe(true);
+  expect(inThread.some((x) => x.includes("♻️ context compacted"))).toBe(true);
+  expect(inChan.join("")).toContain("Hello world"); // the answer still lands in the channel
+  expect(inChan.join("")).not.toContain("pondering"); // thinking stays in the thread
+  await bridge.stop();
+});
+test("activity=tools drops thinking but still announces compaction", async () => {
+  const { adapter, bridge } = setup({ activity: "tools" });
+  adapter.fire({ kind: "mention", conv, message: msg("th2", { id: "op1", name: "alice" }, "think and compact again"), text: "think and compact again" });
+  await bridge.waitIdle(conv, 10_000);
+  expect(texts(adapter).some((x) => x.includes("pondering"))).toBe(false);
+  expect(texts(adapter).some((x) => x.includes("♻️ compacting context"))).toBe(true);
+  await bridge.stop();
+});
 test("ops: projects, post, run (by project dir), status, unknown", async () => {
   const { adapter, bridge } = setup();
   expect((await bridge.op("projects", {}) as any[])[0]).toMatchObject({ conv: "fake:chan", trigger: "mentions" });

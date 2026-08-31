@@ -14,6 +14,8 @@ process.stdin.on("data", (d) => {
       if (String(cmd.message).includes("ghost")) { out({ id: cmd.id, type: "response", command: "prompt", success: false, error: "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message." }); continue; }
       out({ id: cmd.id, type: "response", command: "prompt", success: true });
       out({ type: "agent_start" });
+      if (String(cmd.message).includes("think")) { out({ type: "message_update", assistantMessageEvent: { type: "thinking_start" } }); out({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "pondering deeply" } }); out({ type: "message_update", assistantMessageEvent: { type: "thinking_end" } }); }
+      if (String(cmd.message).includes("compact")) { out({ type: "compaction_start", reason: "threshold" }); out({ type: "compaction_end", reason: "threshold", aborted: false }); }
       for (const w of ["Hello", " ", "world"]) out({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: w } });
       if (String(cmd.message).includes("ask")) { out({ type: "extension_ui_request", id: "ui-1", method: "select", title: "Pick", options: ["A", "B"] }); continue; }
       if (String(cmd.message).includes("crash")) { process.exit(3); }

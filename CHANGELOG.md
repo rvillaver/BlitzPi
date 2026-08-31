@@ -4,6 +4,9 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Bridge: thinking streams into the thread.** At `activity: full` (the default), the agent's thinking arrives in the shared thread as `>`-quoted lines, visually distinct from the answer; `tools`/`quiet` drop it, and it never reaches the channel.
+- **Bridge: compaction is announced.** Pi auto-compacts by default when the context fills (that is the long mid-run silence); the thread now says `♻️ compacting context (threshold) …` / `♻️ context compacted` at every activity level, and surfaces compaction failures.
+
 - **Bridge: answers land where you asked.** A message in the channel's shared thread is now answered in the thread (and steering a live run from the thread retargets the rest of its answer there); a channel mention still gets its answer in the channel under `threads: answer`. Whenever a run answers in the thread, the channel gets one linked summary line — `✅ done in <#thread> — …` — so the channel stays low-noise but navigable; `▶ started` (threads: on) links the thread too. The in-thread steering ack now says the answer lands there.
 - **Bridge: a request right after `stop` no longer fails with "Agent is already processing".** Pi keeps steer/follow-up messages queued across an abort, so a "stopped" run can still be winding down when the next request arrives; the bridge now steers that surviving run with the new message instead of erroring out.
 
