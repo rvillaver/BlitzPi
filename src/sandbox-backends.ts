@@ -9,7 +9,7 @@
 import { dirname } from "node:path";
 import { defaultScratchDirs } from "./zones";
 import { spawn, spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 
 export interface Grant { path: string; write: boolean }
 export interface ExecOptions {
@@ -73,6 +73,9 @@ function trackChild(child: ReturnType<typeof spawn>): void {
 
 /** Default ceiling for one command when the model gave no timeout: a hung tool must not hang a run. */
 export const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60_000;
+/** Pi's bash tool sends `timeout` in SECONDS (its own local exec converts the same way); backends work in ms.
+ *  Treating the seconds as ms killed every command with a timeout almost instantly ("exceeded 0 s", exit 124). */
+export const toolTimeoutMs = (seconds?: number): number | undefined => (seconds && seconds > 0 ? seconds * 1000 : undefined);
 
 function pump(child: ReturnType<typeof spawn>, options: ExecOptions, groupLeader = false): Promise<{ exitCode: number | null }> {
   trackChild(child);
@@ -113,6 +116,10 @@ class BwrapBackend implements SandboxBackend {
   exec(command: string, runDir: string, options: ExecOptions) {
     const args: string[] = [];
     for (const d of RO_SYSTEM_DIRS) args.push("--ro-bind-try", d, d);
+    // OpenSSH refuses config includes whose owner is unmapped in the user namespace ("Bad owner or permissions on
+    // /etc/ssh/ssh_config.d/…" — root maps to nobody under --unshare-user), which broke git push/pull over ssh.
+    // An empty tmpfs over the include dir keeps ssh usable; /etc/ssh/ssh_config itself is not ownership-checked.
+    if (existsSync("/etc/ssh/ssh_config.d")) args.push("--tmpfs", "/etc/ssh/ssh_config.d");
     args.push("--ro-bind-try", RUNTIME_DIR, RUNTIME_DIR);
     for (const d of defaultScratchDirs()) args.push("--bind-try", d, d); // scratch: the host temp dir, shared with the file tools
     for (const g of options.grants ?? []) { const m = grantMount(g); if (m) args.push(g.write ? "--bind-try" : "--ro-bind-try", m, m); } // approved escapes, and only those

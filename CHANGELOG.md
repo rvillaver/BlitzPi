@@ -4,6 +4,9 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Sandbox: command timeouts were 1000× too short.** Pi's bash `timeout` is in seconds; the sandbox used the value as milliseconds, so any command that passed a timeout was killed almost immediately ("command exceeded 0 s", exit 124) — a 1.2.112 regression that crippled whole runs. Converted at the tool boundary; the 10-minute no-timeout ceiling is unchanged.
+- **Sandbox: ssh works again under bwrap (git push/pull).** OpenSSH refused to start because `/etc/ssh/ssh_config.d/*.conf` maps to `nobody` inside the user namespace ("Bad owner or permissions"); an empty tmpfs now covers the include dir. Keys stay protected: a push over ssh still prompts for read access to the named key (e.g. `GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519' git push`).
+
 - **Bridge: thinking streams into the thread.** At `activity: full` (the default), the agent's thinking arrives in the shared thread as `>`-quoted lines, visually distinct from the answer; `tools`/`quiet` drop it, and it never reaches the channel.
 - **Bridge: compaction is announced.** Pi auto-compacts by default when the context fills (that is the long mid-run silence); the thread now says `♻️ compacting context (threshold) …` / `♻️ context compacted` at every activity level, and surfaces compaction failures.
 

@@ -13,7 +13,7 @@ import { resolve } from "node:path";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
 import { dangerousShape, extractTargets } from "./bash-guard";
-import { selectBackend, type SandboxBackend, type BackendPref, type Grant } from "./sandbox-backends";
+import { selectBackend, type SandboxBackend, type BackendPref, type Grant, toolTimeoutMs } from "./sandbox-backends";
 import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
 import { ensureSandboxConfig, isBunInstall, parseAge, parseUntrusted, renderPolicy, summarizeAudit } from "./feeds/install-policy";
@@ -71,7 +71,8 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
   const def = createBashToolDefinition(runDir, {
     exposeSessionEnvironment: true,
     operations: {
-      exec: (command, _cwd, options) => {
+      exec: (command, _cwd, rawOptions) => {
+        const options = { ...rawOptions, timeout: toolTimeoutMs(rawOptions.timeout) }; // Pi sends seconds; backends take ms
         const plan = runPlan.get(command) ?? { confined: true, grants: [] };
         runPlan.delete(command);
         const t0 = Date.now();
