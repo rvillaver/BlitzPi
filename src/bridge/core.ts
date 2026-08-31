@@ -345,6 +345,14 @@ export class Bridge {
     }
     if (name === "stop") { const was = c.running; await this.control(c, "stop", conv); return { ok: true, message: was ? "run aborted" : "nothing was running" }; }
     if (name === "new") { await this.control(c, "new", conv); return { ok: true }; }
+    if (name === "model") {
+      const host = await this.host(c);
+      const want = String(payload.model ?? "").trim();
+      if (!want) { const r: any = (await host.getAvailableModels()).data; return { models: (r?.models ?? []).map((m: any) => `${m.provider}/${m.id}`) }; }
+      const i = want.indexOf("/"); if (i <= 0) throw new Error(`expected provider/modelId, got ${want}`);
+      const m: any = (await host.setModel(want.slice(0, i), want.slice(i + 1))).data;
+      return { model: `${m?.provider}/${m?.id}` };
+    }
     if (name === "can_operate") return { ok: this.isOperator(c, { id: String(payload.user ?? "") }) };
     if (name === "status") return { text: await this.statusText(c), running: c.running };
     throw new Error(`unknown op ${name}`);

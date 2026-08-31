@@ -151,6 +151,13 @@ test("activity=tools drops thinking but still announces compaction", async () =>
   expect(texts(adapter).some((x) => x.includes("♻️ compacting context"))).toBe(true);
   await bridge.stop();
 });
+test("op model: lists and switches the session's model", async () => {
+  const { bridge } = setup();
+  expect(await bridge.op("model", { conv: "fake:chan" })).toEqual({ models: ["fake/model-1"] });
+  expect(await bridge.op("model", { conv: "fake:chan", model: "commandcode/claude-opus-5" })).toEqual({ model: "commandcode/claude-opus-5" });
+  await expect(bridge.op("model", { conv: "fake:chan", model: "nope" })).rejects.toThrow(/provider\/modelId/);
+  await bridge.stop();
+});
 test("ops: projects, post, run (by project dir), status, unknown", async () => {
   const { adapter, bridge } = setup();
   expect((await bridge.op("projects", {}) as any[])[0]).toMatchObject({ conv: "fake:chan", trigger: "mentions" });

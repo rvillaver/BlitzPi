@@ -102,6 +102,8 @@ export class RpcHost {
   getState() { return this.request({ type: "get_state" }); }
   getSessionStats() { return this.request({ type: "get_session_stats" }); }
   getLastAssistantText() { return this.request({ type: "get_last_assistant_text" }); }
+  setModel(provider: string, modelId: string) { return this.request({ type: "set_model", provider, modelId }); }
+  getAvailableModels() { return this.request({ type: "get_available_models" }); }
   respondUi(id: string, r: UiResponse) { this.send({ type: "extension_ui_response", id, ...r }); }
 
   private onData(text: string): void {

@@ -26,6 +26,8 @@ process.stdin.on("data", (d) => {
       for (const w of ["Hello", " ", "world"]) out({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: w } });
       out({ type: "agent_end" }); out({ type: "agent_settled" }); continue;
     }
+    if (cmd.type === "set_model") { out({ id: cmd.id, type: "response", command: "set_model", success: true, data: { provider: cmd.provider, id: cmd.modelId } }); continue; }
+    if (cmd.type === "get_available_models") { out({ id: cmd.id, type: "response", command: "get_available_models", success: true, data: { models: [{ provider: "fake", id: "model-1" }] } }); continue; }
     if (cmd.type === "abort") { out({ id: cmd.id, type: "response", command: "abort", success: true }); out({ type: "agent_settled" }); continue; }
     if (cmd.type === "get_last_assistant_text") { out({ id: cmd.id, type: "response", command: cmd.type, success: true, data: { text: "Hello world" } }); continue; }
     out({ id: cmd.id, type: "response", command: cmd.type, success: false, error: `unknown command ${cmd.type}` });

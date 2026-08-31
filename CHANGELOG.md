@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Bridge: switch the session's model.** `blitzpi bridge model` lists the session's available models; `blitzpi bridge model commandcode/claude-opus-5` switches the live session — for when a provider hits its usage limit mid-project (Codex's cap even fails auto-compaction's summarizer).
+
 - **Bridge: the ✅ done line shows this run's tokens and cost, not the session's.** The session total counts every model call's full (mostly cached) input again and again, so it read as endlessly "compounding" even right after `clear`. The done line is now a per-run delta (human-readable k/M); `status` keeps the session totals, and `context %` remains the number that `clear` actually resets.
 
 - **Permission prompts lead with the thing being approved.** Questions now read `Allow read? /home/user/.ssh/id_ed25519` — action + target, nothing else. Zone names, memory mechanics, and the duplicate "DANGEROUS" pre-notice are gone from the prompt (the "Always" options still carry their scope, and the audit trail keeps the detail). Paths that cannot get an "Always" rule simply offer Yes/No.
