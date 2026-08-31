@@ -4,6 +4,8 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+- **Clearer prompt for unrememberable paths.** "(other — too broad to remember; asks every time)" read as if the *answer* were too broad; it now says what it means: an "Always" rule for this path would unlock too much (e.g. the whole home directory), so the gate asks each time.
+
 - **Bridge: an unanswered permission question no longer freezes the run.** The gate waits without a timeout and the bridge sent nothing when a Discord question expired, so the agent hung inside the tool call forever — steering could not reach it. Expiry now answers the child with `cancelled`: the action is declined, the run continues, and the expired message says so ("declined — ask me to retry").
 
 - **Bridge: permission questions ping the operators.** Dangerous-write and out-of-project-read prompts posted silently, so on mobile nothing buzzed and questions expired unanswered ("⏳ no answer") — stalling runs at exactly the moments that need a human. Questions now @mention the channel's operators.

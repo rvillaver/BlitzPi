@@ -80,7 +80,7 @@ export class PermissionGate {
     } else if (level === "ask-noalways") {
       choice = await ctx!.ui.select(`BlitzPi: allow ${action} to project security config?`, ["No", "Yes"]);
     } else if (!key) {
-      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone} — too broad to remember; asks every time)`, ["Yes", "No"]);
+      choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone} — an "Always" rule here would unlock too much, e.g. your whole home dir, so it asks each time)`, ["Yes", "No"]);
     } else {
       const scope = zone === "other" ? ` for ${key.slice(`${action}:${zone}:`.length)}` : "";
       choice = await ctx!.ui.select(`BlitzPi: allow this ${action}? (${zone})`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);

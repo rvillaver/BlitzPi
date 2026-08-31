@@ -67,6 +67,6 @@ describe("PermissionGate (interactive) — Always is per directory root", () => 
     await gate.resolvePath("read", "/", "read", ctx);
     await gate.resolvePath("read", "/", "read", ctx);
     expect(asked.length).toBe(4);
-    expect(asked[3]).toMatch(/too broad to remember/);
+    expect(asked[3]).toMatch(/would unlock too much/);
   });
 });
