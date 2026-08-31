@@ -49,6 +49,7 @@ export class Pacer {
 interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
   running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastEventAt?: number; lastBotMessageId?: string; queue: string[];
+  statsAtStart?: { tokens: number; cost: number };
   outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
 export interface BridgeOptions {
@@ -221,6 +222,7 @@ export class Bridge {
     const message = c.adapter.postFiles ? `${prompt}\n\n${OUT_HINT}` : prompt;
     try {
       const host = await this.host(c);
+      try { const s: any = (await host.getSessionStats()).data; c.statsAtStart = { tokens: Number(s.tokens?.total ?? 0), cost: Number(s.cost ?? 0) }; } catch { c.statsAtStart = undefined; }
       await host.prompt(message);
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
@@ -268,7 +270,15 @@ export class Bridge {
     try { await this.deliverOut(c); } catch (e) { await c.adapter.post(c.thread ?? c.conv, `⚠️ could not deliver files: ${e instanceof Error ? e.message : e}`); }
     const ms = Date.now() - (c.startedAt ?? Date.now());
     let stats = "";
-    try { const s: any = (await c.host!.getSessionStats()).data; stats = ` · ${s.tokens?.total ?? 0} tokens${typeof s.cost === "number" ? ` · $${s.cost.toFixed(3)}` : ""}${s.contextUsage?.percent != null ? ` · context ${Math.round(Number(s.contextUsage.percent) * 10) / 10}%` : ""}`; } catch { /* fine */ }
+    // Per-run numbers: the session totals count every model call's full (mostly cached) input again and again, so
+    // they read as "compounding" even in a fresh session. `status` still shows the session totals.
+    try {
+      const s: any = (await c.host!.getSessionStats()).data;
+      const tok = Number(s.tokens?.total ?? 0) - (c.statsAtStart?.tokens ?? 0);
+      const cost = typeof s.cost === "number" ? s.cost - (c.statsAtStart?.cost ?? 0) : undefined;
+      const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.max(0, n)));
+      stats = ` · ${fmt(tok)} tokens${cost !== undefined ? ` · $${Math.max(0, cost).toFixed(3)}` : ""}${s.contextUsage?.percent != null ? ` · context ${Math.round(Number(s.contextUsage.percent) * 10) / 10}%` : ""}`;
+    } catch { /* fine */ }
     let first = "";
     try { first = String(((await c.host!.getLastAssistantText()).data as { text?: string } | undefined)?.text ?? "").split("\n").find((l) => l.trim()) ?? ""; } catch { /* fine */ }
     await c.adapter.post(c.thread ?? c.conv, `✅ done in ${(ms / 1000).toFixed(1)} s${stats}`);
