@@ -21,6 +21,7 @@ const banner = (config: BlitzConfig) => [
   "  ⚡ BLITZ PI  —  Pi with security governance",
   `     ${summaryLine(config, activeBackendName())}`,
   "     /blitz-security shows every layer, its mode and this session's decisions · /blitz-report this project · /session usage",
+  "     ctrl+t folds/unfolds thinking (folded by default in a BlitzPi project) · shift+tab cycles thinking level",
   "",
 ].join("\n");
 
@@ -113,6 +114,7 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
             theme.fg("dim", "  Pi with security governance · sandbox · governance · audit"),
             theme.fg("dim", `  ${summaryLine(config, activeBackendName())}`),
             theme.fg("dim", "  /blitz-security · /blitz-report · /blitz-level · /session · /adopt-goodbehavior"),
+            theme.fg("dim", "  ctrl+t folds/unfolds thinking · shift+tab cycles thinking level"),
             "",
           ];
         },

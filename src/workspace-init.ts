@@ -38,11 +38,34 @@ export function pinPackageManager(cwd: string): void {
   } catch { /* best effort */ }
 }
 
+/**
+ * Thinking blocks render inline and unfolded by default, which can dominate a long autonomous run's transcript.
+ * Pi already supports collapsed-by-default thinking (`hideThinkingBlock`) with a live toggle (ctrl+t) to expand
+ * it on demand — BlitzPi just never set it. Seeded once, in the same PROJECT settings.json pinPackageManager
+ * already owns: only when the key is entirely absent, so a later deliberate change is never overwritten. Runs on
+ * every session start (not just first-run setup) so an already-adopted project picks it up too.
+ */
+export function seedThinkingDisplay(cwd: string): boolean {
+  try {
+    const f = path.join(cwd, ".pi", "settings.json");
+    let cur: Record<string, unknown> = {};
+    try { cur = JSON.parse(fs.readFileSync(f, "utf-8")); } catch { /* new */ }
+    if ("hideThinkingBlock" in cur) return false;
+    cur.hideThinkingBlock = true;
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, JSON.stringify(cur, null, 2) + "\n");
+    return true;
+  } catch { return false; }
+}
+
 export function setupWorkspaceInit(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
     const cwd = process.cwd();
-    if (fs.existsSync(path.join(cwd, ".blitz"))) return; // already a BlitzPi project
+    if (fs.existsSync(path.join(cwd, ".blitz"))) { // already a BlitzPi project — still keep display defaults current
+      if (seedThinkingDisplay(cwd)) ctx.ui.notify("Thinking now folds by default in this project (ctrl+t to expand/collapse) — .pi/settings.json: hideThinkingBlock", "info");
+      return;
+    }
 
     const hasFiles = fs.readdirSync(cwd).some((f) => !f.startsWith("."));
     const choice = await ctx.ui.select(
@@ -60,6 +83,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n  # cache: shared   # package-manager caches: shared = ~/.blitz/cache/<tool> (default) | project | off\nfeeds:\n  # allow: []       # rule ids accepted as false positives (audit feed_* hits[].id)\n  # min_release_age: 3d   # Bun: no versions newer than this (off to disable)\n");
     const n = adoptGoodBehavior(cwd).installed.filter((f) => f.endsWith("SKILL.md")).length;
     pinPackageManager(cwd);
+    seedThinkingDisplay(cwd);
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt
     try { touchProject(cwd, { version: require("../package.json").version }); } catch { /* registry is best-effort */ }
     // A persistent chat message (not a toast) so the restart step can't be missed.
@@ -68,7 +92,8 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
       content:
         `BlitzPi project set up in ${cwd}\n` +
         `- ${n} GoodBehavior skills installed in .pi/skills; doctrine in .blitz/goodbehavior/profiles/\n` +
-        `- security config in .blitz/\n\n` +
+        `- security config in .blitz/\n` +
+        `- thinking folds by default here — press ctrl+t any time to expand/collapse it\n\n` +
         `ACTION NEEDED: the skills load at startup, so RESTART BlitzPi in this folder to activate them ` +
         `(press ctrl+d to quit, then run 'blitzpi' again). After that, /skill:audit-goodbehavior and the rest are available.`,
       display: true,
