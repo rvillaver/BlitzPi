@@ -5,7 +5,7 @@
  */
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { classifyZone, type Zone, type ZoneRoots } from "./zones";
-import { decide, severity, permissionKey, type Action, type Level, PermissionMemory } from "./permissions";
+import { decide, severity, permissionKey, type Action, type Level, type SecurityLevel, PermissionMemory } from "./permissions";
 import type { CmdTarget } from "./bash-guard";
 import type { AuditLogger } from "./audit";
 import { redactCommand } from "./feeds/secrets";
@@ -29,15 +29,17 @@ export function grantsFor(targets: CmdTarget[], roots: ZoneRoots): Grant[] {
 export interface GateResult { allow: boolean; reason: string; zone: Zone; level: Level; confined: boolean; }
 
 export class PermissionGate {
-  constructor(readonly roots: ZoneRoots, private memory: PermissionMemory, private audit: AuditLogger) {}
+  constructor(readonly roots: ZoneRoots, private memory: PermissionMemory, private audit: AuditLogger, private level: SecurityLevel = "guarded") {}
 
-  /** Most severe (action, zone, target) among a command's named paths. */
+  /** Most severe (action, zone, target) among a command's named paths — used to pick which target `resolve()`
+   *  is then asked about; the tier only shifts relative severity among ask/silent levels, never which target is
+   *  most severe (a dangerous write outside the project always outranks everything, in every tier). */
   worst(targets: CmdTarget[], command: string): { action: Action; zone: Zone; target: string; level: Level } {
     let w = { action: "read" as Action, zone: "project" as Zone, target: command, level: "silent" as Level };
     for (const t of targets) {
       const action: Action = t.write ? "write" : "read";
       const zone = classifyZone(t.path, this.roots);
-      const level = decide(action, zone);
+      const level = decide(action, zone, this.level);
       if (severity(level) > severity(w.level)) w = { action, zone, target: t.path, level };
     }
     return w;
@@ -55,7 +57,11 @@ export class PermissionGate {
 
   /** Core resolver. `confined` = the action stays inside the project. */
   async resolve(action: Action, zone: Zone, target: string, label: string, ctx: ExtensionContext | undefined): Promise<GateResult> {
-    const level = decide(action, zone);
+    const interactive = !!ctx?.hasUI;
+    // A looser tier (`monitored`) trades prompts for trust in an interactive session; an unattended run has no
+    // human to extend that trust to, so it always gets the shipped, verified `guarded` ladder regardless of the
+    // project's chosen tier.
+    const level = decide(action, zone, interactive ? this.level : "guarded");
     const confined = zone === "project" || zone === "goodbehavior" || zone === "project-config" || zone === "plumbing" || zone === "scratch";
     // Zone-wide memory, except `other`: remembered per directory root (one "Always" must not unlock the whole disk).
     const key = permissionKey(action, zone, target, this.roots.home);
@@ -64,7 +70,6 @@ export class PermissionGate {
     if (level === "silent") return { allow: true, reason: "in-scope", ...base };
     if (this.memory.isAllowedFor(action, zone, target)) return { allow: true, reason: "remembered", ...base };
 
-    const interactive = !!ctx?.hasUI;
     if (!interactive) {
       const allow = level !== "dangerous";
       this.log(action, zone, target, allow, interactive ? "prompt" : "auto", label);

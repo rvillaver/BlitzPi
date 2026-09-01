@@ -125,13 +125,14 @@ const short: Record<string, string> = { input: "input", governance: "governance"
 
 /** One row for the startup banner: `governance local (monitor) · bash bwrap (enforce) · …` */
 export function summaryLine(config: BlitzConfig, backendName: string | null): string {
-  return layers(config, backendName)
+  const layerText = layers(config, backendName)
     .filter((l) => l.key !== "input")
     .map((l) => {
       const what = l.key === "governance" ? config.governance.provider : l.key === "bash" ? backendName ?? "none" : l.key === "profiles" ? config.profiles.default : l.key === "threat" ? `tier ${config.threat_detection.tier}` : l.key === "feeds" ? "osv" : l.key === "secrets" ? "gitleaks" : l.key === "commands" ? "sigma" : l.key === "urls" ? "urlhaus" : "";
       return `${short[l.key]}${what ? " " + what : ""} (${l.mode})`;
     })
     .join(" · ");
+  return `level ${config.security_level} · ${layerText}`;
 }
 
 /** Steady status-bar text. Only changes on an event (denial / unreachable). */
@@ -157,8 +158,8 @@ export function panel(config: BlitzConfig, backendName: string | null, lastAudit
   const g = stats.governance;
   const b = stats.blocked;
   return [
-    "BlitzPi security — this session",
-    "  ● enforce = the runtime blocks   ◐ monitor = recorded and shown, not blocked   ○ off",
+    `BlitzPi security — this session (level: ${config.security_level})`,
+    "  ● enforce = the runtime blocks   ◐ monitor = recorded and shown, not blocked   ○ off   ·   /blitz-level to change the tier",
     "",
     ...rows,
     "",

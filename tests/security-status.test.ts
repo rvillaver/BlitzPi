@@ -5,6 +5,7 @@ import fs from "fs"; import os from "os"; import path from "path";
 process.env.BLITZ_FEEDS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-nofeeds-")); // status must not depend on this machine's opt-in
 
 const cfg: any = {
+  security_level: "guarded",
   threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/h/.blitz/audit" }, profiles: { default: "user" },
   sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local", model_whitelist: [] }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "enforce", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 },
 };
@@ -18,7 +19,7 @@ describe("security status model", () => {
     expect(layers({ ...cfg, governance: { ...cfg.governance, enabled: false } }, "bwrap").find((l) => l.key === "governance")!.mode).toBe("off");
   });
   test("summary line names provider, backend, profile, tier with modes", () => {
-    expect(summaryLine(cfg, "bwrap")).toBe("governance local (enforce) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · content (monitor) · packages osv (enforce) · secrets gitleaks (off) · commands sigma (off) · urls urlhaus (off) · audit (enforce)");
+    expect(summaryLine(cfg, "bwrap")).toBe("level guarded · governance local (enforce) · profile user (enforce) · files (enforce) · bash bwrap (enforce) · threat tier 2 (enforce) · content (monitor) · packages osv (enforce) · secrets gitleaks (off) · commands sigma (off) · urls urlhaus (off) · audit (enforce)");
   });
   test("status bar is steady when fine and loud on a denial", () => {
     stats.governance.lastDenial = "";
@@ -30,7 +31,7 @@ describe("security status model", () => {
   });
   test("panel explains the legend, every layer, counters and where each is configured", () => {
     const p = panel(cfg, "bwrap", ['{"timestamp":"2026-08-30T00:00:01.000Z","type":"file_operation","tool":"read","zone":"project","allowed":true}']);
-    for (const s of ["enforce = the runtime blocks", "Per-call governance", "the run is aborted", ".blitz/profiles/<name>.yaml", "Model calls checked:", "Blocked:", "Last decisions:"]) expect(p).toContain(s);
+    for (const s of ["enforce = the runtime blocks", "Per-call governance", "the run is aborted", ".blitz/profiles/<name>.yaml", "Model calls checked:", "Blocked:", "Last decisions:", "(level: guarded)", "/blitz-level to change the tier"]) expect(p).toContain(s);
   });
 });
 

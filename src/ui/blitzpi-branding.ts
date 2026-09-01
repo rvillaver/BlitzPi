@@ -81,6 +81,24 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
       show(pi, ctx, renderReport(buildReport(process.cwd(), { since, auditPath: audit.getPath() })));
     },
   });
+  pi.registerCommand("blitz-level", {
+    description: "How much BlitzPi stops to ask. No arg: show it. /blitz-level strict|guarded|monitored [--global] to change it (this project by default, --global for every project on this machine)",
+    handler: async (args: string, ctx) => {
+      const { LEVELS, LEVEL_BLURB, describeSecurityLevel, setSecurityLevel } = await import("../security-level");
+      const words = (args ?? "").trim().split(/\s+/).filter(Boolean);
+      const global = words.includes("--global");
+      const value = words.find((w) => !w.startsWith("-"));
+      if (!value) {
+        const { level, source } = describeSecurityLevel();
+        const lines = [`security level: ${level} (${source === "default" ? "built-in default — no config sets it" : `set in ${source} config`})`,
+          ...LEVELS.map((l) => `  ${l === level ? "*" : " "} ${l.padEnd(10)} ${LEVEL_BLURB[l]}`)];
+        return show(pi, ctx, lines.join("\n"));
+      }
+      if (!(LEVELS as string[]).includes(value)) return show(pi, ctx, `unknown level "${value}" — one of: ${LEVELS.join(", ")}`);
+      const { from, file } = setSecurityLevel(value as (typeof LEVELS)[number], { global }, audit);
+      show(pi, ctx, `security level: ${from} -> ${value} (${file}) — takes effect next session start`);
+    },
+  });
   // Replace Pi's startup header and the terminal title (TUI only). Applied now and again after every
   // session_start handler has run: pi-cc-extensions (bundled) resets the header to Pi's default in its own
   // session_start, which runs after ours — the deferred call puts BlitzPi's header back.
@@ -94,7 +112,7 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
             theme.fg("accent", "  ⚡ BLITZ PI"),
             theme.fg("dim", "  Pi with security governance · sandbox · governance · audit"),
             theme.fg("dim", `  ${summaryLine(config, activeBackendName())}`),
-            theme.fg("dim", "  /blitz-security · /blitz-report · /session · /adopt-goodbehavior"),
+            theme.fg("dim", "  /blitz-security · /blitz-report · /blitz-level · /session · /adopt-goodbehavior"),
             "",
           ];
         },

@@ -112,6 +112,7 @@ you choose otherwise).
 
 | Layer | Enforced by | What it does |
 |---|---|---|
+| Security level | `permission_gate` + `tool_call` hooks | how much BlitzPi stops to ask: `strict` (also asks before every package install), `guarded` (default, today's ladder), `monitored` (in-project writes and outside-project reads go silent — still audited; governance and the secrets/URL feeds default to `monitor` unless set explicitly). A known-malicious package is blocked and a write outside the project or a dangerous shape still prompts, in every tier. A non-interactive run always uses `guarded`. `blitzpi level [tier] [--global]` or `/blitz-level`; asked once per project at first run |
 | Access profiles | `tool_call` hook → block | allow/deny tools per `.blitz/profiles/*.yaml` |
 | File sandbox | `tool_call` hook → block | confine read/write/edit/grep/find/ls to the workspace |
 | Bash sandbox | `bash` tool override + guard | confine shell — see below |
@@ -142,8 +143,10 @@ adversarial isolation — that is what the OS backends provide.
 
 ## Configuration
 
-`.blitz/blitz.config.yaml` — threat tier, audit path, default profile, `sandbox.run_dir` / `backend`,
-governance provider (`local` default, no server). `.blitz/profiles/*.yaml` — access profiles.
+`.blitz/blitz.config.yaml` — `security_level` (`strict` / `guarded` / `monitored`), threat tier, audit path,
+default profile, `sandbox.run_dir` / `backend`, governance provider (`local` default, no server). A project's
+config overrides individual fields on top of `~/.blitz/blitz.config.yaml` (a global default), not instead of it.
+`.blitz/profiles/*.yaml` — access profiles.
 
 ## Test
 

@@ -265,6 +265,27 @@ function cliAudit() { // the CLI's own audit session: feed updates/rollbacks are
 }
 const shortSha = (s?: string) => (s ? s.slice(0, 12) : "—");
 
+export async function handleLevelCommand(args: string[]): Promise<void> {
+  const { LEVELS, LEVEL_BLURB, describeSecurityLevel, setSecurityLevel } = await import("./security-level");
+  const global = args.includes("--global");
+  const value = args.find((a) => !a.startsWith("-"));
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log("Usage: blitzpi level [strict|guarded|monitored] [--global]\n  No value: show the active tier and where it comes from. --global sets the machine-wide default (~/.blitz/blitz.config.yaml) instead of this project's.");
+    return;
+  }
+  if (!value) {
+    const { level, source } = describeSecurityLevel();
+    console.log(`[Blitz] security level: ${level} (${source === "default" ? "built-in default — no config sets it" : `set in ${source} config`})`);
+    for (const l of LEVELS) console.log(`  ${l === level ? "*" : " "} ${l.padEnd(10)} ${LEVEL_BLURB[l]}`);
+    return;
+  }
+  if (!(LEVELS as string[]).includes(value)) { console.log(`[Blitz] unknown level "${value}" — one of: ${LEVELS.join(", ")}`); process.exitCode = 2; return; }
+  const audit = cliAudit();
+  const { from, file } = setSecurityLevel(value as (typeof LEVELS)[number], { global }, audit);
+  await audit?.close();
+  console.log(`[Blitz] security level: ${from} -> ${value} (${file})`);
+}
+
 export async function handleFeedsCommand(args: string[]): Promise<void> {
   const sub = args[0];
   const client = new OsvClient();

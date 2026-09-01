@@ -14,19 +14,29 @@ export type Level = "silent" | "ask" | "ask-noalways" | "dangerous";
 export const severity = (l: Level): number => ({ silent: 0, ask: 1, "ask-noalways": 2, dangerous: 3 }[l]);
 export type Action = "read" | "write";
 
-export function decide(action: Action, zone: Zone): Level {
+/**
+ * How much the ladder stops to ask. `guarded` is the shipped, verified default (and always what a non-interactive
+ * run uses, regardless of a project's chosen tier — see permission-gate.ts). `strict` behaves like `guarded` on
+ * this zone ladder; its extra restriction (asking before a package install) lives in the bash/install path, not
+ * here. `monitored` drops the ask on in-project writes and outside-project reads (still audited) — it never touches
+ * the two actions that leave the sandbox: a write outside the project, and a dangerous command shape, stay
+ * `dangerous` in every tier.
+ */
+export type SecurityLevel = "strict" | "guarded" | "monitored";
+
+export function decide(action: Action, zone: Zone, level: SecurityLevel = "guarded"): Level {
   if (action === "read") {
     switch (zone) {
       case "project": case "goodbehavior": case "project-config": case "plumbing": case "scratch": return "silent";
-      default: return "ask"; // system / install / global / other — reading outside the project asks
+      default: return level === "monitored" ? "silent" : "ask"; // system / install / global / other
     }
   }
   // write
   switch (zone) {
     case "plumbing": case "scratch": return "silent";  // /dev/null and the temp dir are fine
-    case "project": case "goodbehavior": return "ask";
-    case "project-config": return "ask-noalways";
-    default: return "dangerous";             // install / global / system / other
+    case "project": case "goodbehavior": return level === "monitored" ? "silent" : "ask";
+    case "project-config": return "ask-noalways";      // the agent can't blanket-loosen its own rules, in any tier
+    default: return "dangerous";             // install / global / system / other — leaves the sandbox in every tier
   }
 }
 

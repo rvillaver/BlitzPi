@@ -1,8 +1,13 @@
 import fs from "fs";
 import path from "path";
 import { load } from "js-yaml";
+import type { SecurityLevel } from "./permissions";
 
 export interface BlitzConfig {
+  /** How much the ladder stops to ask: strict (+asks before installs) | guarded (shipped default) |
+   *  monitored (project writes + outside-project reads go silent, still audited). A non-interactive run always
+   *  uses `guarded` for the zone ladder regardless of this — see permission-gate.ts. */
+  security_level: SecurityLevel;
   threat_detection: {
     enabled: boolean;
     tier: 1 | 2 | 3 | 4;
@@ -64,6 +69,7 @@ function getDefaultRunDir(): string {
 }
 
 const DEFAULT_CONFIG: BlitzConfig = {
+  security_level: "guarded",
   threat_detection: {
     enabled: true,
     tier: 2, // command-injection tier; 3-4 add aggressive heuristics (more false positives on normal bash)
@@ -124,23 +130,30 @@ function detectInstallTypeForConfig(): "global" | "local" {
   return scriptDir.includes("/usr/") || scriptDir.includes("/.npm/") ? "global" : "local";
 }
 
+/**
+ * Global config sets defaults for every project; a project's own config overrides individual fields on top —
+ * it does not replace the global file wholesale. (Before this, a project config short-circuited the global one
+ * entirely, so a global-scope default like security_level would silently vanish the moment a project had its
+ * own .blitz/blitz.config.yaml, which workspace-init.ts writes for every new project.)
+ */
 export function loadConfig(): BlitzConfig {
-  let config: BlitzConfig;
+  let config = DEFAULT_CONFIG;
+  let globalRaw: Partial<BlitzConfig> | undefined;
+  let localRaw: Partial<BlitzConfig> | undefined;
 
-  // Check project-local config first
+  const globalConfigPath = path.join(process.env.HOME || os.homedir(), ".blitz", "blitz.config.yaml");
+  if (fs.existsSync(globalConfigPath)) {
+    globalRaw = loadRawYaml(globalConfigPath);
+    config = validateConfig(globalRaw, config);
+  }
+
   const localConfigPath = path.join(process.cwd(), ".blitz", "blitz.config.yaml");
   if (fs.existsSync(localConfigPath)) {
-    config = loadYamlConfig(localConfigPath);
-  } else {
-    // Check global config
-    const globalConfigPath = path.join(process.env.HOME || os.homedir(), ".blitz", "blitz.config.yaml");
-    if (fs.existsSync(globalConfigPath)) {
-      config = loadYamlConfig(globalConfigPath);
-    } else {
-      // Use defaults
-      config = DEFAULT_CONFIG;
-    }
+    localRaw = loadRawYaml(localConfigPath);
+    config = validateConfig(localRaw, config);
   }
+
+  config = applyLevelDefaults(config, globalRaw, localRaw);
 
   // Ensure run directory exists
   if (config.sandbox.enabled) {
@@ -152,66 +165,88 @@ export function loadConfig(): BlitzConfig {
   return config;
 }
 
-function loadYamlConfig(filePath: string): BlitzConfig {
-  const content = fs.readFileSync(filePath, "utf-8");
-  const parsed = load(content) as unknown;
-  return validateConfig(parsed as Partial<BlitzConfig>);
-}
-
-function validateConfig(config: Partial<BlitzConfig>): BlitzConfig {
-  // Merge with defaults
+/**
+ * `monitored` loosens governance and the noisier feeds to `monitor` mode BY DEFAULT — but only for a field
+ * neither config layer named explicitly (a project or global override always wins over the tier). This runs
+ * after both layers have merged, so it can tell "inherited the built-in enforce default" apart from "someone
+ * actually wrote enforce/monitor down".
+ */
+function applyLevelDefaults(config: BlitzConfig, globalRaw: Partial<BlitzConfig> | undefined, localRaw: Partial<BlitzConfig> | undefined): BlitzConfig {
+  if (config.security_level !== "monitored") return config;
+  const namedGovernanceMode = globalRaw?.governance?.mode !== undefined || localRaw?.governance?.mode !== undefined;
+  const namedSecrets = globalRaw?.feeds?.secrets !== undefined || localRaw?.feeds?.secrets !== undefined;
+  const namedUrls = globalRaw?.feeds?.urls !== undefined || localRaw?.feeds?.urls !== undefined;
   return {
-    threat_detection: {
-      enabled: config.threat_detection?.enabled ?? DEFAULT_CONFIG.threat_detection.enabled,
-      tier: validateTier(config.threat_detection?.tier ?? DEFAULT_CONFIG.threat_detection.tier),
-      content: config.threat_detection?.content === "off" ? "off" : "monitor",
-    },
-    audit: {
-      enabled: config.audit?.enabled ?? DEFAULT_CONFIG.audit.enabled,
-      path: expandTilde((config.audit?.path as string) ?? DEFAULT_CONFIG.audit.path),
-    },
-    profiles: {
-      default: (config.profiles?.default as string) ?? DEFAULT_CONFIG.profiles.default,
-    },
-    sandbox: {
-      enabled: config.sandbox?.enabled ?? DEFAULT_CONFIG.sandbox.enabled,
-      run_dir: expandTilde((config.sandbox?.run_dir as string) ?? DEFAULT_CONFIG.sandbox.run_dir),
-      backend: (config.sandbox?.backend as any) ?? DEFAULT_CONFIG.sandbox.backend,
-      cache: (["shared", "project", "off"] as const).find((m) => m === config.sandbox?.cache) ?? DEFAULT_CONFIG.sandbox.cache,
-    },
-    governance: {
-      enabled: config.governance?.enabled ?? DEFAULT_CONFIG.governance.enabled,
-      mode: config.governance?.mode === "monitor" ? "monitor" : "enforce",
-      provider: (config.governance?.provider as any) ?? DEFAULT_CONFIG.governance.provider,
-      model_whitelist: (config.governance?.model_whitelist as string[]) ?? DEFAULT_CONFIG.governance.model_whitelist,
-      api_endpoint: (config.governance?.api_endpoint as string) ?? DEFAULT_CONFIG.governance.api_endpoint,
-      openai_api_key: (config.governance?.openai_api_key as string) ?? DEFAULT_CONFIG.governance.openai_api_key,
-      guardrails_endpoint: (config.governance?.guardrails_endpoint as string) ?? DEFAULT_CONFIG.governance.guardrails_endpoint,
-    },
-    goodbehavior: {
-      profile: (config.goodbehavior?.profile as string) ?? DEFAULT_CONFIG.goodbehavior.profile,
-    },
-    threat_api: {
-      enabled: config.threat_api?.enabled ?? DEFAULT_CONFIG.threat_api.enabled,
-      api_endpoint: (config.threat_api?.api_endpoint as string) ?? DEFAULT_CONFIG.threat_api.api_endpoint,
-    },
+    ...config,
+    governance: namedGovernanceMode ? config.governance : { ...config.governance, mode: "monitor" },
     feeds: {
-      packages: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.packages) ?? DEFAULT_CONFIG.feeds.packages,
-      secrets: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.secrets) ?? DEFAULT_CONFIG.feeds.secrets,
-      commands: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.commands) ?? DEFAULT_CONFIG.feeds.commands,
-      urls: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.urls) ?? DEFAULT_CONFIG.feeds.urls,
-      allow: Array.isArray(config.feeds?.allow) ? (config.feeds.allow as unknown[]).filter((x): x is string => typeof x === "string") : DEFAULT_CONFIG.feeds.allow,
-      min_release_age: config.feeds?.min_release_age === undefined ? DEFAULT_CONFIG.feeds.min_release_age : String(config.feeds.min_release_age),
-      cache_ttl_hours: typeof config.feeds?.cache_ttl_hours === "number" ? config.feeds.cache_ttl_hours : DEFAULT_CONFIG.feeds.cache_ttl_hours,
+      ...config.feeds,
+      secrets: namedSecrets ? config.feeds.secrets : "monitor",
+      urls: namedUrls ? config.feeds.urls : "monitor",
     },
   };
 }
 
-function validateTier(tier: unknown): 1 | 2 | 3 | 4 {
+function loadRawYaml(filePath: string): Partial<BlitzConfig> {
+  const content = fs.readFileSync(filePath, "utf-8");
+  return (load(content) as unknown) as Partial<BlitzConfig>;
+}
+
+function validateConfig(config: Partial<BlitzConfig>, base: BlitzConfig = DEFAULT_CONFIG): BlitzConfig {
+  // Merge onto `base` (the layer beneath — global config, or the built-in defaults)
+  return {
+    security_level: (["strict", "guarded", "monitored"] as const).find((m) => m === config.security_level) ?? base.security_level,
+    threat_detection: {
+      enabled: config.threat_detection?.enabled ?? base.threat_detection.enabled,
+      tier: validateTier(config.threat_detection?.tier ?? base.threat_detection.tier, base.threat_detection.tier),
+      content: config.threat_detection?.content === "off" ? "off" : config.threat_detection?.content === "monitor" ? "monitor" : base.threat_detection.content,
+    },
+    audit: {
+      enabled: config.audit?.enabled ?? base.audit.enabled,
+      path: expandTilde((config.audit?.path as string) ?? base.audit.path),
+    },
+    profiles: {
+      default: (config.profiles?.default as string) ?? base.profiles.default,
+    },
+    sandbox: {
+      enabled: config.sandbox?.enabled ?? base.sandbox.enabled,
+      run_dir: expandTilde((config.sandbox?.run_dir as string) ?? base.sandbox.run_dir),
+      backend: (config.sandbox?.backend as any) ?? base.sandbox.backend,
+      cache: (["shared", "project", "off"] as const).find((m) => m === config.sandbox?.cache) ?? base.sandbox.cache,
+    },
+    governance: {
+      enabled: config.governance?.enabled ?? base.governance.enabled,
+      mode: config.governance?.mode === "monitor" ? "monitor" : config.governance?.mode === "enforce" ? "enforce" : base.governance.mode,
+      provider: (config.governance?.provider as any) ?? base.governance.provider,
+      model_whitelist: (config.governance?.model_whitelist as string[]) ?? base.governance.model_whitelist,
+      api_endpoint: (config.governance?.api_endpoint as string) ?? base.governance.api_endpoint,
+      openai_api_key: (config.governance?.openai_api_key as string) ?? base.governance.openai_api_key,
+      guardrails_endpoint: (config.governance?.guardrails_endpoint as string) ?? base.governance.guardrails_endpoint,
+    },
+    goodbehavior: {
+      profile: (config.goodbehavior?.profile as string) ?? base.goodbehavior.profile,
+    },
+    threat_api: {
+      enabled: config.threat_api?.enabled ?? base.threat_api.enabled,
+      api_endpoint: (config.threat_api?.api_endpoint as string) ?? base.threat_api.api_endpoint,
+    },
+    feeds: {
+      packages: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.packages) ?? base.feeds.packages,
+      secrets: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.secrets) ?? base.feeds.secrets,
+      commands: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.commands) ?? base.feeds.commands,
+      urls: (["enforce", "monitor", "off"] as const).find((m) => m === config.feeds?.urls) ?? base.feeds.urls,
+      allow: Array.isArray(config.feeds?.allow) ? (config.feeds.allow as unknown[]).filter((x): x is string => typeof x === "string") : base.feeds.allow,
+      min_release_age: config.feeds?.min_release_age === undefined ? base.feeds.min_release_age : String(config.feeds.min_release_age),
+      cache_ttl_hours: typeof config.feeds?.cache_ttl_hours === "number" ? config.feeds.cache_ttl_hours : base.feeds.cache_ttl_hours,
+    },
+  };
+}
+
+function validateTier(tier: unknown, fallback: 1 | 2 | 3 | 4 = DEFAULT_CONFIG.threat_detection.tier): 1 | 2 | 3 | 4 {
   if (tier === 1 || tier === 2 || tier === 3 || tier === 4) {
     return tier;
   }
-  return DEFAULT_CONFIG.threat_detection.tier;
+  return fallback;
 }
 
 import os from "os";

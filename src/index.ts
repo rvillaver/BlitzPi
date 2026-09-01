@@ -21,6 +21,7 @@ import { setupCommandsFeed } from "./feeds/commands";
 import { setupUrlsFeed } from "./feeds/urls";
 import { setupContentScan } from "./content-scan";
 import { setupFeedsOnboarding } from "./feeds/onboard";
+import { setupSecurityLevelOnboarding } from "./security-level-onboard";
 import { cacheRoot } from "./toolchain-cache";
 import { setupQuestionTool } from "./tools/question";
 import { setupChannelPostTool } from "./tools/channel-post";
@@ -43,6 +44,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
 
     info(`[Blitz Pi] Caller: ${caller.user} (${caller.install_type}) in ${caller.project_path}`);
     info(`[Blitz Pi] Threat detection tier: ${config.threat_detection.tier}`);
+    info(`[Blitz Pi] Security level: ${config.security_level}`);
 
     // Permission gate (zones + ladder). Project = launch folder; install = BlitzPi's own dir.
     const projectRoot = process.cwd();
@@ -50,7 +52,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     const memory = new PermissionMemory(defaultPermissionStore(projectRoot));
     // The toolchain cache root counts as scratch for the guard: package managers write there on every install.
     const cache = cacheRoot(config.sandbox.cache ?? "shared", projectRoot);
-    const gate = new PermissionGate({ project: projectRoot, install: installRoot, scratch: [...defaultScratchDirs(), ...(cache ? [cache] : [])] }, memory, auditLogger);
+    const gate = new PermissionGate({ project: projectRoot, install: installRoot, scratch: [...defaultScratchDirs(), ...(cache ? [cache] : [])] }, memory, auditLogger, config.security_level);
 
     // Register checkpoints and providers
     setupThreatDetection(pi, config, auditLogger);
@@ -68,6 +70,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)
     setupGoodBehavior(pi, config);
     setupWorkspaceInit(pi);
+    setupSecurityLevelOnboarding(pi, auditLogger); // asks once per project+version while undecided
     setupProjectRegistry(pi, config);
     setupCompaction(pi, auditLogger);
 

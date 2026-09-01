@@ -85,12 +85,13 @@ describe("OSV client: MAL blocks, advisories do not, cache, outages", () => {
 function harness(mode: "enforce" | "monitor" | "off", answers: Record<string, string[]>, opts: any = {}) {
   const handlers: Record<string, any> = {};
   const pi: any = { on: (n: string, h: any) => { handlers[n] = h; } };
-  const logged: any[] = []; const notes: string[] = [];
+  const logged: any[] = []; const notes: string[] = []; const asked: string[] = [];
   const audit: any = { log: (e: any) => logged.push(e) };
-  const cfg: any = { feeds: { packages: mode, cache_ttl_hours: 24 } };
+  const cfg: any = { feeds: { packages: mode, cache_ttl_hours: 24 }, security_level: opts.level };
   setupFeeds(pi, cfg, audit, new OsvClient({ fetchImpl: fakeOsv(answers, opts).fetchImpl, cachePath: tmpCache() }));
-  const ctx: any = { hasUI: true, ui: { notify: (m: string) => notes.push(m) } };
-  return { fire: (command: string, tool = "bash") => handlers.tool_call?.({ toolName: tool, input: { command } }, ctx), logged, notes, registered: !!handlers.tool_call };
+  const hasUI = opts.hasUI ?? true;
+  const ctx: any = { hasUI, ui: { notify: (m: string) => notes.push(m), select: async (q: string) => { asked.push(q); return opts.answer ?? "Yes"; } } };
+  return { fire: (command: string, tool = "bash") => handlers.tool_call?.({ toolName: tool, input: { command } }, ctx), logged, notes, asked, registered: !!handlers.tool_call };
 }
 
 describe("feeds hook on bash tool calls", () => {
@@ -127,8 +128,40 @@ describe("feeds hook on bash tool calls", () => {
     expect(await h.fire("npm i evil", "powershell")).toMatchObject({ block: true });
     expect(await h.fire("npm i evil", "read")).toBeUndefined();
   });
+  test("SP-6: security level 'strict' asks before a clean install, even with feeds.packages off", async () => {
+    const h = harness("off", {}, { level: "strict" });
+    expect(h.registered).toBe(true); // the ask keeps the hook alive despite feeds.packages: off
+    expect(await h.fire("bun add is-odd")).toBeUndefined(); // approved (default "Yes")
+    expect(h.asked[0]).toContain("npm:is-odd"); // the ask names the resolved package, not the raw command
+    expect(h.logged[0]).toMatchObject({ type: "security_level_install_ask", level: "strict", allowed: true, via: "prompt" });
+  });
+  test("SP-6: declining the strict ask blocks the install", async () => {
+    const h = harness("enforce", {}, { level: "strict", answer: "No" });
+    const r = await h.fire("bun add left-pad");
+    expect(r).toMatchObject({ block: true, reason: expect.stringContaining("security level strict: install declined") });
+    expect(h.logged[h.logged.length - 1]).toMatchObject({ type: "security_level_install_ask", allowed: false });
+  });
+  test("SP-6: a known-malicious package is still blocked under strict — never merely asked about", async () => {
+    const h = harness("enforce", { "npm:@0xengine/xmlrpc": ["MAL-2024-11182"] }, { level: "strict" });
+    const r = await h.fire("bun add @0xengine/xmlrpc");
+    expect(r).toMatchObject({ block: true, reason: expect.stringContaining("known malicious package") });
+    expect(h.asked).toHaveLength(0); // never reached the strict ask
+  });
+  test("SP-6: non-interactive (no UI) auto-allows — no human to ask, same rule as the rest of the ladder", async () => {
+    const h = harness("off", {}, { level: "strict", hasUI: false });
+    expect(await h.fire("bun add is-odd")).toBeUndefined();
+    expect(h.asked).toHaveLength(0);
+    expect(h.logged[0]).toMatchObject({ type: "security_level_install_ask", allowed: true, via: "auto (non-interactive)" });
+  });
+  test("SP-6: 'guarded'/'monitored' never ask before an install (unchanged)", async () => {
+    for (const level of [undefined, "guarded", "monitored"]) {
+      const h = harness("enforce", {}, { level });
+      expect(await h.fire("bun add is-odd")).toBeUndefined();
+      expect(h.asked).toHaveLength(0);
+    }
+  });
   test("layer, summary line and config default", () => {
-    const cfg: any = { threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "monitor", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
+    const cfg: any = { security_level: "guarded", threat_detection: { enabled: true, tier: 2, content: "monitor" }, audit: { enabled: true, path: "/a" }, profiles: { default: "user" }, sandbox: { enabled: true, run_dir: ".", backend: "auto" }, governance: { enabled: true, mode: "enforce", provider: "local" }, goodbehavior: { profile: "development" }, threat_api: { enabled: false }, feeds: { packages: "monitor", secrets: "monitor", commands: "monitor", urls: "monitor", cache_ttl_hours: 24 } };
     expect(layers(cfg, "bwrap").find((l) => l.key === "feeds")).toMatchObject({ name: "Package feed (OSV)", mode: "monitor" });
     expect(summaryLine(cfg, "bwrap")).toContain("packages osv (monitor)");
     expect(loadConfig().feeds).toEqual({ packages: "enforce", secrets: "enforce", commands: "monitor", urls: "enforce", allow: [], min_release_age: "3d", cache_ttl_hours: 24 });

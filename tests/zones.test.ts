@@ -49,3 +49,35 @@ describe("permission ladder", () => {
     expect(decide("write", "other")).toBe("dangerous");
   });
 });
+
+describe("permission ladder: security tiers (SP-2)", () => {
+  test("no tier given / 'guarded' — byte-identical to the untiered ladder (regression safety)", () => {
+    expect(decide("write", "project", "guarded")).toBe("ask");
+    expect(decide("read", "other", "guarded")).toBe("ask");
+    expect(decide("write", "other", "guarded")).toBe("dangerous");
+    expect(decide("write", "project-config", "guarded")).toBe("ask-noalways");
+  });
+  test("'strict' — unchanged from 'guarded' on this zone ladder (its extra restriction is the install-ask, outside decide())", () => {
+    for (const [action, zone] of [["write", "project"], ["read", "other"], ["write", "other"], ["write", "project-config"]] as const) {
+      expect(decide(action, zone, "strict")).toBe(decide(action, zone, "guarded"));
+    }
+  });
+  test("'monitored' — project writes and outside-project reads go silent", () => {
+    expect(decide("write", "project", "monitored")).toBe("silent");
+    expect(decide("write", "goodbehavior", "monitored")).toBe("silent");
+    expect(decide("read", "system", "monitored")).toBe("silent");
+    expect(decide("read", "other", "monitored")).toBe("silent");
+  });
+  test("'monitored' never loosens what leaves the sandbox: project-config write and every dangerous write stay put", () => {
+    expect(decide("write", "project-config", "monitored")).toBe("ask-noalways");
+    expect(decide("write", "system", "monitored")).toBe("dangerous");
+    expect(decide("write", "global", "monitored")).toBe("dangerous");
+    expect(decide("write", "other", "monitored")).toBe("dangerous");
+  });
+  test("plumbing/scratch stay silent regardless of tier", () => {
+    for (const level of ["strict", "guarded", "monitored"] as const) {
+      expect(decide("read", "scratch", level)).toBe("silent");
+      expect(decide("write", "plumbing", level)).toBe("silent");
+    }
+  });
+});
