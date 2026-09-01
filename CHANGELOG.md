@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.115 — 2026-09-01
 
 - **A bash-command permission prompt now explains an unexplained-looking target.** A prompt like `Allow read? /` (from something like `find / -iname …`) gave no hint why the target was `/`. The target still leads the prompt unchanged — `Allow read? /` — but now with a redacted, capped parenthetical showing the actual command: `Allow read? /  (find / -iname "*bridge*" -path "*blitz*")`. File-tool prompts (`read`/`write`/`edit`) are unaffected — their target already is the whole story.
 
