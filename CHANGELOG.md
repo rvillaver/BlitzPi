@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.118 — 2026-09-02
 
 - **A new `draft-profile-goodbehavior` skill tailors the GoodBehavior profile to the actual project.** The shipped `development.md` profile is a generic template — it never described what "done" means for a slide deck, a dataset, or a research track any better than for a CLI. `/adopt-goodbehavior` (first adopt or re-run/update) now flags when a project is still on the generic default, and every interactive session start does the same until someone points `goodbehavior.profile` at a tailored one — self-terminating, no separate "already asked" state to track. Seven GoodBehavior skills now ship instead of six.
 
