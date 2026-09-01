@@ -27,7 +27,9 @@ blitzpi (bin/blitzpi.ts) ──> src/launcher.ts
 | File | Layer | Pi hook |
 |---|---|---|
 | `caller.ts`, `audit.ts` | identity + JSONL audit trail | — |
-| `config.ts`, `blitz-config.ts` | load `.blitz/blitz.config.yaml`; system prompt | `before_agent_start` |
+| `config.ts` | load + layer `.blitz/blitz.config.yaml` (global then project); system prompt | `before_agent_start` |
+| `permissions.ts`, `permission-gate.ts` | zone → permission-level ladder, per security tier | `tool_call` (bash + file tools) -> confirm/block |
+| `security-level.ts`, `security-level-onboard.ts` | `security_level` read/write (`blitzpi level`, `/blitz-level`) + first-run tier question | `session_start`, `registerCommand` |
 | `access-profiles.ts` | tool allow/deny per profile | `tool_call` -> `{block}` |
 | `sandbox.ts` | file-tool workspace confinement | `tool_call` -> `{block}` |
 | `bash-guard.ts` | cross-platform command classifier (allow/confirm/deny) | `tool_call` (bash) -> confirm/block |

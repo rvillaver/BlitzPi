@@ -50,6 +50,32 @@ Each (action, zone) resolves to one level:
 
 Every decision is written to the audit trail.
 
+## Security level
+
+The table above is the `guarded` level — BlitzPi's shipped default. `blitzpi level [strict|guarded|monitored]
+[--global]` or `/blitz-level` in a session sets **how much the ladder stops to ask**, per project by default
+(`--global` sets a machine-wide default other projects inherit; a project's own choice always wins over it):
+
+| | strict | guarded (default) | monitored |
+|---|---|---|---|
+| project / goodbehavior write | ask | ask | **silent** (still audited) |
+| outside-project read | ask | ask | **silent** (still audited) |
+| project-config write | ask, no Always | ask, no Always | ask, no Always |
+| package install (even a clean one) | **ask, no Always** | silent-if-clean | silent-if-clean |
+| system/install/global/other write, dangerous shapes | dangerous | dangerous | dangerous |
+
+- A known-malicious package (`feeds.packages`) is **blocked in every tier**, never merely asked about.
+- A write outside the project and a dangerous command shape (`sudo`, `curl | sh`, reverse shells, `rm -rf /`)
+  **stay `dangerous` in every tier** — no tier ever lets an out-of-sandbox action through silently.
+- `monitored` also defaults `governance.mode` and the secrets/URL feeds to `monitor` — but only for a field
+  neither the project's nor the global config names explicitly; an explicit setting at either scope always wins.
+- **A non-interactive run** (`-p`, `--mode rpc|json`) always uses `guarded` for the zone ladder, regardless of
+  the project's configured tier — there's no human present to extend `monitored`'s trust to.
+- Asked once per project at first run (same in-app pattern as the feeds opt-in question); `blitzpi level` with
+  no argument shows the active tier and where it's set (project config, global config, or the built-in default).
+- Config precedence: a project's `.blitz/blitz.config.yaml` overrides individual fields on top of
+  `~/.blitz/blitz.config.yaml` (a global default) — it does not replace the global file wholesale.
+
 ## The two-layer rule
 
 - **Scratch is shared, not isolated.** The bash sandbox binds the host temp dir (bwrap) / allows writes there
