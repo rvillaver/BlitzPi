@@ -95,8 +95,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
         `- security config in .blitz/\n` +
         `- thinking folds by default here — press ctrl+t any time to expand/collapse it\n\n` +
         `ACTION NEEDED: the skills load at startup, so RESTART BlitzPi in this folder to activate them ` +
-        `(press ctrl+d to quit, then run 'blitzpi' again). After that, they're manual — force one with ` +
-        `/skill:audit-goodbehavior (or roadmap-/gate-build-/verify-/learn-/uatplan-goodbehavior); none of them auto-run.`,
+        `(press ctrl+d to quit, then run 'blitzpi' again). After that, the agent invokes them on its own whenever a request matches.`,
       display: true,
     });
     ctx.ui.notify(`Project set up — restart BlitzPi here to activate the ${n} GoodBehavior skills.`, "warning");

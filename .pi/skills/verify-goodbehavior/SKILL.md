@@ -1,6 +1,6 @@
 ---
 name: verify-goodbehavior
-description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Verify a change by exercising the REAL thing the way its consumer would — per the project's profile (running app, dataset, findings, or delivered artifact) — then capture evidence. Self-contained (no dependency on other skills). Use to confirm a change works before calling it done; a passing test alone does not count.
+description: Verify a change by exercising the real thing the way its consumer would, then capture evidence. Use to confirm a change works before calling it done — a passing test alone does not count.
 ---
 
 Prove a change actually does what it's supposed to by observing the real thing — not by reading the diff, not by a green

@@ -1,6 +1,6 @@
 ---
 name: gate-build-goodbehavior
-description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Execute one roadmap phase under the gated loop — build each item, verify it live (exercise the real thing per the project's profile), record learnings, and prove the phase with concrete evidence before starting the next. Use to work through a roadmap without drifting or self-declaring done.
+description: Execute one roadmap phase under the gated loop — build, verify live, record learnings, prove it before the next item. Use to work through a roadmap without drifting or self-declaring done.
 ---
 
 **Loop position:** step 4 — after `/roadmap-goodbehavior`; per item it calls `/verify-goodbehavior` and

@@ -2,11 +2,15 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Correction: the six GoodBehavior skills are agent-invocable, not "manual."** 1.2.116 (below) and the SKILL.md files themselves shipped a "Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke" restriction. That was wrong and defeated the point of shipping GoodBehavior as skills at all — the agent is meant to invoke them on its own, as doctrine, whenever a request matches (exactly like `bridge` already did). Removed the restriction from all six `SKILL.md` files, and corrected every place that repeated the wrong claim (the startup banner/header, the fresh-project setup message, the README).
+
 ## 1.2.116 — 2026-09-02
 
-- **BlitzPi states plainly which skills are its own.** The stock `[Skills]` panel (rendered by a bundled third-party extension, not us) lists BlitzPi's own GoodBehavior doctrine skills, BlitzPi's own `bridge` skill, and genuinely third-party bundled skills (e.g. `mcp-scripting`) as one flat, unlabeled list. BlitzPi's own header and startup banner now say so directly: `BlitzPi's own skills: N GoodBehavior (manual, /skill:name) + bridge (auto-triggers) — anything else in [Skills] is a bundled extension, not ours` — count read live, never hard-coded.
-- **README documents the three ways to talk to BlitzPi** — `/blitz-*` extension commands, `/skill:name` skills (Pi's own mandatory namespacing — a human-only mechanism the agent cannot invoke as a tool), and `blitzpi <word>` CLI subcommands — plus which of the seven skills are BlitzPi's own. Also added `/blitz-bridge`/`/blitz-level` and `blitzpi level`/`blitzpi bridge` to the command list, missing until now.
-- **The fresh-project setup message says the GoodBehavior skills are manual**, not just naming one example — force one with `/skill:name`, none of them auto-run.
+- **BlitzPi states plainly which skills are its own.** The stock `[Skills]` panel (rendered by a bundled third-party extension, not us) lists BlitzPi's own GoodBehavior doctrine skills, BlitzPi's own `bridge` skill, and genuinely third-party bundled skills (e.g. `mcp-scripting`) as one flat, unlabeled list. BlitzPi's own header and startup banner now say so directly — count read live, never hard-coded. *(The exact wording shipped here was corrected above — it wrongly called the GoodBehavior skills "manual.")*
+- **README documents the three ways to talk to BlitzPi** — `/blitz-*` extension commands, GoodBehavior/bundled skills, and `blitzpi <word>` CLI subcommands — plus which of the seven skills are BlitzPi's own. Also added `/blitz-bridge`/`/blitz-level` and `blitzpi level`/`blitzpi bridge` to the command list, missing until now.
+- **The fresh-project setup message names the installed GoodBehavior skills.** *(Wording corrected above — it originally, wrongly, called them manual-only.)*
 
 ## 1.2.115 — 2026-09-01
 

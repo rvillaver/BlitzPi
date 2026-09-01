@@ -26,6 +26,6 @@ describe("goodBehaviorSkillCount / ownSkillsLine", () => {
     }
     process.chdir(cwd);
     expect(goodBehaviorSkillCount()).toBe(3);
-    expect(ownSkillsLine()).toBe("BlitzPi's own skills: 3 GoodBehavior (manual, /skill:name) + bridge (auto-triggers) — anything else in [Skills] is a bundled extension, not ours");
+    expect(ownSkillsLine()).toBe("BlitzPi's own skills: 3 GoodBehavior + bridge — the agent invokes these on its own when a request matches; anything else in [Skills] is a bundled extension, not ours");
   });
 });

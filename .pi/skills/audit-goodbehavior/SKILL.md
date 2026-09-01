@@ -1,6 +1,6 @@
 ---
 name: audit-goodbehavior
-description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Produce an honest, reference-cross-checked gap register — the concrete delta between what exists and what's wanted, grouped and severity-tagged, built in gated batches (not all at once). Use before building, when the user wants to know "what are ALL the gaps" against a reference (design, spec, competitor, demo).
+description: Produce a gap register — the concrete delta between what exists and what's wanted, cross-checked against a reference. Use when the user wants to know "what are ALL the gaps" against a design, spec, competitor, or demo.
 ---
 
 **Loop position:** step 2 — after *Understand*, before `/roadmap-goodbehavior`. The doctrine (loop, done rule, lenses) is

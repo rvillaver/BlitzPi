@@ -1,6 +1,6 @@
 ---
 name: learn-goodbehavior
-description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Capture a durable learning so it isn't relearned — a non-obvious trap, a user correction, or a hard-won build/deploy/behavior fact. Writes one fact per memory with a recall-friendly description + an index pointer. Use right after hitting (or being corrected on) something the next session would otherwise rediscover the hard way.
+description: Capture a durable learning — a non-obvious trap, correction, or hard-won fact — so it isn't relearned. Use right after hitting or being corrected on something the next session would otherwise rediscover.
 ---
 
 **Loop position:** called per item by `/gate-build-goodbehavior`, or whenever something non-obvious was learned.

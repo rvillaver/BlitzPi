@@ -1,6 +1,6 @@
 ---
 name: uatplan-goodbehavior
-description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Build and maintain a living manual user-acceptance test plan — a map of every feature set, how a human exercises each one on the REAL thing (per the project's profile), the expected result, and a pass/fail checklist to close it out. Complements automated tests and feeds /verify-goodbehavior. Use to make verification coverage durable and auditable, not ad hoc.
+description: Build and maintain a manual UAT plan — every feature, how a human exercises it for real, expected result, pass/fail. Use to make verification coverage durable, not ad hoc.
 ---
 
 Produce and keep current a **human-followable UAT plan** — the durable counterpart to automated tests and to the one-shot

@@ -97,16 +97,16 @@ rules for who can invoke it:
 | Form | What it is | Who can invoke it | Examples |
 |---|---|---|---|
 | `/blitz-*` | An extension command BlitzPi registers directly | A human, or the agent as part of its own turn | `/blitz-security`, `/blitz-level`, `/blitz-bridge` |
-| `/skill:name` | A GoodBehavior (or bundled) skill, force-invoked | **A human only** — this is Pi's own prompt-only mechanism; the agent cannot call it as a tool, though the agent usually triggers the *same* skill on its own by matching your request to the skill's description (no slash needed) | `/skill:audit-goodbehavior` |
+| GoodBehavior (or bundled) skill | Doctrine the agent follows | The agent, on its own, whenever a request matches — this is the normal path, no command needed | "audit this project's gaps" |
 | `blitzpi <word>` | A real CLI subcommand, run like any other shell command | The agent via its bash tool, or a human in a terminal | `blitzpi bridge status`, `blitzpi level strict` |
 
 `/blitz-bridge setup discord` is the one command that must be typed by a human directly — it asks for the bot token
 privately, and that prompt only exists in an interactive session; the agent has no way to run it on your behalf.
 
-BlitzPi ships **six GoodBehavior skills** (`audit-`, `roadmap-`, `gate-build-`, `verify-`, `learn-`, `uatplan-goodbehavior`
-— all manual, force with `/skill:name`, never auto-run) plus **`bridge`** (the chat-bridge skill — auto-triggers when you
-ask to connect a chat platform, or force it the same way). Anything else your session lists under `[Skills]` that isn't
-one of these seven is a bundled third-party extension's skill, not BlitzPi's own.
+BlitzPi ships **six GoodBehavior skills** (`audit-`, `roadmap-`, `gate-build-`, `verify-`, `learn-`, `uatplan-goodbehavior`)
+plus **`bridge`** — the agent invokes any of them on its own when a request matches; that's the intended, normal path,
+doctrine the agent is meant to follow autonomously. Anything else your session lists under `[Skills]` that isn't one
+of these seven is a bundled third-party extension's skill, not BlitzPi's own.
 
 **Security feeds are opt-in and separate from the platform.** BlitzPi asks once at start (in the TUI) while you have not
 decided — *Yes* installs them on the spot, *Not now* asks again after the next update, *No* records an opt-out; the installer

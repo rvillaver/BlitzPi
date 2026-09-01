@@ -1,6 +1,6 @@
 ---
 name: roadmap-goodbehavior
-description: Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke during normal building, designing, or coding. Roll a gap register (or a pile of asks) into a sequenced, gated, phased plan in docs/plans/ROADMAP.md, parking low-ROI/blocked work in PRODUCTION-BACKLOG.md. Use after audit-goodbehavior, or when work needs ordering before building.
+description: Roll a gap register (or a pile of asks) into a sequenced, gated, phased plan. Use after audit-goodbehavior, or when work needs ordering before building.
 ---
 
 **Loop position:** step 3 — after `/audit-goodbehavior` (or straight from a reference/design when nothing is built),

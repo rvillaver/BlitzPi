@@ -21,6 +21,6 @@ export function goodBehaviorSkillCount(): number {
 export function ownSkillsLine(): string {
   const n = goodBehaviorSkillCount();
   return n > 0
-    ? `BlitzPi's own skills: ${n} GoodBehavior (manual, /skill:name) + bridge (auto-triggers) — anything else in [Skills] is a bundled extension, not ours`
+    ? `BlitzPi's own skills: ${n} GoodBehavior + bridge — the agent invokes these on its own when a request matches; anything else in [Skills] is a bundled extension, not ours`
     : "GoodBehavior not adopted in this project yet — /adopt-goodbehavior";
 }
