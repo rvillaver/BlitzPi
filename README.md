@@ -79,12 +79,34 @@ blitzpi audit           # query the audit trail (--project PATH, --type, --prune
 blitzpi report [PATH]   # one project across sessions: files read/written/deleted, URLs, commands, governance, usage
 blitzpi projects        # projects managed by BlitzPi (prune | forget PATH)
 blitzpi feeds           # detection feeds: status · opt-in | opt-out · update | list | rollback <feed> · scan <text> · check <pkg…> · parse <command>
+blitzpi level [tier]    # security level: strict | guarded | monitored (--global for a machine-wide default)
+blitzpi bridge          # chat bridge daemon: start | stop | status | bind <platform:id> | post | ask | model
 blitzpi demo            # capability demo (writes it from real runs)
 ```
 
 Inside the session: `/blitz-security` (every layer, its mode, this session's counters — `/blitz-security files | bash |
-governance | all` lists what the counters count), `/blitz-report` (this project's diagnostics), `/session` (Pi's usage and
+governance | all` lists what the counters count), `/blitz-report` (this project's diagnostics), `/blitz-level` (the
+security tier), `/blitz-bridge` (chat bridge setup/status — see below), `/session` (Pi's usage and
 cost for this session), `/login`, `/model`, `/theme`, `/adopt-goodbehavior`, `/unadopt-goodbehavior`.
+
+### Three ways to talk to BlitzPi, not one
+
+These look similar (a `/` command, or a bare word) but come from three different mechanisms in Pi, each with its own
+rules for who can invoke it:
+
+| Form | What it is | Who can invoke it | Examples |
+|---|---|---|---|
+| `/blitz-*` | An extension command BlitzPi registers directly | A human, or the agent as part of its own turn | `/blitz-security`, `/blitz-level`, `/blitz-bridge` |
+| `/skill:name` | A GoodBehavior (or bundled) skill, force-invoked | **A human only** — this is Pi's own prompt-only mechanism; the agent cannot call it as a tool, though the agent usually triggers the *same* skill on its own by matching your request to the skill's description (no slash needed) | `/skill:audit-goodbehavior` |
+| `blitzpi <word>` | A real CLI subcommand, run like any other shell command | The agent via its bash tool, or a human in a terminal | `blitzpi bridge status`, `blitzpi level strict` |
+
+`/blitz-bridge setup discord` is the one command that must be typed by a human directly — it asks for the bot token
+privately, and that prompt only exists in an interactive session; the agent has no way to run it on your behalf.
+
+BlitzPi ships **six GoodBehavior skills** (`audit-`, `roadmap-`, `gate-build-`, `verify-`, `learn-`, `uatplan-goodbehavior`
+— all manual, force with `/skill:name`, never auto-run) plus **`bridge`** (the chat-bridge skill — auto-triggers when you
+ask to connect a chat platform, or force it the same way). Anything else your session lists under `[Skills]` that isn't
+one of these seven is a bundled third-party extension's skill, not BlitzPi's own.
 
 **Security feeds are opt-in and separate from the platform.** BlitzPi asks once at start (in the TUI) while you have not
 decided — *Yes* installs them on the spot, *Not now* asks again after the next update, *No* records an opt-out; the installer

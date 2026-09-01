@@ -37,6 +37,7 @@ runs/
 # Pi runtime
 .pi/audit/*.jsonl
 .pi/goodbehavior/memory/*
+.pi/settings.json
 
 # Temporary files
 *.tmp

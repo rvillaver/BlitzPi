@@ -2,6 +2,12 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **BlitzPi states plainly which skills are its own.** The stock `[Skills]` panel (rendered by a bundled third-party extension, not us) lists BlitzPi's own GoodBehavior doctrine skills, BlitzPi's own `bridge` skill, and genuinely third-party bundled skills (e.g. `mcp-scripting`) as one flat, unlabeled list. BlitzPi's own header and startup banner now say so directly: `BlitzPi's own skills: N GoodBehavior (manual, /skill:name) + bridge (auto-triggers) — anything else in [Skills] is a bundled extension, not ours` — count read live, never hard-coded.
+- **README documents the three ways to talk to BlitzPi** — `/blitz-*` extension commands, `/skill:name` skills (Pi's own mandatory namespacing — a human-only mechanism the agent cannot invoke as a tool), and `blitzpi <word>` CLI subcommands — plus which of the seven skills are BlitzPi's own. Also added `/blitz-bridge`/`/blitz-level` and `blitzpi level`/`blitzpi bridge` to the command list, missing until now.
+- **The fresh-project setup message says the GoodBehavior skills are manual**, not just naming one example — force one with `/skill:name`, none of them auto-run.
+
 ## 1.2.115 — 2026-09-01
 
 - **A bash-command permission prompt now explains an unexplained-looking target.** A prompt like `Allow read? /` (from something like `find / -iname …`) gave no hint why the target was `/`. The target still leads the prompt unchanged — `Allow read? /` — but now with a redacted, capped parenthetical showing the actual command: `Allow read? /  (find / -iname "*bridge*" -path "*blitz*")`. File-tool prompts (`read`/`write`/`edit`) are unaffected — their target already is the whole story.
