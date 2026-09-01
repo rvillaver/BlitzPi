@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.114 — 2026-09-01
 
 - **Long prompt-cache retention by default.** BlitzPi now sets `PI_CACHE_RETENTION=long` for every session it spawns (interactive, `-p`, and the chat bridge's RPC children), extending Anthropic's cache TTL from the provider default (5 min) to 1 hour. A session whose turns are further apart than that — the bridge above all, where a human may reply minutes or hours later — previously paid full price to re-cache the entire accumulated history on every turn once the short window lapsed, and that cost grew with every lapse since the history is longer each time. Override with `PI_CACHE_RETENTION` in the environment if a provider needs the shorter window.
 
