@@ -55,8 +55,11 @@ export class PermissionGate {
     return this.resolve("write", "other", `${why} — runs unsandboxed if allowed: ${command}`, "bash command", ctx);
   }
 
-  /** Core resolver. `confined` = the action stays inside the project. */
-  async resolve(action: Action, zone: Zone, target: string, label: string, ctx: ExtensionContext | undefined): Promise<GateResult> {
+  /** Core resolver. `confined` = the action stays inside the project. `context` (bash calls only): the full
+   *  command a bare extracted target like `/` came from — e.g. `find / -iname …` — so the prompt explains
+   *  itself instead of showing an unexplained root-looking path. File-tool asks never pass this; their target
+   *  already is the whole story. */
+  async resolve(action: Action, zone: Zone, target: string, label: string, ctx: ExtensionContext | undefined, context?: string): Promise<GateResult> {
     const interactive = !!ctx?.hasUI;
     // A looser tier (`monitored`) trades prompts for trust in an interactive session; an unattended run has no
     // human to extend that trust to, so it always gets the shipped, verified `guarded` ladder regardless of the
@@ -77,19 +80,23 @@ export class PermissionGate {
     }
 
     // The ask leads with the thing itself: action + target. Mechanics (zones, memory scope) stay out of the
-    // prompt — the "Always" options carry their own scope, and the audit trail holds the rest.
+    // prompt — the "Always" options carry their own scope, and the audit trail holds the rest. `why` is a
+    // secondary, parenthetical annotation — the target stays the first thing read, matching "lead with the
+    // thing being approved" — shown only when the command actually differs from the bare target (a bash-command
+    // whose extracted target like `/` doesn't explain itself: `find / -iname …`).
     const what = redactCommand(String(target)).replace(/\s+/g, " ").slice(0, 160);
+    const why = context && context.trim() !== target.trim() ? `  (${redactCommand(context).replace(/\s+/g, " ").slice(0, 100)})` : "";
     let choice: string | undefined;
     if (level === "dangerous") {
-      choice = await ctx!.ui.select(`⚠ Allow DANGEROUS ${action}? ${what}`, ["No", "Yes (I understand the risk)"]);
+      choice = await ctx!.ui.select(`⚠ Allow DANGEROUS ${action}? ${what}${why}`, ["No", "Yes (I understand the risk)"]);
       choice = choice?.startsWith("Yes") ? "Yes" : "No";
     } else if (level === "ask-noalways") {
-      choice = await ctx!.ui.select(`Allow ${action} to security config? ${what}`, ["No", "Yes"]);
+      choice = await ctx!.ui.select(`Allow ${action} to security config? ${what}${why}`, ["No", "Yes"]);
     } else if (!key) {
-      choice = await ctx!.ui.select(`Allow ${action}? ${what}`, ["Yes", "No"]);
+      choice = await ctx!.ui.select(`Allow ${action}? ${what}${why}`, ["Yes", "No"]);
     } else {
       const scope = zone === "other" ? ` for ${key.slice(`${action}:${zone}:`.length)}` : "";
-      choice = await ctx!.ui.select(`Allow ${action}? ${what}`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);
+      choice = await ctx!.ui.select(`Allow ${action}? ${what}${why}`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);
     }
 
     let allow = false;

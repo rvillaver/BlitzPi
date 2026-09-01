@@ -38,6 +38,9 @@ Each (action, zone) resolves to one level:
 - **ask** — prompt: **Yes / No / Always this session / Always**.
 - **dangerous** — shown **in red with a warning**; prompt **Yes / No**. You can still allow it.
 - Dangerous command *shapes* (`sudo`, `curl | sh`, reverse shells, `rm -rf /`) are always dangerous.
+- A prompt always leads with the target (`Allow read? /path`). For a bash command whose extracted target doesn't
+  explain itself — e.g. `/` from `find / -iname …` — a redacted, capped parenthetical shows the actual command
+  (`Allow read? /  (find / -iname …)`); a file-tool prompt never needs this, its target already is the whole story.
 
 ### What "Always" remembers
 - For **system / install / global**: the whole zone (`read:system`).

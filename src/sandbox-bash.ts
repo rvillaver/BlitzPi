@@ -62,7 +62,7 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     const targets = shape ? [] : extractTargets(command).map((t) => (backend ? { ...t, path: dehomeTarget(t.path, runDir) } : t));
     const res = shape
       ? await gate.resolveDangerousCommand(command, shape, ctx)
-      : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx); })();
+      : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx, command); })();
 
     if (!res.allow) { stats.blocked.bash++; return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` }; }
     // A dangerous SHAPE (sudo, download|shell, reverse shell) the user allowed runs unconfined — the backend cannot
