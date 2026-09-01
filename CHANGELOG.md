@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.116 — 2026-09-02
 
 - **BlitzPi states plainly which skills are its own.** The stock `[Skills]` panel (rendered by a bundled third-party extension, not us) lists BlitzPi's own GoodBehavior doctrine skills, BlitzPi's own `bridge` skill, and genuinely third-party bundled skills (e.g. `mcp-scripting`) as one flat, unlabeled list. BlitzPi's own header and startup banner now say so directly: `BlitzPi's own skills: N GoodBehavior (manual, /skill:name) + bridge (auto-triggers) — anything else in [Skills] is a bundled extension, not ours` — count read live, never hard-coded.
 - **README documents the three ways to talk to BlitzPi** — `/blitz-*` extension commands, `/skill:name` skills (Pi's own mandatory namespacing — a human-only mechanism the agent cannot invoke as a tool), and `blitzpi <word>` CLI subcommands — plus which of the seven skills are BlitzPi's own. Also added `/blitz-bridge`/`/blitz-level` and `blitzpi level`/`blitzpi bridge` to the command list, missing until now.
