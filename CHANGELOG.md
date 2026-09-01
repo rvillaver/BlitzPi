@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **`blitzpi <subcommand>` (bridge, feeds, audit, report, projects, level) now finds BlitzPi's real global state even when the agent runs it through its own confined bash tool.** Every sandbox backend pins `HOME` to the project workspace so `~` in a shell command resolves inside the sandbox — correct for that, but it meant `blitzpi bridge status` (and every other subcommand reading `~/.blitz/…`) silently looked under `<project>/.blitz/…` instead, reporting "not bound"/"not configured" even on a fully working machine. `HOME` is unchanged; a separate `BLITZ_REAL_HOME` now rides alongside it for BlitzPi's own global-state lookups.
+- **The `bridge` skill now tells the agent to run `blitzpi bridge <subcommand>`, not `/blitz-bridge`.** Slash commands only run from something a human types (or an RPC `prompt`) — never from a tool call — so the agent had no way to invoke `/blitz-bridge` itself. The CLI form has the same behavior for every step except `setup discord`, which stays explicitly human-only (a private token prompt with no CLI equivalent, by design).
+
 ## 1.2.114 — 2026-09-01
 
 - **Long prompt-cache retention by default.** BlitzPi now sets `PI_CACHE_RETENTION=long` for every session it spawns (interactive, `-p`, and the chat bridge's RPC children), extending Anthropic's cache TTL from the provider default (5 min) to 1 hour. A session whose turns are further apart than that — the bridge above all, where a human may reply minutes or hours later — previously paid full price to re-cache the entire accumulated history on every turn once the short window lapsed, and that cost grew with every lapse since the history is longer each time. Override with `PI_CACHE_RETENTION` in the environment if a provider needs the shorter window.

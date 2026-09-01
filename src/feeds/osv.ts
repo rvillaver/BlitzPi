@@ -6,9 +6,9 @@
  * Answers are cached per package (default 24 h) in ~/.blitz/feeds/osv-cache.json.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import type { PackageRef } from "./packages";
+import { realHome } from "../real-home";
 
 export interface PackageVerdict extends PackageRef { malicious: string[]; summary?: string; cached: boolean }
 export interface CheckResult { verdicts: PackageVerdict[]; unreachable: boolean; error?: string }
@@ -17,7 +17,7 @@ interface CacheEntry { malicious: string[]; summary?: string; checked_at: number
 type Cache = Record<string, CacheEntry>;
 
 export const DEFAULT_OSV_API = "https://api.osv.dev";
-export const defaultCachePath = (home = process.env.HOME || os.homedir()) => path.join(home, ".blitz", "feeds", "osv-cache.json");
+export const defaultCachePath = (home = realHome()) => path.join(home, ".blitz", "feeds", "osv-cache.json");
 
 export class OsvClient {
   private cache: Cache | null = null;

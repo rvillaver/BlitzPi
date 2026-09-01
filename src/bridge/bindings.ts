@@ -1,11 +1,11 @@
 /** `~/.blitz/bridge/bindings.json` — conversation → project + policy. Per user, never in a project. */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { type Binding, type ConvRef, convKey, defaultBinding } from "./types";
+import { realHome } from "../real-home";
 
 export interface BindingsFile { version: 1; conversations: Record<string, Binding> }
-export const bridgeDir = (home = process.env.HOME || os.homedir()) => path.join(home, ".blitz", "bridge");
+export const bridgeDir = (home = realHome()) => path.join(home, ".blitz", "bridge");
 
 export class BindingsStore {
   constructor(readonly file = path.join(bridgeDir(), "bindings.json")) {}

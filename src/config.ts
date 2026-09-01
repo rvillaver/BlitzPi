@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { load } from "js-yaml";
 import type { SecurityLevel } from "./permissions";
+import { realHome } from "./real-home";
 
 export interface BlitzConfig {
   /** How much the ladder stops to ask: strict (+asks before installs) | guarded (shipped default) |
@@ -115,14 +116,14 @@ const DEFAULT_CONFIG: BlitzConfig = {
 };
 
 function expandTilde(p: string): string {
-  if (p === "~") return process.env.HOME || os.homedir();
-  if (p.startsWith("~/")) return path.join(process.env.HOME || os.homedir(), p.slice(2));
+  if (p === "~") return realHome();
+  if (p.startsWith("~/")) return path.join(realHome(), p.slice(2));
   return p;
 }
 
 function getDefaultAuditPath(): string {
   // Audit trail is GLOBAL (cross-project security record), in the user's home — not the project.
-  return path.join(process.env.HOME || os.homedir(), ".blitz", "audit");
+  return path.join(realHome(), ".blitz", "audit");
 }
 
 function detectInstallTypeForConfig(): "global" | "local" {
@@ -141,7 +142,7 @@ export function loadConfig(): BlitzConfig {
   let globalRaw: Partial<BlitzConfig> | undefined;
   let localRaw: Partial<BlitzConfig> | undefined;
 
-  const globalConfigPath = path.join(process.env.HOME || os.homedir(), ".blitz", "blitz.config.yaml");
+  const globalConfigPath = path.join(realHome(), ".blitz", "blitz.config.yaml");
   if (fs.existsSync(globalConfigPath)) {
     globalRaw = loadRawYaml(globalConfigPath);
     config = validateConfig(globalRaw, config);
@@ -248,5 +249,3 @@ function validateTier(tier: unknown, fallback: 1 | 2 | 3 | 4 = DEFAULT_CONFIG.th
   }
   return fallback;
 }
-
-import os from "os";

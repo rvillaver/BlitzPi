@@ -5,10 +5,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { loadConfig } from "./config";
 import type { SecurityLevel } from "./permissions";
 import type { AuditLogger } from "./audit";
+import { realHome } from "./real-home";
 
 export const LEVELS: SecurityLevel[] = ["strict", "guarded", "monitored"];
 export const LEVEL_BLURB: Record<SecurityLevel, string> = {
@@ -21,7 +21,7 @@ export function projectConfigPath(cwd: string = process.cwd()): string {
   return path.join(cwd, ".blitz", "blitz.config.yaml");
 }
 export function globalConfigPath(): string {
-  return path.join(process.env.HOME || os.homedir(), ".blitz", "blitz.config.yaml");
+  return path.join(realHome(), ".blitz", "blitz.config.yaml");
 }
 
 function readLevel(file: string): SecurityLevel | undefined {

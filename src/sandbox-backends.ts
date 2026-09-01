@@ -7,6 +7,7 @@
  *                control here. This is where a future sandbox-exec/AppContainer backend slots in.
  */
 import { dirname } from "node:path";
+import os from "node:os";
 import { defaultScratchDirs } from "./zones";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -108,6 +109,9 @@ export function wrapForNamespace(command: string): string {
 }
 /** The runtime running BlitzPi (the private Bun when installed) must be reachable inside the sandbox. */
 const RUNTIME_DIR = dirname(process.execPath);
+/** Computed here, in the unconfined top-level process, before any backend pins HOME to the workspace —
+ *  exported alongside the pin so BlitzPi's own global state can still find it (see real-home.ts). */
+const REAL_HOME = process.env.HOME || os.homedir();
 
 class BwrapBackend implements SandboxBackend {
   name = "bwrap";
@@ -128,7 +132,7 @@ class BwrapBackend implements SandboxBackend {
       "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
       "--setenv", "HOME", runDir,
       "/bin/bash", "-c", wrapForNamespace(command));
-    const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME }, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);
   }
 }
@@ -141,7 +145,7 @@ class PinnedBackend implements SandboxBackend {
     const isWin = process.platform === "win32";
     const shell = isWin ? "powershell.exe" : "/bin/bash";
     const shellArgs = isWin ? ["-NoProfile", "-Command", command] : ["-c", command];
-    const env = { ...process.env, ...options.env, HOME: runDir };
+    const env = { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME };
     const child = spawn(shell, shellArgs, { cwd: runDir, env, stdio: ["ignore", "pipe", "pipe"], detached: !isWin });
     return pump(child, options, !isWin);
   }
@@ -169,7 +173,7 @@ class SandboxExecBackend implements SandboxBackend {
     // Seatbelt matches the REAL path; on macOS /var→/private/var, /tmp→/private/tmp, so resolve symlinks
     // before building the profile or an in-workspace write under a symlinked dir is wrongly denied.
     let real = runDir; try { real = realpathSync(runDir); } catch { /* keep runDir */ }
-    const env = { ...process.env, ...options.env, HOME: real };
+    const env = { ...process.env, ...options.env, HOME: real, BLITZ_REAL_HOME: REAL_HOME };
     const args = ["-p", this.profile(real, options.grants ?? []), "/bin/bash", "-c", command];
     const child = spawn("/usr/bin/sandbox-exec", args, { cwd: real, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
     return pump(child, options, true);

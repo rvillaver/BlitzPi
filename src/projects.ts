@@ -4,8 +4,8 @@
  * has a canonical list instead of scraping the audit trail. Global, per user; nothing project-side.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { realHome } from "./real-home";
 
 export interface ProjectRecord {
   first_seen: string;
@@ -23,7 +23,7 @@ export interface ProjectStatus extends ProjectRecord {
   goodbehavior: boolean; // has .blitz/goodbehavior/
 }
 
-export const registryPath = (home = process.env.HOME || os.homedir()) => path.join(home, ".blitz", "projects.json");
+export const registryPath = (home = realHome()) => path.join(home, ".blitz", "projects.json");
 
 export function loadRegistry(file = registryPath()): ProjectRegistry {
   try {

@@ -5,10 +5,10 @@
  * Nothing is collected specially for this; the report is a fold over what BlitzPi and Pi already write.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { queryAudit, type AuditEntry } from "./audit";
 import { bashFacts } from "./bash-facts";
+import { realHome } from "./real-home";
 
 export interface ProjectReport {
   project: string;
@@ -28,7 +28,7 @@ export interface ProjectReport {
 }
 
 /** Pi's session directory for a cwd (mirrors getDefaultSessionDirPath in @earendil-works/pi-coding-agent). */
-export function piSessionDir(cwd: string, agentDir = path.join(process.env.HOME || os.homedir(), ".pi", "agent")): string {
+export function piSessionDir(cwd: string, agentDir = path.join(realHome(), ".pi", "agent")): string {
   const safe = `--${path.resolve(cwd).replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
   return path.join(agentDir, "sessions", safe);
 }
@@ -78,7 +78,7 @@ export function sessionStats(cwd: string, since?: string, agentDir?: string): Pr
 
 export function buildReport(project: string, opts: { since?: string; auditPath?: string; agentDir?: string } = {}): ProjectReport {
   const proj = path.resolve(project);
-  const auditPath = opts.auditPath ?? path.join(process.env.HOME || os.homedir(), ".blitz", "audit");
+  const auditPath = opts.auditPath ?? path.join(realHome(), ".blitz", "audit");
   const entries = queryAudit(auditPath, opts.since ? { start_time: opts.since } : undefined).filter((e) => e.caller?.project_path && path.resolve(e.caller.project_path) === proj);
   const r: ProjectReport = {
     project: proj, since: opts.since,

@@ -13,6 +13,7 @@ import { scanUrls } from "./feeds/urls";
 import { setupAudit } from "./audit";
 import { initializeCaller } from "./caller";
 import { loadConfig } from "./config";
+import { realHome } from "./real-home";
 
 /**
  * R3.2: CLI command for querying audit trail
@@ -24,7 +25,7 @@ export async function handleAuditCommand(args: string[]): Promise<void> {
   // Determine audit path
   const auditPath =
     options.audit_path ||
-    path.join(process.env.HOME || process.cwd(), ".blitz", "audit");
+    path.join(realHome(), ".blitz", "audit");
 
   if (!fs.existsSync(auditPath)) {
     console.log("[Blitz] No audit trail found at", auditPath);

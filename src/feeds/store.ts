@@ -15,8 +15,8 @@
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { realHome } from "../real-home";
 import { compileGitleaks } from "./adapters/gitleaks";
 import { compileSigma, type SigmaRule } from "./adapters/sigma";
 import { compileUrlhaus } from "./adapters/urlhaus";
@@ -80,7 +80,7 @@ export const FEEDS: FeedDef[] = [
 ];
 export const feedDef = (name: string): FeedDef | undefined => FEEDS.find((f) => f.name === name);
 
-export const feedsDir = (home = process.env.HOME || os.homedir()) => process.env.BLITZ_FEEDS_DIR || path.join(home, ".blitz", "feeds");
+export const feedsDir = (home = realHome()) => process.env.BLITZ_FEEDS_DIR || path.join(home, ".blitz", "feeds");
 
 export class FeedStore {
   constructor(private dir: string = feedsDir(), private fetchImpl: typeof fetch = fetch) {}

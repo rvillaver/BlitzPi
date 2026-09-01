@@ -21,6 +21,19 @@ test("toolTimeoutMs converts Pi's seconds to backend ms (the 'exceeded 0 s' regr
   expect(toolTimeoutMs(undefined)).toBeUndefined();
   expect(toolTimeoutMs(0)).toBeUndefined();
 });
+test("every backend exports BLITZ_REAL_HOME alongside the pinned HOME (bridge/feeds/audit paths must survive confinement)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-realhome-"));
+  const realHome = os.homedir();
+  for (const pref of ["pinned", "bwrap", "sandbox-exec"] as const) {
+    const b = selectBackend(pref);
+    if (!b) continue; // not available on this host
+    let out = "";
+    const r = await b.exec("echo \"HOME=$HOME BLITZ_REAL_HOME=$BLITZ_REAL_HOME\"", dir, { onData: (d) => { out += d.toString(); } });
+    expect(r.exitCode).toBe(0);
+    expect(out).toContain(`HOME=${b.name === "sandbox-exec" ? fs.realpathSync(dir) : dir}`); // HOME stays pinned to the workspace
+    expect(out).toContain(`BLITZ_REAL_HOME=${realHome}`); // the real home escapes the pin for BlitzPi's own global state
+  }
+});
 test("bwrap: ssh parses its config inside the sandbox (no 'Bad owner' on /etc/ssh/ssh_config.d)", async () => {
   const b = selectBackend("bwrap");
   if (!b || !fs.existsSync("/etc/ssh/ssh_config.d") || !fs.existsSync("/usr/bin/ssh")) return; // nothing to check on this host
