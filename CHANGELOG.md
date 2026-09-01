@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.117 — 2026-09-02
 
 - **Correction: the six GoodBehavior skills are agent-invocable, not "manual."** 1.2.116 (below) and the SKILL.md files themselves shipped a "Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke" restriction. That was wrong and defeated the point of shipping GoodBehavior as skills at all — the agent is meant to invoke them on its own, as doctrine, whenever a request matches (exactly like `bridge` already did). Removed the restriction from all six `SKILL.md` files, and corrected every place that repeated the wrong claim (the startup banner/header, the fresh-project setup message, the README).
 
