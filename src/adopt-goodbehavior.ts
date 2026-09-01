@@ -1,7 +1,7 @@
 /**
  * GoodBehavior adoption — copies the shipped skills + profile(s) into the user's project, and removes them again.
  *
- *   <project>/.pi/skills/<skill>/SKILL.md            the 6 skills (Pi loads project skills from here)
+ *   <project>/.pi/skills/<skill>/SKILL.md            the 7 skills (Pi loads project skills from here)
  *   <project>/.blitz/goodbehavior/profiles/<name>.md  the doctrine (injected into the system prompt)
  *   <project>/.blitz/goodbehavior/memory/MEMORY.md    project learnings (never overwritten, kept on unadopt)
  *   <project>/.blitz/goodbehavior/manifest.json       sha256 of every file as shipped — how re-adopt tells
@@ -18,6 +18,7 @@ export const GB_SKILLS = [
   "verify-goodbehavior",
   "learn-goodbehavior",
   "uatplan-goodbehavior",
+  "draft-profile-goodbehavior",
 ];
 /** Skills shipped by older versions; removed on unadopt/re-adopt if still untouched. */
 const RETIRED_SKILLS = ["update-goodbehavior"];

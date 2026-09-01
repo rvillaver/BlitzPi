@@ -103,10 +103,10 @@ rules for who can invoke it:
 `/blitz-bridge setup discord` is the one command that must be typed by a human directly — it asks for the bot token
 privately, and that prompt only exists in an interactive session; the agent has no way to run it on your behalf.
 
-BlitzPi ships **six GoodBehavior skills** (`audit-`, `roadmap-`, `gate-build-`, `verify-`, `learn-`, `uatplan-goodbehavior`)
-plus **`bridge`** — the agent invokes any of them on its own when a request matches; that's the intended, normal path,
-doctrine the agent is meant to follow autonomously. Anything else your session lists under `[Skills]` that isn't one
-of these seven is a bundled third-party extension's skill, not BlitzPi's own.
+BlitzPi ships **seven GoodBehavior skills** (`audit-`, `roadmap-`, `gate-build-`, `verify-`, `learn-`, `uatplan-`,
+`draft-profile-goodbehavior`) plus **`bridge`** — the agent invokes any of them on its own when a request matches;
+that's the intended, normal path, doctrine the agent is meant to follow autonomously. Anything else your session
+lists under `[Skills]` that isn't one of these eight is a bundled third-party extension's skill, not BlitzPi's own.
 
 **Security feeds are opt-in and separate from the platform.** BlitzPi asks once at start (in the TUI) while you have not
 decided — *Yes* installs them on the spot, *Not now* asks again after the next update, *No* records an opt-out; the installer
@@ -123,10 +123,12 @@ session, every security decision, tagged with the project), `~/.blitz/projects.j
 
 On first run in a new folder, BlitzPi asks to **set it up as a project** (trust + `.blitz/` marker); the
 current directory is then your workspace (the security anchor). BlitzPi's own install directory is
-off-limits infrastructure. Saying yes also **adopts GoodBehavior** into the project: six skills in `.pi/skills/`
-and the doctrine — the active *profile* (`.blitz/goodbehavior/profiles/development.md`: the loop, what "done" means,
+off-limits infrastructure. Saying yes also **adopts GoodBehavior** into the project: seven skills in `.pi/skills/`
+and the doctrine — the active *profile* (`.blitz/goodbehavior/profiles/<name>.md`: the loop, what "done" means,
 verify level, audit lenses, where files live) — which BlitzPi injects into the agent's instructions on every turn.
-Edit the profile to change how the agent works in that project. `/adopt-goodbehavior` again = update from the
+The shipped profile is a generic starting point (`development.md`); the agent tailors a project-specific one right
+after adopting (`draft-profile-goodbehavior`) instead of leaving the generic default in place. Edit the profile
+directly any time to change how the agent works in that project. `/adopt-goodbehavior` again = update from the
 installed version (files you edited are kept and listed); `/unadopt-goodbehavior` removes it (memory kept unless
 you choose otherwise).
 

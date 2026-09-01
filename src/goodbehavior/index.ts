@@ -34,6 +34,19 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   const adopted = isAdopted(cwd);
   info(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"` : "not adopted in this project (/adopt-goodbehavior)"}`);
 
+  // The generic shipped profile isn't written for this project. Nudge every interactive session until someone
+  // (the agent, via draft-profile-goodbehavior, or a human by hand) points goodbehavior.profile somewhere else —
+  // self-terminating: the condition itself is the state, no separate "asked" marker needed.
+  pi.on("session_start", async (_event: any, ctx: ExtensionContext) => {
+    if (ctx.mode !== "tui" || !ctx.hasUI) return;
+    if (!adopted || profileName !== "development") return;
+    pi.sendMessage({
+      customType: "blitz-goodbehavior",
+      content: "This project's GoodBehavior profile is still the generic shipped default — draft a project-specific GoodBehavior profile for it.",
+      display: true,
+    });
+  });
+
   pi.on("before_agent_start", async (event: any) => {
     const base = stripInstallDocs(event.systemPrompt ?? "");
     const extra = profilePrompt(cwd, profileName) ?? "";
@@ -69,6 +82,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
         ...r.updated.map((f) => `  updated: ${f}`),
         `- doctrine: .blitz/goodbehavior/profiles/${profileName}.md (injected into every turn); memory: .blitz/goodbehavior/memory/`,
       ];
+      if (profileName === "development") lines.push("This project doesn't have a tailored profile yet — it's still the generic shipped default. Draft a project-specific GoodBehavior profile for it.");
       if (first || r.installed.length) lines.push("ACTION NEEDED: skills load at startup — restart BlitzPi here to activate them.");
       const content = lines.join("\n");
       if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else info(content);

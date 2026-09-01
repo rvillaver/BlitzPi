@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **A new `draft-profile-goodbehavior` skill tailors the GoodBehavior profile to the actual project.** The shipped `development.md` profile is a generic template — it never described what "done" means for a slide deck, a dataset, or a research track any better than for a CLI. `/adopt-goodbehavior` (first adopt or re-run/update) now flags when a project is still on the generic default, and every interactive session start does the same until someone points `goodbehavior.profile` at a tailored one — self-terminating, no separate "already asked" state to track. Seven GoodBehavior skills now ship instead of six.
+
 ## 1.2.117 — 2026-09-02
 
 - **Correction: the six GoodBehavior skills are agent-invocable, not "manual."** 1.2.116 (below) and the SKILL.md files themselves shipped a "Manual skill — run ONLY when the user explicitly asks for it by name; do NOT auto-invoke" restriction. That was wrong and defeated the point of shipping GoodBehavior as skills at all — the agent is meant to invoke them on its own, as doctrine, whenever a request matches (exactly like `bridge` already did). Removed the restriction from all six `SKILL.md` files, and corrected every place that repeated the wrong claim (the startup banner/header, the fresh-project setup message, the README).
