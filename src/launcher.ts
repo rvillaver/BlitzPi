@@ -113,7 +113,15 @@ export function launchBlitzPi(args: string[]): Promise<number> {
   const extArgs = ["-e", REPO_ROOT, ...bundledPackageArgs()];
   const piArgs = PI_SUBCOMMANDS.has(args[0]) ? [...args, ...extArgs] : [...extArgs, ...args];
   // BlitzPi owns updates (`blitzpi update`); Pi's own "new version, npm install -g …" check would mislead users.
-  const env = { ...process.env, PI_SKIP_VERSION_CHECK: process.env.PI_SKIP_VERSION_CHECK ?? "1" };
+  // Long cache retention (1h vs the provider default, e.g. Anthropic's 5 min): a session whose turns are more
+  // than a few minutes apart — the chat bridge above all — would otherwise pay full price to re-cache the
+  // ENTIRE accumulated history on every turn once the short window lapses, and that cost grows with every
+  // lapse since the history is longer each time. Covers the bridge too: its RPC child runs this same launcher.
+  const env = {
+    ...process.env,
+    PI_SKIP_VERSION_CHECK: process.env.PI_SKIP_VERSION_CHECK ?? "1",
+    PI_CACHE_RETENTION: process.env.PI_CACHE_RETENTION ?? "long",
+  };
   const child = spawn(process.execPath, [cli, ...piArgs], { stdio: "inherit", env });
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => child.kill(sig));
