@@ -188,7 +188,7 @@ export function setupGovernance(
     const payload = event.payload as Record<string, unknown>;
     const model = (payload.model as string) || "unknown";
     const status = (text: string | undefined) => {
-      if (ctx.hasUI) ctx.ui.setStatus("blitz-governance", text);
+      if (ctx.hasUI) ctx.ui.setStatus("blitz-governance", text ? `blitzpi - ${text}` : text);
     };
 
     // (Prompt-injection is enforced on the user's prompt by the input gate; we do NOT re-scan the
