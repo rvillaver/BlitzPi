@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## 1.2.119 — 2026-09-02
+
+- **The footer status line now carries BlitzPi's own branding.** The header banner can get reset after startup by a bundled extension's own `session_start` handler running after ours — the footer's governance status line has no such conflict, so it's the one place branding reliably survives. It now reads `blitzpi - 🛡 local · enforce` instead of just `🛡 local · enforce`.
+- **Dim grey text got more contrast in both themes.** `colors.dim` sat too close to its own background for comfortable reading — `#666666` on a `#18181e` dark background, `#767676` on an `#f8f8f8` light one. Moved to `#868686` (dark) and `#5a5a5a` (light).
+
 ## 1.2.118 — 2026-09-02
 
 - **A new `draft-profile-goodbehavior` skill tailors the GoodBehavior profile to the actual project.** The shipped `development.md` profile is a generic template — it never described what "done" means for a slide deck, a dataset, or a research track any better than for a CLI. `/adopt-goodbehavior` (first adopt or re-run/update) now flags when a project is still on the generic default, and every interactive session start does the same until someone points `goodbehavior.profile` at a tailored one — self-terminating, no separate "already asked" state to track. Seven GoodBehavior skills now ship instead of six.
