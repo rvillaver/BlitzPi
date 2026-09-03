@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.120 — 2026-09-03
 
 - **GoodBehavior now ships four core profiles, not one, and drafts by asking first.** The doctrine (the loop, done-means, standing-proceed, honesty, reuse, gate rules) moved into a new invariant `.pi/goodbehavior/doctrine.md`, injected alongside whichever profile is active — a doctrine fix now touches one file instead of every project's own drafted copy. `.pi/goodbehavior/profiles/` gained `analysis`/`research`/`creative` alongside `development`, plus an `INDEX.md` describing when each fits. `draft-profile-goodbehavior` now asks what the project actually is before reading any file, matches (or composes, or falls back to a custom profile) against the four cores, and records why in a `project-profile` memory. Fixing `adoptGoodBehavior()` to copy only the selected profile (not every shipped one) was part of the same change.
 - **GoodBehavior's 7 skills now sync into `.pi/skills/` automatically, every session — no `/adopt-goodbehavior`, no restart.** They used to require running `/adopt-goodbehavior` and restarting BlitzPi before they'd load. Now `syncSkills()` keeps them current in every project on its own, before Pi's own skill scan for that session. Only the *profile* (what "done" means for this specific project) stays a deliberate, per-project choice; `/adopt-goodbehavior`/`/unadopt-goodbehavior` now manage the profile only, skills are unaffected either way.
