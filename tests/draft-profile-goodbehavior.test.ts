@@ -6,7 +6,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { GB_SKILLS, adoptGoodBehavior } from "../src/adopt-goodbehavior";
+import { GB_SKILLS, adoptGoodBehavior, syncSkills } from "../src/adopt-goodbehavior";
 import { setupGoodBehavior } from "../src/goodbehavior";
 
 function harness(cwd: string, profileName: string) {
@@ -34,11 +34,43 @@ describe("GB_SKILLS ships draft-profile-goodbehavior", () => {
     expect(fs.existsSync(shipped)).toBe(true);
   });
 
-  test("adopting into a fresh project installs all 7 skills, including draft-profile", () => {
+  test("adopting into a fresh project installs only the profile — skills sync separately, automatically", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-draftprofile-"));
     const r = adoptGoodBehavior(cwd);
+    expect(r.installed.some((f) => f.endsWith("SKILL.md"))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, ".pi", "skills"))).toBe(false);
+    expect(fs.existsSync(path.join(cwd, ".blitz", "goodbehavior", "profiles", "development.md"))).toBe(true);
+  });
+});
+
+describe("syncSkills installs all 7 skills into THIS project, no adoption command needed", () => {
+  test("installs all 7, including draft-profile", () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-syncskills-"));
+    const r = syncSkills(cwd);
     expect(r.installed.filter((f) => f.endsWith("SKILL.md"))).toHaveLength(7);
     expect(fs.existsSync(path.join(cwd, ".pi", "skills", "draft-profile-goodbehavior", "SKILL.md"))).toBe(true);
+  });
+
+  test("re-running when untouched reports no changes; an edited copy is kept, not overwritten", () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-syncskills-"));
+    syncSkills(cwd);
+    const again = syncSkills(cwd);
+    expect(again.installed).toHaveLength(0);
+    expect(again.updated).toHaveLength(0);
+
+    const editedFile = path.join(cwd, ".pi", "skills", "audit-goodbehavior", "SKILL.md");
+    fs.writeFileSync(editedFile, "hand-edited content");
+    const afterEdit = syncSkills(cwd);
+    expect(afterEdit.kept).toContain(path.join(".pi", "skills", "audit-goodbehavior", "SKILL.md"));
+    expect(fs.readFileSync(editedFile, "utf-8")).toBe("hand-edited content");
+  });
+
+  test("no-op against BlitzPi's own source checkout — never deletes/overwrites the shipped templates", () => {
+    const repoRoot = path.join(__dirname, "..");
+    const before = fs.readdirSync(path.join(repoRoot, ".pi", "skills")).sort();
+    const r = syncSkills(repoRoot);
+    expect(r).toEqual({ installed: [], updated: [], kept: [], removed: [] });
+    expect(fs.readdirSync(path.join(repoRoot, ".pi", "skills")).sort()).toEqual(before);
   });
 });
 

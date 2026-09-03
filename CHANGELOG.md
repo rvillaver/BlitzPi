@@ -2,6 +2,12 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **GoodBehavior now ships four core profiles, not one, and drafts by asking first.** The doctrine (the loop, done-means, standing-proceed, honesty, reuse, gate rules) moved into a new invariant `.pi/goodbehavior/doctrine.md`, injected alongside whichever profile is active — a doctrine fix now touches one file instead of every project's own drafted copy. `.pi/goodbehavior/profiles/` gained `analysis`/`research`/`creative` alongside `development`, plus an `INDEX.md` describing when each fits. `draft-profile-goodbehavior` now asks what the project actually is before reading any file, matches (or composes, or falls back to a custom profile) against the four cores, and records why in a `project-profile` memory. Fixing `adoptGoodBehavior()` to copy only the selected profile (not every shipped one) was part of the same change.
+- **GoodBehavior's 7 skills now sync into `.pi/skills/` automatically, every session — no `/adopt-goodbehavior`, no restart.** They used to require running `/adopt-goodbehavior` and restarting BlitzPi before they'd load. Now `syncSkills()` keeps them current in every project on its own, before Pi's own skill scan for that session. Only the *profile* (what "done" means for this specific project) stays a deliberate, per-project choice; `/adopt-goodbehavior`/`/unadopt-goodbehavior` now manage the profile only, skills are unaffected either way.
+- **Security-level descriptions rewritten to stand alone.** `strict`/`guarded`/`monitored` used to describe each tier relative to the others ("asks more", "asks less"), which didn't explain what any one of them actually does on its own. Each now says plainly what happens at that tier, plus one shared line — shown once, not repeated per tier — for what never changes: writing outside the project, and any genuinely dangerous command, always asks, in every tier.
+
 ## 1.2.119 — 2026-09-02
 
 - **The footer status line now carries BlitzPi's own branding.** The header banner can get reset after startup by a bundled extension's own `session_start` handler running after ours — the footer's governance status line has no such conflict, so it's the one place branding reliably survives. It now reads `blitzpi - 🛡 local · enforce` instead of just `🛡 local · enforce`.

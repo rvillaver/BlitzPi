@@ -87,14 +87,15 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
   pi.registerCommand("blitz-level", {
     description: "How much BlitzPi stops to ask. No arg: show it. /blitz-level strict|guarded|monitored [--global] to change it (this project by default, --global for every project on this machine)",
     handler: async (args: string, ctx) => {
-      const { LEVELS, LEVEL_BLURB, describeSecurityLevel, setSecurityLevel } = await import("../security-level");
+      const { LEVELS, LEVEL_BLURB, LEVEL_CONSTANT_NOTE, describeSecurityLevel, setSecurityLevel } = await import("../security-level");
       const words = (args ?? "").trim().split(/\s+/).filter(Boolean);
       const global = words.includes("--global");
       const value = words.find((w) => !w.startsWith("-"));
       if (!value) {
         const { level, source } = describeSecurityLevel();
         const lines = [`security level: ${level} (${source === "default" ? "built-in default — no config sets it" : `set in ${source} config`})`,
-          ...LEVELS.map((l) => `  ${l === level ? "*" : " "} ${l.padEnd(10)} ${LEVEL_BLURB[l]}`)];
+          ...LEVELS.map((l) => `  ${l === level ? "*" : " "} ${l.padEnd(10)} ${LEVEL_BLURB[l]}`),
+          `  ${LEVEL_CONSTANT_NOTE}`];
         return show(pi, ctx, lines.join("\n"));
       }
       if (!(LEVELS as string[]).includes(value)) return show(pi, ctx, `unknown level "${value}" — one of: ${LEVELS.join(", ")}`);

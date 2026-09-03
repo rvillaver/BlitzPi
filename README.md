@@ -121,16 +121,21 @@ working with nothing downloaded.
 session, every security decision, tagged with the project), `~/.blitz/projects.json` (the projects BlitzPi has set up),
 `~/.pi/agent/sessions/` (Pi's own session logs, with token usage). `blitzpi report` folds the three together.
 
-On first run in a new folder, BlitzPi asks to **set it up as a project** (trust + `.blitz/` marker); the
-current directory is then your workspace (the security anchor). BlitzPi's own install directory is
-off-limits infrastructure. Saying yes also **adopts GoodBehavior** into the project: seven skills in `.pi/skills/`
-and the doctrine — the active *profile* (`.blitz/goodbehavior/profiles/<name>.md`: the loop, what "done" means,
-verify level, audit lenses, where files live) — which BlitzPi injects into the agent's instructions on every turn.
-The shipped profile is a generic starting point (`development.md`); the agent tailors a project-specific one right
-after adopting (`draft-profile-goodbehavior`) instead of leaving the generic default in place. Edit the profile
-directly any time to change how the agent works in that project. `/adopt-goodbehavior` again = update from the
-installed version (files you edited are kept and listed); `/unadopt-goodbehavior` removes it (memory kept unless
-you choose otherwise).
+The seven GoodBehavior skills sync into `.pi/skills/` **automatically, every session** — active from the first
+`blitzpi` invocation in any project, no `/adopt-goodbehavior` command and no restart. On first run in a new folder,
+BlitzPi asks to **set it up as a project** (trust + `.blitz/` marker); the current directory is then your workspace
+(the security anchor). BlitzPi's own install directory is off-limits infrastructure. Saying yes also seeds the
+project's own *profile* (`.blitz/goodbehavior/profiles/<name>.md`: verify level, audit lenses, where files live) —
+the only part of GoodBehavior that's a deliberate, per-project choice, injected into the agent's instructions on
+every turn alongside the invariant doctrine (`.pi/goodbehavior/doctrine.md`: the loop, what "done" means, honesty,
+reuse — the same for every project regardless of profile). The shipped default is `development`; four core profiles
+ship (`development`/`analysis`/`research`/`creative`, `.pi/goodbehavior/profiles/INDEX.md`), and the agent asks what
+this project actually is and matches, composes, or drafts a custom one right after adopting
+(`draft-profile-goodbehavior`) instead of leaving the generic default in place. Edit the profile directly any time
+to change how the agent works in that project.
+`/adopt-goodbehavior` again = update the profile from the installed version (files you edited are kept and listed);
+`/unadopt-goodbehavior` removes it, reverting to the generic default (memory kept unless you choose otherwise) —
+skills are unaffected either way, they keep syncing regardless.
 
 ## Security layers
 

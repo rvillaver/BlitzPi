@@ -7,8 +7,9 @@
 import fs from "fs";
 import path from "path";
 
-/** How many GoodBehavior doctrine skills are actually active in this project (`.pi/skills/*-goodbehavior`) —
- *  read live, not hard-coded, so this line can't drift the moment a skill is added or removed. */
+/** How many GoodBehavior doctrine skills are actually active in this project (`.pi/skills/*-goodbehavior`,
+ *  synced automatically every session since audit 09 — no adoption command needed) — read live, not
+ *  hard-coded, so this line can't drift the moment a skill is added or removed. */
 export function goodBehaviorSkillCount(): number {
   try {
     return fs.readdirSync(path.join(process.cwd(), ".pi", "skills")).filter((d) => d.endsWith("-goodbehavior")).length;

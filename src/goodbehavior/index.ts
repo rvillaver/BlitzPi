@@ -10,7 +10,7 @@
  */
 import type { ExtensionAPI, ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import type { BlitzConfig } from "../config";
-import { adoptGoodBehavior, isAdopted, loadProfile, unadoptGoodBehavior } from "../adopt-goodbehavior";
+import { adoptGoodBehavior, isAdopted, loadDoctrine, loadProfile, syncSkills, unadoptGoodBehavior } from "../adopt-goodbehavior";
 import { createDoneGate, DoneGate } from "./done-gate";
 import { stripInstallDocs } from "../prompt-hygiene";
 import { info } from "../log";
@@ -22,11 +22,17 @@ export function profilePrompt(cwd: string, profileName: string): string | null {
   if (!isAdopted(cwd)) return null;
   const profile = loadProfile(cwd, profileName);
   if (!profile) return null;
-  return `\n\n<goodbehavior profile="${profile.name}">\n${profile.body}\n</goodbehavior>`;
+  const doctrine = loadDoctrine();
+  const doctrineBlock = doctrine ? `\n\n<goodbehavior-doctrine>\n${doctrine}\n</goodbehavior-doctrine>` : "";
+  return `${doctrineBlock}\n\n<goodbehavior profile="${profile.name}">\n${profile.body}\n</goodbehavior>`;
 }
 
 export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   const cwd = process.cwd();
+  // Self-healing, every extension setup: skills need no adoption command or restart (audit 09) — this keeps
+  // <project>/.pi/skills/ current before Pi's own skill scan for whatever session starts next. Best-effort: a
+  // sync failure (e.g. no write access) must never block the extension from loading.
+  try { syncSkills(cwd); } catch { /* best effort */ }
   const profileName = config.goodbehavior?.profile ?? "development";
   const profile = loadProfile(cwd, profileName);
   const gateCfg = (profile?.frontmatter?.done_gate ?? {}) as { build_tools?: string[]; observe_tools?: string[] };
@@ -71,26 +77,25 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   });
 
   pi.registerCommand("adopt-goodbehavior", {
-    description: "Adopt GoodBehavior into this project (or update it): skills + profile; files you edited are kept",
+    description: "Adopt GoodBehavior's profile into this project (or update it): files you edited are kept. Skills need no adoption — synced into .pi/skills automatically every session already.",
     handler: async (_args: string, ctx: ExtensionContext) => {
       const first = !isAdopted(cwd);
-      const r = adoptGoodBehavior(cwd);
+      const r = adoptGoodBehavior(cwd, profileName);
       const lines = [
-        `GoodBehavior ${first ? "adopted into" : "updated in"} ${cwd}`,
-        `- installed: ${r.installed.length}  updated: ${r.updated.length}  kept (edited by you): ${r.kept.length}  removed (retired): ${r.removed.length}`,
+        `GoodBehavior profile ${first ? "adopted into" : "updated in"} ${cwd}`,
+        `- installed: ${r.installed.length}  updated: ${r.updated.length}  kept (edited by you): ${r.kept.length}`,
         ...r.kept.map((f) => `  kept: ${f}`),
         ...r.updated.map((f) => `  updated: ${f}`),
         `- doctrine: .blitz/goodbehavior/profiles/${profileName}.md (injected into every turn); memory: .blitz/goodbehavior/memory/`,
       ];
       if (profileName === "development") lines.push("This project doesn't have a tailored profile yet — it's still the generic shipped default. Draft a project-specific GoodBehavior profile for it.");
-      if (first || r.installed.length) lines.push("ACTION NEEDED: skills load at startup — restart BlitzPi here to activate them.");
       const content = lines.join("\n");
       if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else info(content);
     },
   });
 
   pi.registerCommand("unadopt-goodbehavior", {
-    description: "Remove GoodBehavior from this project (skills + profile; project memory kept unless you say so)",
+    description: "Remove GoodBehavior's profile from this project (project memory kept unless you say so). Skills stay — they sync automatically every session regardless.",
     handler: async (args: string, ctx: ExtensionContext) => {
       if (!isAdopted(cwd)) { ctx.ui.notify("GoodBehavior is not adopted in this project.", "info"); return; }
       let purge = /--purge|--memory/.test(args ?? "");
@@ -100,7 +105,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
         purge = c.includes("delete");
       }
       const removed = unadoptGoodBehavior(cwd, purge);
-      const content = `GoodBehavior removed from ${cwd}\n${removed.map((f) => `- ${f}`).join("\n")}\n${purge ? "" : "- project memory kept: .blitz/goodbehavior/memory/\n"}Restart BlitzPi here to unload the skills.`;
+      const content = `GoodBehavior profile removed from ${cwd}\n${removed.map((f) => `- ${f}`).join("\n")}\n${purge ? "" : "- project memory kept: .blitz/goodbehavior/memory/\n"}This project now runs on the generic default profile again. Skills are unaffected — they sync automatically every session.`;
       if (ctx.hasUI) pi.sendMessage({ customType: "blitz-goodbehavior", content, display: true }); else info(content);
     },
   });

@@ -1,9 +1,11 @@
 # Architecture
 
 On first run in an un-initialized folder BlitzPi asks to set it up as a project (`.blitz/` marker + trust). `blitzpi` is the single command: the agent, plus `blitzpi audit` / `blitzpi demo` utilities. Everything
-else passes through to Pi. Skills follow Pi convention: the bootstrap `adopt-goodbehavior` ships from
-`skills/`; adopting a project copies the GoodBehavior definitions from the install's `.pi/skills` into
-`<project>/.pi/skills`.
+else passes through to Pi. The 7 GoodBehavior skills follow Pi convention (`<project>/.pi/skills/`), but
+`syncSkills()` keeps them synced there automatically on every extension setup — no `/adopt-goodbehavior` command,
+no restart, self-healing before Pi's own skill scan for that session. Only the GoodBehavior *profile*
+(`<project>/.blitz/goodbehavior/profiles/<name>.md`, what "done" means for this project) is a deliberate, per-project
+choice; `/adopt-goodbehavior` manages that alone.
 
 BlitzPi = the real Pi agent + the Blitz extension, loaded from source. No build.
 

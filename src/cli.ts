@@ -267,7 +267,7 @@ function cliAudit() { // the CLI's own audit session: feed updates/rollbacks are
 const shortSha = (s?: string) => (s ? s.slice(0, 12) : "—");
 
 export async function handleLevelCommand(args: string[]): Promise<void> {
-  const { LEVELS, LEVEL_BLURB, describeSecurityLevel, setSecurityLevel } = await import("./security-level");
+  const { LEVELS, LEVEL_BLURB, LEVEL_CONSTANT_NOTE, describeSecurityLevel, setSecurityLevel } = await import("./security-level");
   const global = args.includes("--global");
   const value = args.find((a) => !a.startsWith("-"));
   if (args.includes("--help") || args.includes("-h")) {
@@ -278,6 +278,7 @@ export async function handleLevelCommand(args: string[]): Promise<void> {
     const { level, source } = describeSecurityLevel();
     console.log(`[Blitz] security level: ${level} (${source === "default" ? "built-in default — no config sets it" : `set in ${source} config`})`);
     for (const l of LEVELS) console.log(`  ${l === level ? "*" : " "} ${l.padEnd(10)} ${LEVEL_BLURB[l]}`);
+    console.log(`  ${LEVEL_CONSTANT_NOTE}`);
     return;
   }
   if (!(LEVELS as string[]).includes(value)) { console.log(`[Blitz] unknown level "${value}" — one of: ${LEVELS.join(", ")}`); process.exitCode = 2; return; }

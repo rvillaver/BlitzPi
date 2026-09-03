@@ -1,7 +1,8 @@
 /**
  * UX-2: BlitzPi's own header/banner states plainly which skills are its own (GoodBehavior + bridge) vs. the
  * third-party ones the stock [Skills] panel (rendered by pi-cc-extensions, not us) lists alongside them.
- * Count is read live from .pi/skills/*-goodbehavior, never hard-coded, so it can't drift.
+ * Count is read live from .pi/skills/*-goodbehavior (synced into the project automatically every session since
+ * audit 09 — no adoption command needed), never hard-coded, so it can't drift.
  */
 import fs from "fs";
 import os from "os";

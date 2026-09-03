@@ -12,9 +12,9 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import fs from "node:fs";
 import path from "node:path";
 import type { AuditLogger } from "./audit";
-import { LEVELS, LEVEL_BLURB, describeSecurityLevel, setSecurityLevel } from "./security-level";
+import { LEVELS, LEVEL_BLURB, LEVEL_CONSTANT_NOTE, describeSecurityLevel, setSecurityLevel } from "./security-level";
 
-export const LEVEL_QUESTION = "How much should BlitzPi stop to ask you in this project?";
+export const LEVEL_QUESTION = `How much should BlitzPi stop to ask you in this project?\n${LEVEL_CONSTANT_NOTE}`;
 export const NOT_NOW = "Not now — ask me again after the next update";
 export const CHOICES = [...LEVELS.map((l) => `${l} — ${LEVEL_BLURB[l]}`), NOT_NOW];
 

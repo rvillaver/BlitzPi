@@ -81,23 +81,21 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     fs.mkdirSync(path.join(cwd, ".blitz"), { recursive: true });
     const cfg = path.join(cwd, ".blitz", "blitz.config.yaml");
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n  # cache: shared   # package-manager caches: shared = ~/.blitz/cache/<tool> (default) | project | off\nfeeds:\n  # allow: []       # rule ids accepted as false positives (audit feed_* hits[].id)\n  # min_release_age: 3d   # Bun: no versions newer than this (off to disable)\n");
-    const n = adoptGoodBehavior(cwd).installed.filter((f) => f.endsWith("SKILL.md")).length;
+    adoptGoodBehavior(cwd); // seeds this project's own profile; the 7 GoodBehavior skills already synced in at extension setup, no restart needed
     pinPackageManager(cwd);
     seedThinkingDisplay(cwd);
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt
     try { touchProject(cwd, { version: require("../package.json").version }); } catch { /* registry is best-effort */ }
-    // A persistent chat message (not a toast) so the restart step can't be missed.
     pi.sendMessage({
       customType: "blitz-setup",
       content:
         `BlitzPi project set up in ${cwd}\n` +
-        `- ${n} GoodBehavior skills installed in .pi/skills; doctrine in .blitz/goodbehavior/profiles/\n` +
+        `- GoodBehavior's 7 skills are already active in .pi/skills — synced automatically every session, no restart needed\n` +
+        `- profile in .blitz/goodbehavior/profiles/ (generic default for now — the agent will offer to tailor it)\n` +
         `- security config in .blitz/\n` +
-        `- thinking folds by default here — press ctrl+t any time to expand/collapse it\n\n` +
-        `ACTION NEEDED: the skills load at startup, so RESTART BlitzPi in this folder to activate them ` +
-        `(press ctrl+d to quit, then run 'blitzpi' again). After that, the agent invokes them on its own whenever a request matches.`,
+        `- thinking folds by default here — press ctrl+t any time to expand/collapse it`,
       display: true,
     });
-    ctx.ui.notify(`Project set up — restart BlitzPi here to activate the ${n} GoodBehavior skills.`, "warning");
+    ctx.ui.notify("Project set up — GoodBehavior is already active, nothing to restart.", "info");
   });
 }

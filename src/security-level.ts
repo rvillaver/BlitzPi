@@ -12,10 +12,12 @@ import { realHome } from "./real-home";
 
 export const LEVELS: SecurityLevel[] = ["strict", "guarded", "monitored"];
 export const LEVEL_BLURB: Record<SecurityLevel, string> = {
-  strict: "asks more — also before a package install, even a clean one",
-  guarded: "today's shipped default — project writes and outside-project reads ask, installs are silent-if-clean",
-  monitored: "asks less — project writes and outside-project reads go silent (still audited)",
+  strict: "asks before every project write, every read outside the project, and every package install — even a clean one",
+  guarded: "the default — asks before a project write or a read outside the project; a clean package install proceeds silently",
+  monitored: "project writes and reads outside the project proceed silently (still fully audited) — once you trust the agent's judgment",
 };
+/** True regardless of level — shown once alongside the choices, not repeated in each blurb above. */
+export const LEVEL_CONSTANT_NOTE = "In every tier: writing outside the project, and any genuinely dangerous command, always asks.";
 
 export function projectConfigPath(cwd: string = process.cwd()): string {
   return path.join(cwd, ".blitz", "blitz.config.yaml");

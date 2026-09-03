@@ -35,3 +35,6 @@ feeds:
   # urls: enforce       # URLhaus (opt-in download); enforce since 1.2.106
   # allow: []           # rule ids accepted as false positives here (from the audit's feed_* hits[].id)
   # min_release_age: 3d # Bun does not select versions published more recently than this (off to disable)
+
+goodbehavior:
+  profile: blitzpi   # tailored doctrine: .blitz/goodbehavior/profiles/blitzpi.md (default shipped one was development)
