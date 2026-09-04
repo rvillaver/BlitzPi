@@ -56,3 +56,7 @@ contradiction between lenses (e.g. "built" on one backend, "unreachable" on anot
   `docs/ARCHITECTURE.md`, `docs/SECURITY-ZONES.md`, the installer, `patches/`). If no such location exists in this
   checkout, ask before inventing a new `docs/audit/`/`docs/plans/` in the tracked tree rather than assuming a
   standard open-source layout applies here.
+- archive (settled plans/audit batches): an `archive/` subdirectory of whichever narrative location is in use, named
+  by completion date plus the shipped version where there is one (`2026-08-30-feeds-1.2.100.md`). BlitzPi's own
+  shipped artifacts (`.pi/goodbehavior/`, `.pi/skills/`) are never archived — they are overwrite-to-latest by design,
+  so "latest is present" already holds there; only the narrative accumulates.

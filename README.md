@@ -42,6 +42,10 @@ It shows you where things go and asks before installing:
 
 (`BLITZPI_HOME=<dir>` picks another app directory. Windows: `%LOCALAPPDATA%\BlitzPi`, command on the user PATH.)
 
+That private Bun is on `PATH` for the agent inside a session, but **not in your own shell** — rather than exporting a
+platform-specific path, reach it through the command: **`blitzpi bun <args>`** runs it (`blitzpi bun install`,
+`blitzpi bun run dev`), and **`blitzpi paths`** prints where it and everything else lives.
+
 Then open a new terminal and run `blitzpi`. First time: `/login` inside the session to sign in to a
 provider (stored in `~/.pi/agent/auth.json`).
 
@@ -53,6 +57,8 @@ blitzpi use 1.2.0   # switch to any installed version; `blitzpi update --version
 blitzpi uninstall   # removes the app directory + command; keeps your logins (~/.pi) and audit (~/.blitz)
 blitzpi uninstall --purge   # …and also removes ~/.blitz (audit trail, global config)
 blitzpi --version   # blitzpi x.y.z (pi 0.84.3, bun 1.4.0)
+blitzpi bun <args>  # run the private Bun this install ships — `blitzpi bun install`, `blitzpi bun run dev`
+blitzpi paths       # where everything lives (app dir, current version, the bundled bun, the command itself)
 ```
 
 ### Developers (from source)

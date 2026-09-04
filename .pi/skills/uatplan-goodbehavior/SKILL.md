@@ -28,8 +28,10 @@ Flag **known/expected gaps** explicitly (blocked-on-X, by-design-absent) so a fa
 
 ## Keep it live
 - It is **ongoing, not one-shot.** When a feature ships, add or adjust its cases in the *same* change; when a behavior is
-  ratified as by-design, record it. Supersede stale cases explicitly (keep the history) rather than silently deleting —
-  so a once-passing case can't quietly mislead.
+  ratified as by-design, record it. Supersede stale cases explicitly rather than silently deleting — so a once-passing
+  case can't quietly mislead. **Keep that history in `docs/qa/archive/`, not in the live plan**: a retired case moves
+  there (dated), leaving one line in the plan saying it retired and why. A plan that is mostly retired cases is no
+  longer a checklist anyone can read. If you can't tell whether a case is retired, leave it live.
 - Mark each case honestly: `Pass` only with firsthand live evidence (`✔`), never a relayed/assumed result (`⚠`). The
   whole value of the plan is that its green is *trustworthy*.
 

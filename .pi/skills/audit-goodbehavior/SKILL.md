@@ -47,7 +47,11 @@ then reconcile. A contradiction between two lenses (one says "done," another "un
 
 Keep an index (`docs/audit/00-index.md`) with batch status and the enumerated real surface — the actual units for the
 profile (screens/endpoints/components; datasets/queries; sources/claims; sections/slides) — so coverage is auditable.
+**Carry a status per batch** (open / closed-by-`<plan>`): an index where a settled batch and a live one look identical
+tells a reader nothing. When every gap in a batch has shipped, move the batch file to `docs/audit/archive/` and leave
+its index line pointing there — the findings stay greppable, they just stop competing for attention with open work.
 
 ## Finish
-Roll the per-batch gaps up into `docs/plans/ROADMAP.md` via `/roadmap-goodbehavior`. The audit *documents* gaps — it does not build
+Roll the per-batch gaps up into a plan (`docs/plans/<INITIATIVE>.md`, indexed from `ROADMAP.md`) via
+`/roadmap-goodbehavior`. The audit *documents* gaps — it does not build
 them; don't start fixing mid-audit.

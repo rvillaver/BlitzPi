@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
-/** BlitzPi — the one command. `audit`, `report`, `projects`, `feeds`, `level`, `bridge`, `demo`, `update`, `versions`, `rollback`, `use`, `uninstall` and `--version` are handled
- *  here; everything else (including Pi's own subcommands) passes through to Pi. */
+/** BlitzPi — the one command. `audit`, `report`, `projects`, `feeds`, `level`, `bridge`, `demo`, `update`, `versions`,
+ *  `rollback`, `use`, `uninstall`, `bun`, `paths` and `--version` are handled here; everything else (including Pi's own
+ *  subcommands) passes through to Pi. */
 import { launchBlitzPi, REPO_ROOT, selfServiceCommand } from "../src/launcher";
 
 const args = process.argv.slice(2);
@@ -30,6 +31,18 @@ if (sub === "demo") {
 if (sub === "update" || sub === "uninstall" || sub === "versions" || sub === "rollback" || sub === "use") {
   if (sub === "use" && !args[1]) { console.error("Usage: blitzpi use <version>   (blitzpi versions lists what is installed)"); process.exit(2); }
   process.exit(await selfServiceCommand(sub, args.slice(1)));
+}
+// `bun` / `paths` — reaching here means either a dev checkout (`bun link`, no shim) or an install whose shim could
+// not find its installer; an installed shim answers both itself, without booting this file.
+if (sub === "bun") {
+  const r = Bun.spawnSync([process.execPath, ...args.slice(1)], { stdio: ["inherit", "inherit", "inherit"] });
+  process.exit(r.exitCode ?? 0);
+}
+if (sub === "paths") {
+  console.log(`bun=${process.execPath}`);
+  console.log(`current=${REPO_ROOT}`);
+  console.log(`shim=${process.argv[1]}`);
+  process.exit(0);
 }
 if (sub === "--version" || sub === "-v") {
   const own = require(`${REPO_ROOT}/package.json`).version;

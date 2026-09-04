@@ -35,8 +35,30 @@ finding (sub-agent, summary, earlier session) drive action without confirming it
 4. **Smallest unit** — the medium's smallest form says/does it (one line, one sentence, one assertion, one beat)?
 5. **Minimum bespoke** — only then: the least new material that closes the gap, nothing decorative.
 
+## Keep the working set current
+**Writing "done" is only half an edit.** The moment you mark anything settled — a phase, an item, a test case, a
+finding — moving it out of the working document is part of *that same change*, never a later chore:
+1. **Settled** (done, verified, confirmed) — append it, whole, to that corpus's `archive/` and leave **one digest
+   line** behind pointing there. A closed phase is one line, not a full table every future reader scrolls past.
+2. **Superseded** (replaced by something specific) — **collapse it into its successor**, which gains one line of
+   provenance. Don't keep both halves; the successor is where a reader will look.
+3. **Unsure whether it's really settled?** — **it stays.** Never evict what you cannot show is finished.
+
+If you catch yourself appending `DONE` to a line and moving on, stop: the document is now longer and less useful
+than before you touched it. Marking done and archiving are one action.
+
+**What "settled" means depends on the corpus, and getting this backwards destroys the thing you're keeping.** A plan
+phase is settled when its work is finished. A **learning is not** — a memory about a bug you already fixed stays
+live, because the trap it describes can recur and the reasoning still holds. A learning becomes history only when it
+is no longer *true*: falsified, or superseded by a better account of the same thing. **Archive a plan on "done";
+archive a learning only on "no longer true."**
+
+Archived material stays readable and greppable — it loses its claim on working context, not its existence. **Never
+delete to tidy up**, and never groom a document you weren't already working in.
+
 ## Gate rules
-No unverified claims · evidence before "done" · learnings recorded per phase · a `⚠` never advances a phase.
+No unverified claims · evidence before "done" · learnings recorded per phase · a `⚠` never advances a phase ·
+a working document that is mostly closed history is a finding, not a filing system.
 
 ## The governed shell (facts, so you don't rediscover them)
 - Bash runs in a sandbox confined to this workspace; `/tmp` is scratch space you may use and read back.

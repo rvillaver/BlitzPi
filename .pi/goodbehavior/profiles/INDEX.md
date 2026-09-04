@@ -18,18 +18,16 @@ closest profile body** on demand — never all four. `INDEX.md` itself is never 
 | [research](research.md) | external sources / prior art | **claims true to their sources** — literature, market/competitive, investigation, compliance |
 | [creative](creative.md) | a human audience | an **artifact that lands** — a deck, long-form writing/docs, a design, marketing |
 
-## Composable slots (not yet wired into the adoption flow)
+## Composable slots
 
 A profile is not meant to be a rigid single pick — a project can take different slots from different profiles. The
 canonical case: a **data pipeline** is *built* like `development` (you write code) but *verified* like `analysis`
-(correct output on real input). Today's `draft-profile-goodbehavior` resolves to exactly one profile per project;
-composing slots across profiles, and eliciting a custom fallback when none of the four fit, is tracked separately
-(`.claude/docs/plans/GOODBEHAVIOR-PROFILES.md`, Phase 3) — not yet built. Don't assume composition works until that
-phase lands.
+(correct output on real input). `draft-profile-goodbehavior` composes slots this way when a project straddles two
+truth-sources, and elicits a custom profile directly when none of the four fit.
 
-## The custom fallback (planned, not built)
+## The custom fallback — never decline
 
-If a project matches none of the four, the intent is for adoption to never decline — it would elicit "what's the
-real thing, how would you check it's right, what would count as proof?" directly and write those as a custom
-profile, the way `.blitz/goodbehavior/profiles/blitzpi.md` was hand-drafted for this repo. Today that only happens
-by an agent doing it manually, not as a built adoption step.
+If a project matches none of the four, drafting does **not** fall back to `development` and does not decline. It
+elicits the slots directly — "what's the real thing here, how would you check it's right, what would count as
+proof?" — and writes those as a custom profile. The four cores are accelerators; this fallback is the guarantee that
+the method fits any project shape.

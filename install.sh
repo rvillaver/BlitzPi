@@ -164,6 +164,11 @@ write_shim() {
 #!/bin/sh
 # BlitzPi — written by install.sh. App directory: $APP
 APP="\${BLITZPI_HOME:-$APP}"
+# The bundled runtime, reachable without knowing where it lives: \`blitzpi bun <args>\` runs the private Bun this
+# install ships, so nothing outside a BlitzPi session needs a platform-specific PATH export to use it.
+case "\${1:-}" in
+  bun) shift; exec "\$APP/bun/bin/bun" "\$@" ;;
+esac
 # Self-service commands go to the newest installer, not to the version that happens to be current.
 if [ -f "\$APP/install.sh" ]; then
   case "\${1:-}" in
@@ -172,6 +177,7 @@ if [ -f "\$APP/install.sh" ]; then
     versions)  shift; exec sh "\$APP/install.sh" --list "\$@" ;;
     rollback)  shift; exec sh "\$APP/install.sh" --rollback "\$@" ;;
     use)       shift; exec sh "\$APP/install.sh" --use "\$@" ;;
+    paths)     shift; exec sh "\$APP/install.sh" --print-paths "\$@" ;;
   esac
 fi
 export BUN_RUNTIME_TRANSPILER_CACHE_PATH="\$APP/cache/transpiler"   # Bun's runtime cache stays inside the app dir, not ~/.bun

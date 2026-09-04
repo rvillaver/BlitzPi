@@ -1,5 +1,5 @@
 /**
- * Which of BlitzPi's skills are actually ours (UX-2, .claude/docs/audit/07-…). Deliberately dependency-light —
+ * Which of BlitzPi's skills are actually ours. Deliberately dependency-light —
  * no `sandbox-bash.ts` import chain, so this stays unit-testable: that file has a real runtime import from an
  * ESM-only package with no CJS `require` condition, which Jest's CJS resolver can never satisfy — nothing has
  * ever unit-tested it directly, and this module must not become the first thing that accidentally does.
@@ -17,8 +17,7 @@ export function goodBehaviorSkillCount(): number {
 }
 
 /** BlitzPi's own skills are one flat, unlabeled line among third-party bundled ones in the stock [Skills] panel
- *  (rendered by pi-cc-extensions, not us — see .claude/docs/audit/07-…) — this line is the one place BlitzPi
- *  states plainly which of them are actually ours. */
+ *  (rendered by pi-cc-extensions, not us) — this line is the one place BlitzPi states plainly which are ours. */
 export function ownSkillsLine(): string {
   const n = goodBehaviorSkillCount();
   return n > 0
