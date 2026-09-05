@@ -7,12 +7,19 @@
 import fs from "fs";
 import path from "path";
 
-/** How many GoodBehavior doctrine skills are actually active in this project (`.pi/skills/*-goodbehavior`,
- *  synced automatically every session since audit 09 — no adoption command needed) — read live, not
- *  hard-coded, so this line can't drift the moment a skill is added or removed. */
+/**
+ * How many GoodBehavior skills Pi actually loads this session.
+ *
+ * Counted from what the INSTALL declares (`package.json` → `pi.skills`), not from `<cwd>/.pi/skills`. Reading the
+ * project directory made this line lie: skills written during `session_start` appear on disk but Pi has already
+ * finished its one-and-only skill scan, so a freshly set-up folder reported "7 GoodBehavior" in a session where
+ * ctrl+o listed none of them (ONBOARDING-SETUP S4a). Package skills are served from the install in every session,
+ * so the declaration is the truth — and still read live, so the line can't drift when a skill is added or removed.
+ */
 export function goodBehaviorSkillCount(): number {
   try {
-    return fs.readdirSync(path.join(process.cwd(), ".pi", "skills")).filter((d) => d.endsWith("-goodbehavior")).length;
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf-8")) as { pi?: { skills?: string[] } };
+    return (pkg.pi?.skills ?? []).filter((s) => s.endsWith("-goodbehavior")).length;
   } catch { return 0; }
 }
 
@@ -20,7 +27,9 @@ export function goodBehaviorSkillCount(): number {
  *  (rendered by pi-cc-extensions, not us) — this line is the one place BlitzPi states plainly which are ours. */
 export function ownSkillsLine(): string {
   const n = goodBehaviorSkillCount();
+  // The old fallback said "GoodBehavior not adopted in this project yet" — the same skills/adoption conflation
+  // audit 09 (H2) called out. Skills ship with BlitzPi and are never adopted; only the *profile* is per-project.
   return n > 0
     ? `BlitzPi's own skills: ${n} GoodBehavior + bridge — the agent invokes these on its own when a request matches; anything else in [Skills] is a bundled extension, not ours`
-    : "GoodBehavior not adopted in this project yet — /adopt-goodbehavior";
+    : "BlitzPi's own skills: bridge — the agent invokes it on its own when a request matches; anything else in [Skills] is a bundled extension, not ours";
 }

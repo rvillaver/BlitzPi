@@ -1,7 +1,7 @@
 {
   "name": "@blitz/pi-coding-agent",
   "version": "1.2.121",
-  "description": "BlitzPi — the Pi coding agent with Blitz security governance (access profiles, sandbox, threat detection, governance gate, audit trail)",
+  "description": "BlitzPi \u2014 the Pi coding agent with Blitz security governance (access profiles, sandbox, threat detection, governance gate, audit trail)",
   "main": "src/index.ts",
   "bin": {
     "blitzpi": "bin/blitzpi.ts"
@@ -64,6 +64,13 @@
       "./src/index.ts"
     ],
     "skills": [
+      "./.pi/skills/audit-goodbehavior",
+      "./.pi/skills/roadmap-goodbehavior",
+      "./.pi/skills/gate-build-goodbehavior",
+      "./.pi/skills/verify-goodbehavior",
+      "./.pi/skills/learn-goodbehavior",
+      "./.pi/skills/uatplan-goodbehavior",
+      "./.pi/skills/draft-profile-goodbehavior",
       "./.pi/skills/bridge"
     ],
     "themes": [

@@ -18,9 +18,15 @@ interface DoneGateResult {
 export class DoneGate {
   private buildTools: Set<string>;
   private observeTools: Set<string>;
-  constructor(buildTools: string[] = ["edit", "write", "bash"], observeTools: string[] = ["bash", "webfetch"]) {
+  private verifyHint?: string;
+  // Defaults must name tools Pi actually registers: bash, edit, find, grep, ls, powershell, read, write (+ BlitzPi's
+  // question, channel_post). A name outside that set never matches a real call, so it silently contributes nothing.
+  // `read` is in the generic default because for non-software work reading the output/source IS the observation;
+  // find/grep/ls are deliberately out — they are navigation and fire almost every turn, which would disarm the gate.
+  constructor(buildTools: string[] = ["edit", "write", "bash"], observeTools: string[] = ["bash", "powershell", "read"], verifyHint?: string) {
     this.buildTools = new Set(buildTools.map((t) => t.toLowerCase()));
     this.observeTools = new Set(observeTools.map((t) => t.toLowerCase()));
+    this.verifyHint = verifyHint?.trim() || undefined;
   }
   private docExtensions = new Set([".md", ".markdown", ".txt", ".rst", ".adoc"]);
 
@@ -48,12 +54,13 @@ export class DoneGate {
     const hadObservation = toolsCalled.some((tool) => this.observeTools.has(tool.toLowerCase()));
 
     if (!hadObservation) {
+      // Profile-aware: name what THIS profile counts as observing, so a research session isn't told to "run the
+      // code". `verify_hint` lets a profile phrase it in its own terms; otherwise fall back to its real tool names.
+      const how = this.verifyHint ?? `use ${[...this.observeTools].join(" or ")} to observe the result`;
       return {
         blocked: true,
         reason: "Completion claimed without verification",
-        feedback:
-          "You claim completion but didn't run the code or test it. " +
-          "Before saying 'done', verify the change works (bash, webfetch, or similar observation).",
+        feedback: `You claim completion but nothing this turn observed the result. Before saying 'done', ${how}.`,
       };
     }
 
@@ -61,6 +68,6 @@ export class DoneGate {
   }
 }
 
-export function createDoneGate(buildTools?: string[], observeTools?: string[]): DoneGate {
-  return new DoneGate(buildTools, observeTools);
+export function createDoneGate(buildTools?: string[], observeTools?: string[], verifyHint?: string): DoneGate {
+  return new DoneGate(buildTools, observeTools, verifyHint);
 }
