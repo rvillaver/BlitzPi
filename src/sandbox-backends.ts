@@ -109,6 +109,26 @@ export function wrapForNamespace(command: string): string {
 }
 /** The runtime running BlitzPi (the private Bun when installed) must be reachable inside the sandbox. */
 const RUNTIME_DIR = dirname(process.execPath);
+
+/**
+ * Optional runtimes the user installed (`~/.blitz/runtimes/…/bin`), exposed to the agent's shell only.
+ *
+ * Two things are needed, not one: the directory has to be **mounted** (bwrap binds nothing by default, so the
+ * tree is simply absent) *and* it has to be **on PATH inside the sandbox** — the plan's gap G4. A bind alone
+ * leaves `python3` present on disk and unfindable by name, which is the worst of both.
+ *
+ * Read lazily, per exec: a runtime installed mid-session becomes usable on the next command instead of at the
+ * next restart, and nothing is paid by a user who never opted in.
+ */
+function extraRuntimeDirs(): string[] {
+  try { return require("./runtimes/store").sandboxRuntimeDirs() as string[]; } catch { return []; }
+}
+
+/** PATH for inside the sandbox: opted-in runtimes first, then whatever the caller's env already had. */
+export function sandboxPath(extra: string[], env: NodeJS.ProcessEnv | undefined): string {
+  const base = env?.PATH || process.env.PATH || "/usr/bin:/bin";
+  return extra.length ? `${extra.join(":")}:${base}` : base;
+}
 /** Computed here, in the unconfined top-level process, before any backend pins HOME to the workspace —
  *  exported alongside the pin so BlitzPi's own global state can still find it (see real-home.ts). */
 const REAL_HOME = process.env.HOME || os.homedir();
@@ -125,12 +145,15 @@ class BwrapBackend implements SandboxBackend {
     // An empty tmpfs over the include dir keeps ssh usable; /etc/ssh/ssh_config itself is not ownership-checked.
     if (existsSync("/etc/ssh/ssh_config.d")) args.push("--tmpfs", "/etc/ssh/ssh_config.d");
     args.push("--ro-bind-try", RUNTIME_DIR, RUNTIME_DIR);
+    const runtimeDirs = extraRuntimeDirs();
+    for (const d of runtimeDirs) args.push("--ro-bind-try", dirname(d), dirname(d)); // the runtime tree, not just bin/
     for (const d of defaultScratchDirs()) args.push("--bind-try", d, d); // scratch: the host temp dir, shared with the file tools
     for (const g of options.grants ?? []) { const m = grantMount(g); if (m) args.push(g.write ? "--bind-try" : "--ro-bind-try", m, m); } // approved escapes, and only those
     args.push("--proc", "/proc", "--dev", "/dev",
       "--bind", runDir, runDir, "--chdir", runDir,
       "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
       "--setenv", "HOME", runDir,
+      "--setenv", "PATH", sandboxPath(runtimeDirs, options.env),
       "/bin/bash", "-c", wrapForNamespace(command));
     const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME }, stdio: ["ignore", "pipe", "pipe"] });
     return pump(child, options);
@@ -145,7 +168,8 @@ class PinnedBackend implements SandboxBackend {
     const isWin = process.platform === "win32";
     const shell = isWin ? "powershell.exe" : "/bin/bash";
     const shellArgs = isWin ? ["-NoProfile", "-Command", command] : ["-c", command];
-    const env = { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME };
+    // No namespace here, so nothing to mount — an opted-in runtime only needs to be findable by name.
+    const env = { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME, PATH: sandboxPath(extraRuntimeDirs(), options.env) };
     const child = spawn(shell, shellArgs, { cwd: runDir, env, stdio: ["ignore", "pipe", "pipe"], detached: !isWin });
     return pump(child, options, !isWin);
   }
@@ -173,7 +197,9 @@ class SandboxExecBackend implements SandboxBackend {
     // Seatbelt matches the REAL path; on macOS /var→/private/var, /tmp→/private/tmp, so resolve symlinks
     // before building the profile or an in-workspace write under a symlinked dir is wrongly denied.
     let real = runDir; try { real = realpathSync(runDir); } catch { /* keep runDir */ }
-    const env = { ...process.env, ...options.env, HOME: real, BLITZ_REAL_HOME: REAL_HOME };
+    // Seatbelt allows reads by default (it denies writes), so the runtime tree is already readable; it just
+    // has to be on PATH to be findable by name.
+    const env = { ...process.env, ...options.env, HOME: real, BLITZ_REAL_HOME: REAL_HOME, PATH: sandboxPath(extraRuntimeDirs(), options.env) };
     const args = ["-p", this.profile(real, options.grants ?? []), "/bin/bash", "-c", command];
     const child = spawn("/usr/bin/sandbox-exec", args, { cwd: real, env, stdio: ["ignore", "pipe", "pipe"], detached: true });
     return pump(child, options, true);

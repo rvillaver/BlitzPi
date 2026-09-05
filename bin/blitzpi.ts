@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-/** BlitzPi — the one command. `audit`, `report`, `projects`, `feeds`, `level`, `bridge`, `demo`, `update`, `versions`,
+/** BlitzPi — the one command. `audit`, `report`, `projects`, `feeds`, `level`, `runtimes`, `bridge`, `demo`, `update`, `versions`,
  *  `rollback`, `use`, `uninstall`, `bun`, `paths` and `--version` are handled here; everything else (including Pi's own
  *  subcommands) passes through to Pi. */
 import { launchBlitzPi, REPO_ROOT, selfServiceCommand } from "../src/launcher";
@@ -16,6 +16,11 @@ if (sub === "report" || sub === "projects" || sub === "feeds" || sub === "level"
   const cli = await import("../src/cli");
   const handler = sub === "report" ? cli.handleReportCommand : sub === "projects" ? cli.handleProjectsCommand : sub === "feeds" ? cli.handleFeedsCommand : cli.handleLevelCommand;
   await handler(args.slice(1));
+  process.exit(process.exitCode ?? 0);
+}
+if (sub === "runtimes") {
+  const { handleRuntimesCommand } = await import("../src/runtimes/cli");
+  await handleRuntimesCommand(args.slice(1));
   process.exit(process.exitCode ?? 0);
 }
 if (sub === "bridge") {

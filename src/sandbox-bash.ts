@@ -21,6 +21,7 @@ import { homedir } from "node:os";
 import { debug, info } from "./log";
 import { bashFacts } from "./bash-facts";
 import { redactCommand } from "./feeds/secrets";
+import { startCapabilityProbe } from "./sandbox-probe";
 
 let activeBackend: string | null = null;
 /** Name of the bash sandbox backend in use this session (bwrap | sandbox-exec | pinned), or null. */
@@ -112,5 +113,11 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     },
   });
   pi.registerTool(def);
+  // What the agent can actually reach inside the sandbox (P1). Fire-and-forget through the SAME backend the bash
+  // tool uses, so the answer is the sandbox's PATH, not the host's — asking the host is how G3 got it wrong.
+  // Never awaited here: the probe must not add to startup.
+  startCapabilityProbe(backend, runDir, withCache(undefined),
+    backend ? (cmd, onData) => backend.exec(cmd, runDir, { env: withCache(undefined), onData, timeout: 10_000, grants: [...cacheGrant, ...policyGrant] } as any) : undefined);
+
   info(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}${policyDir ? `; bun minimumReleaseAge ${policyAge}s` : "; bun install policy off"}`);
 }

@@ -16,11 +16,15 @@ import { renderEvents, type EventKind } from "../session-events";
 import { buildReport, renderReport } from "../report";
 import { info } from "../log";
 import { ownSkillsLine } from "./own-skills";
+import { awaitCapabilities, capabilityLine } from "../sandbox-probe";
 
 const banner = (config: BlitzConfig) => [
   "",
   "  ⚡ BLITZ PI  —  Pi with security governance",
   `     ${summaryLine(config, activeBackendName())}`,
+  // Omitted entirely until the in-sandbox probe has answered — a header that guesses at the toolchain is worse
+  // than one that stays quiet, and waiting for it would put the probe back on the startup path.
+  ...(capabilityLine() ? [capabilityLine() as string] : []),
   "     /blitz-security shows every layer, its mode and this session's decisions · /blitz-report this project · /session usage",
   "     ctrl+t folds/unfolds thinking (folded by default in a BlitzPi project) · shift+tab cycles thinking level",
   `     ${ownSkillsLine()}`,
@@ -65,6 +69,10 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
   info(banner(config)); // startup scrollback; the TUI header below carries the same summary
+  // The banner above is printed during extension setup — earlier than the in-sandbox probe can possibly answer
+  // (it spawns a real backend process). Rather than hold the banner for it, report it as its own line when it
+  // lands. `void` is deliberate: nothing on the startup path may await this.
+  void awaitCapabilities(2_000).then((c) => { if (c) info(capabilityLine() as string); });
   const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", packages: "feed", feed: "feed", feeds: "feed", content: "content", all: "all" };
   pi.registerCommand("blitz-security", {
     description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | packages | content | all",
@@ -116,6 +124,9 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
             theme.fg("accent", "  ⚡ BLITZ PI"),
             theme.fg("dim", "  Pi with security governance · sandbox · governance · audit"),
             theme.fg("dim", `  ${summaryLine(config, activeBackendName())}`),
+            // render() is called again on every invalidate, so this appears as soon as the probe answers.
+            // Nothing waits for it: an absent line means "not known yet", never "nothing is installed".
+            ...(capabilityLine() ? [theme.fg("dim", `  ${(capabilityLine() as string).trim()}`)] : []),
             theme.fg("dim", "  /blitz-security · /blitz-report · /blitz-level · /session · /adopt-goodbehavior"),
             theme.fg("dim", "  ctrl+t folds/unfolds thinking · shift+tab cycles thinking level"),
             theme.fg("dim", `  ${ownSkillsLine()}`),
