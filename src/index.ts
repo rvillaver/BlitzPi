@@ -11,7 +11,7 @@ import { PermissionMemory, defaultPermissionStore } from "./permissions";
 import path from "node:path";
 import { setupAudit } from "./audit";
 import { setupGoodBehavior } from "./goodbehavior";
-import { setupWorkspaceInit } from "./workspace-init";
+import { setupFirstRunFlow } from "./setup";
 import { setupBlitzPiBranding } from "./ui/blitzpi-branding";
 import { setupCompaction } from "./compaction";
 import { setupProjectRegistry } from "./projects-hook";
@@ -20,8 +20,6 @@ import { setupSecretsFeed } from "./feeds/secrets";
 import { setupCommandsFeed } from "./feeds/commands";
 import { setupUrlsFeed } from "./feeds/urls";
 import { setupContentScan } from "./content-scan";
-import { setupFeedsOnboarding } from "./feeds/onboard";
-import { setupSecurityLevelOnboarding } from "./security-level-onboard";
 import { cacheRoot } from "./toolchain-cache";
 import { setupQuestionTool } from "./tools/question";
 import { setupChannelPostTool } from "./tools/channel-post";
@@ -64,14 +62,14 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     setupCommandsFeed(pi, config, auditLogger);
     setupUrlsFeed(pi, config, auditLogger);
     setupContentScan(pi, config, auditLogger);
-    setupFeedsOnboarding(pi, auditLogger); // asks once per version while undecided; installs in-app
-    setupSandboxedBash(pi, config, auditLogger, gate);
+        setupSandboxedBash(pi, config, auditLogger, gate);
 
     // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)
     setupGoodBehavior(pi, config);
-    setupWorkspaceInit(pi);
-    setupSecurityLevelOnboarding(pi, auditLogger); // asks once per project+version while undecided
-    setupProjectRegistry(pi, config);
+  // One ordered first-run flow replaces the trust / security-tier / feeds dialogs, which used to fire in
+  // registration order — that is why feeds was asked before the folder had been agreed to (S4b-S4f).
+  setupFirstRunFlow(pi, auditLogger);
+            setupProjectRegistry(pi, config);
     setupCompaction(pi, auditLogger);
 
     // Phase 4: Setup UI & Branding (BlitzPi identity + live status commands)

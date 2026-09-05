@@ -117,13 +117,71 @@ export function unadoptGoodBehavior(cwd: string, purgeMemory = false): string[] 
 const skillsManifestPath = (cwd: string) => path.join(cwd, ".blitz", "goodbehavior", "skills-manifest.json");
 
 /**
- * Sync the 7 GoodBehavior skills into THIS project's `.pi/skills/` — every session, no adoption command, no
- * restart once this has run before Pi's own startup scan for that session (verified live). Also drops a retired
- * skill (RETIRED_SKILLS) if this project's own skill sync history proves it was ours, untouched since. A no-op
- * when running BlitzPi's own source checkout (`cwd === INSTALL_ROOT`): `shippedSkillsDir()` and `<cwd>/.pi/skills`
- * are the same path there, and copying a file onto itself is already a safe no-op in `syncManagedFiles()` (hashes
- * match, "identical" branch) — called out here only so the RETIRED_SKILLS cleanup below doesn't run against it.
+ * Has this folder actually been set up as a BlitzPi project — i.e. did the user consent?
+ *
+ * NOT `.blitz/` existence: that directory is BlitzPi's own artefact, and `syncSkills()` used to create it at
+ * extension-setup time before anyone was asked, which silently defeated `workspace-init`'s first-run gate — the
+ * trust question stopped firing entirely in 1.2.120/1.2.121 (roadmap ONBOARDING-SETUP S0). The honest marker is
+ * `blitz.config.yaml`, which only the consented setup path writes.
  */
+export function isProjectSetUp(cwd: string): boolean {
+  const blitz = path.join(cwd, ".blitz");
+  if (!fs.existsSync(blitz)) return false;
+  if (fs.existsSync(path.join(blitz, "blitz.config.yaml"))) return true;
+
+  // No config, so decide by what is actually in `.blitz/`. A directory containing ONLY the skills manifest is
+  // BlitzPi's own pre-consent footprint from 1.2.120/1.2.121 — that folder was never consented to, so ask.
+  // Anything else (profiles, memory, an older adopted layout, even an empty `.blitz/`) predates this fix and
+  // belongs to a real project: never re-interrogate an existing user about a folder they already set up.
+  const files: string[] = [];
+  const walk = (dir: string, rel: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(path.join(dir, e.name), r);
+      else files.push(r);
+    }
+  };
+  try { walk(blitz, ""); } catch { return true; } // unreadable: assume set up rather than re-ask
+  return !(files.length === 1 && files[0] === "goodbehavior/skills-manifest.json");
+}
+
+/**
+ * Remove this project's copies of the GoodBehavior skills — they are shipped as **package skills** now
+ * (`package.json` → `pi.skills`), loaded from the install directory in every session.
+ *
+ * This is a migration, not housekeeping. Pi's skill loader is **first-wins**, and its order is
+ * user (`~/.pi/agent/skills`) → project (`<cwd>/.pi/skills`) → package: a leftover project copy therefore
+ * *shadows* the shipped one permanently, pinning an adopter to whatever version was last synced and logging a
+ * name collision. Copies the user edited are deliberately KEPT — a hand-edited skill winning is the right
+ * outcome — and reported, so the shadowing is a choice rather than a surprise.
+ *
+ * Never runs against BlitzPi's own checkout (`cwd === INSTALL_ROOT`), where `.pi/skills/` IS the shipped source.
+ */
+export function retireProjectSkillCopies(cwd: string): AdoptResult {
+  const res: AdoptResult = { installed: [], updated: [], kept: [], removed: [] };
+  if (path.resolve(cwd) === path.resolve(INSTALL_ROOT)) return res;
+  const manifest = readManifestAt(skillsManifestPath(cwd));
+  for (const name of [...GB_SKILLS, ...RETIRED_SKILLS]) {
+    const dir = path.join(cwd, ".pi", "skills", name);
+    if (!fs.existsSync(dir)) continue;
+    // "Ours, untouched" = every file still hashes to what we last wrote. Anything else is the user's now.
+    const files = fs.readdirSync(dir).map((f) => path.join(".pi", "skills", name, f));
+    const untouched = files.length > 0 && files.every((rel) => {
+      const abs = path.join(cwd, rel);
+      return manifest.files[rel] !== undefined && fs.existsSync(abs) && sha(abs) === manifest.files[rel];
+    });
+    if (untouched) { fs.rmSync(dir, { recursive: true, force: true }); res.removed.push(path.join(".pi", "skills", name)); }
+    else res.kept.push(path.join(".pi", "skills", name));
+  }
+  if (res.removed.length) {
+    try { fs.rmSync(skillsManifestPath(cwd), { force: true }); } catch { /* best effort */ }
+    try { const d = path.join(cwd, ".pi", "skills"); if (fs.readdirSync(d).length === 0) fs.rmdirSync(d); } catch { /* keep */ }
+  }
+  return res;
+}
+
+/** @deprecated Superseded by package skills + {@link retireProjectSkillCopies}. Kept only for the adopt command's
+ *  historical manifest handling; do not call for skill delivery. */
 export function syncSkills(cwd: string): AdoptResult {
   if (path.resolve(cwd) === path.resolve(INSTALL_ROOT)) return { installed: [], updated: [], kept: [], removed: [] };
   const prev = readManifestAt(skillsManifestPath(cwd)); // read BEFORE syncManagedFiles overwrites it below

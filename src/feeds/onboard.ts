@@ -33,6 +33,11 @@ export async function installFeeds(store: FeedStore, audit: AuditLogger | undefi
   return failed;
 }
 
+/**
+ * RETIRED 2026-09-05: this dialog is now step "feeds" of the single first-run flow (`src/setup/`).
+ * It is no longer registered — `setupFirstRunFlow()` owns the question, in the order the user asked for.
+ * Re-registering this would produce the dialog twice. The module's other exports are still used by the flow.
+ */
 export function setupFeedsOnboarding(pi: ExtensionAPI, audit: AuditLogger, store: FeedStore = new FeedStore(), version: string | undefined = readVersion()): void {
   pi.on("session_start", async (_event, ctx: any) => {
     if (ctx.mode !== "tui" || !ctx.hasUI) return;

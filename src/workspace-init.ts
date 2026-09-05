@@ -1,13 +1,17 @@
 /**
- * First-run workspace gate. If the launch folder has no `.blitz/`, ask before working in it — so the
- * agent is never exposed to a folder the user didn't intend. Yes: initialize the project AND adopt the
- * GoodBehavior workflow into it. No: exit. Interactive only (`-p`/unattended proceeds without prompting).
+ * First-run workspace gate. If the launch folder is not already a set-up BlitzPi project, ask before working
+ * in it — so the agent is never exposed to a folder the user didn't intend, and nothing is written until they
+ * say yes. Yes: initialize the project AND adopt the GoodBehavior profile into it. No: exit, leaving the folder
+ * untouched. Interactive only (`-p`/unattended proceeds without prompting).
+ *
+ * "Set up" is `isProjectSetUp()`, NOT `.blitz/` existence: BlitzPi's own skill sync used to create that directory
+ * at extension-setup time, which silently disabled this gate in 1.2.120/1.2.121 (ONBOARDING-SETUP S0).
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { adoptGoodBehavior } from "./adopt-goodbehavior";
+import { adoptGoodBehavior, isProjectSetUp } from "./adopt-goodbehavior";
 import { touchProject } from "./projects";
 
 function trustProject(cwd: string): void {
@@ -58,11 +62,18 @@ export function seedThinkingDisplay(cwd: string): boolean {
   } catch { return false; }
 }
 
+/**
+ * RETIRED 2026-09-05: this dialog is now step "trust" of the single first-run flow (`src/setup/`).
+ * It is no longer registered — `setupFirstRunFlow()` owns the question, in the order the user asked for.
+ * Re-registering this would produce the dialog twice. The module's other exports are still used by the flow.
+ */
 export function setupWorkspaceInit(pi: ExtensionAPI): void {
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
     const cwd = process.cwd();
-    if (fs.existsSync(path.join(cwd, ".blitz"))) { // already a BlitzPi project — still keep display defaults current
+    // "Already a project" must mean the user consented, not merely that `.blitz/` exists — BlitzPi's own
+    // skill sync creates that directory, which silently disabled this whole gate (ONBOARDING-SETUP S0).
+    if (isProjectSetUp(cwd)) { // already a BlitzPi project — still keep display defaults current
       if (seedThinkingDisplay(cwd)) ctx.ui.notify("Thinking now folds by default in this project (ctrl+t to expand/collapse) — .pi/settings.json: hideThinkingBlock", "info");
       return;
     }
@@ -81,7 +92,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     fs.mkdirSync(path.join(cwd, ".blitz"), { recursive: true });
     const cfg = path.join(cwd, ".blitz", "blitz.config.yaml");
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, "# BlitzPi project — security config for THIS project.\nsandbox:\n  enabled: true\n  # cache: shared   # package-manager caches: shared = ~/.blitz/cache/<tool> (default) | project | off\nfeeds:\n  # allow: []       # rule ids accepted as false positives (audit feed_* hits[].id)\n  # min_release_age: 3d   # Bun: no versions newer than this (off to disable)\n");
-    adoptGoodBehavior(cwd); // seeds this project's own profile; the 7 GoodBehavior skills already synced in at extension setup, no restart needed
+    adoptGoodBehavior(cwd); // seeds this project's own profile
     pinPackageManager(cwd);
     seedThinkingDisplay(cwd);
     trustProject(cwd); // user consented — record Pi trust so the project loads with no extra prompt
@@ -90,12 +101,12 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
       customType: "blitz-setup",
       content:
         `BlitzPi project set up in ${cwd}\n` +
-        `- GoodBehavior's 7 skills are already active in .pi/skills — synced automatically every session, no restart needed\n` +
+        `- GoodBehavior's skills ship with BlitzPi and are active right now — nothing installed into your folder\n` +
         `- profile in .blitz/goodbehavior/profiles/ (generic default for now — the agent will offer to tailor it)\n` +
         `- security config in .blitz/\n` +
         `- thinking folds by default here — press ctrl+t any time to expand/collapse it`,
       display: true,
     });
-    ctx.ui.notify("Project set up — GoodBehavior is already active, nothing to restart.", "info");
+    ctx.ui.notify("Project set up.", "info");
   });
 }
