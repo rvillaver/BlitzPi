@@ -54,5 +54,31 @@ finished work, fixing that is the first item, not a chore for later.**
 If you can't tell whether a phase is really closed (evidence thin, user never confirmed), **leave it in the plan.**
 Never archive something you can't show is done — that is how work silently disappears.
 
+## A status line is a claim — date it, and re-check it before repeating it
+
+A plan's status is the most-read and least-verified line in the whole corpus. It is written once, when the work is
+fresh, and then quietly goes out of date as the code moves on. Nobody re-reads it against reality, because it reads
+like a fact.
+
+On 2026-09-05 an audit of one project's 12 plans found **6 wrong at once**: three claimed work was unfinished that
+was already built and running, one had no status line while three of its items were complete, one said "nothing
+built" next to a 239-line installer, and one claimed a release (`1.2.104`) that has no tag and no GitHub release.
+The cost was not hypothetical — one of them was relayed to the user in a "what's next" survey, and they chose what
+to work on based on it.
+
+**Therefore:**
+
+- **Every status line carries the date it was last checked against the code**, and names the artefact that backs it
+  — a file, an export, a command's output. `_Checked against the code YYYY-MM-DD: src/x.ts exists, `blitzpi y`
+  prints z._` A date with no artefact is just a newer-looking claim.
+- **Before quoting a plan's status** — in a summary, a survey, a "what's next", anywhere a human will act on it —
+  **re-check it against the code.** Reading the header is not checking. If you are about to tell someone an
+  initiative is unbuilt, look for its files first.
+- **Never carry a status forward untouched** when you edit a plan for any other reason. If you cannot confirm it in
+  that moment, say so in the line itself rather than leaving a stale claim standing.
+- **Build state and verify state are different claims.** "Nothing built" and "never verified on the target machine"
+  are not the same sentence; conflating them hides finished work.
+- **A release claim needs a tag and a published release**, not a version number someone wrote down. Check.
+
 ## Then
 Hand the **NOW** phase to `/gate-build-goodbehavior`.
