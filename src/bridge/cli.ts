@@ -19,7 +19,9 @@ const USAGE = `Usage: blitzpi bridge <command>
   stop | status | new [--project DIR|--conv P:ID]   stop = abort the run · new = fresh session
   model [--project DIR|--conv P:ID] [provider/id]   show/list models, or switch the session's model
   projects                              bound conversations
-  bind <platform:id> [DIR] [--trigger mentions|all|operators] [--activity full|tools|quiet] [--context N] [--operator ID…]
+  install-service | uninstall-service | service-status   run the daemon under systemd/launchd (survives reboot)
+  bind <platform:id> [DIR] [--trigger mentions|all|operators] [--activity full|tools|quiet] [--context N] [--operator ID…] [--force]
+                                        (--force: bind a project that another conversation already has)
   unbind <platform:id>`;
 
 function parseConv(s: string): ConvRef { const i = s.indexOf(":"); if (i <= 0) throw new Error(`expected <platform>:<id>, got ${s}`); return { platform: s.slice(0, i), id: s.slice(i + 1) }; }
@@ -33,14 +35,36 @@ function flags(args: string[]): { rest: string[]; f: Record<string, string | str
   return { rest, f };
 }
 
+const convKeyOf = (c: { platform: string; id: string }) => `${c.platform}:${c.id}`;
+
 export async function handleBridgeCommand(args: string[]): Promise<void> {
   const sub = args[0]; const { rest, f } = flags(args.slice(1));
   const store = new BindingsStore(); const socketPath = process.env.BLITZ_BRIDGE_SOCKET || defaultSocketPath();
   const sel = () => (f.conv ? { conv: String(f.conv) } : { project: String(f.project ?? process.cwd()) });
   if (!sub || sub === "--help" || sub === "-h") { console.log(USAGE); return; }
 
+  if (sub === "install-service" || sub === "uninstall-service" || sub === "service-status") {
+    const { installService, uninstallService, serviceStatus } = await import("./service");
+    const r = sub === "install-service" ? installService() : sub === "uninstall-service" ? uninstallService() : serviceStatus();
+    console.log(`[Blitz] bridge ${r.message}`);
+    if (!r.ok && sub !== "service-status") process.exitCode = 1;
+    return;
+  }
+
   if (sub === "bind") {
     const conv = parseConv(rest[0] ?? ""); const dir = path.resolve(rest[1] ?? process.cwd());
+    // Two conversations on one project means two independent agents, each with its own session, writing the same
+    // files with no knowledge of each other — a silent race, not a shared workspace. Refuse by default; --force
+    // keeps it possible for the case where that really is what you want (two teams, one repo).
+    const already = store.byProject(dir);
+    if (already && convKeyOf(already.conv) !== convKeyOf(conv) && f.force !== "true") {
+      console.error(`[Blitz] ${dir} is already bound to ${already.conv.platform}:${already.conv.id}.`);
+      console.error(`  Two conversations on one project run two separate agents on the same files, with no`);
+      console.error(`  coordination between them. Re-run with --force if that is really what you want, or`);
+      console.error(`  unbind the other first: blitzpi bridge unbind ${already.conv.platform}:${already.conv.id}`);
+      process.exitCode = 1;
+      return;
+    }
     const partial: Partial<Binding> = {};
     if (f.trigger) partial.trigger = f.trigger as Binding["trigger"]; if (f.activity) partial.activity = f.activity as Binding["activity"];
     if (f.context) partial.context_window = Number(f.context); if (f.operator) partial.operators = f.operator as string[];

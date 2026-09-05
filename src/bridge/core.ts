@@ -78,7 +78,15 @@ export class Bridge {
   private conversation(conv: ConvRef): Conversation | undefined {
     const key = convKey(conv);
     let c = this.convs.get(key);
-    if (c) { c.binding = this.opts.bindings.get(conv) ?? c.binding; return c; }
+    if (c) {
+      const binding = this.opts.bindings.get(conv);
+      // Unbinding is how a conversation's access to a project is revoked, so it has to take effect here.
+      // Keeping the cached binding when the store no longer has one (the old `?? c.binding`) left an unbound
+      // channel answering against its old project — with its child still alive — until the daemon restarted.
+      if (!binding) { this.convs.delete(key); void c.host?.stop().catch(() => { /* child may already be gone */ }); return undefined; }
+      c.binding = binding;
+      return c;
+    }
     const binding = this.opts.bindings.get(conv); const adapter = this.adapters.get(conv.platform);
     if (!binding || !adapter) return undefined;
     c = { conv, adapter, binding, running: false, queue: [], delivered: new Set(), retries: 0 }; this.convs.set(key, c); return c;
