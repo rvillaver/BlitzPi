@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Security: prompts injected by an extension are no longer exempt from the governance input gate.** The gate skipped anything arriving with `source: "extension"`, which sounds like "BlitzPi's own text" but actually means "some extension called `sendUserMessage()`" — and the bundled MCP adapter uses exactly that call to inject an MCP server's prompt content as a user turn. So text supplied by an external MCP server reached the model without the prompt-injection scan the gate exists to perform, and without an audit entry. The exemption dated from the very first commit with no recorded reason and protected nothing BlitzPi itself does: BlitzPi never injects prompts. Extension-sourced prompts are now scanned like any other, and the audit entry records which source a prompt came from. Locally typed slash commands are still exempt — they are commands, not model prompts — and bridge prompts were never affected, since they arrive prefixed with `[caller …]`.
+
 ## 1.2.122 — 2026-09-05
 
 - **BlitzPi now tells the agent what it can actually reach inside its sandbox.** The agent runs confined, and the sandbox does not have your whole PATH: a toolchain installed under your home directory — by mise, asdf, nvm, or a language version manager — is on your PATH and simply absent from the sandbox. Nothing reported that, so the agent could reasonably believe a tool was available, try to use it, and fail. The header and startup output now list what a shell command can genuinely find in there, and name what is missing, checked by running the check inside the sandbox itself rather than asking the host. On this machine that means node, installed via mise, is correctly reported as unavailable while bun, which BlitzPi binds in deliberately, is not. The check adds nothing measurable to startup, and stays silent rather than guessing if it cannot answer.

@@ -153,9 +153,18 @@ export function setupGovernance(
   }
 
   pi.on("input", async (event, ctx) => {
-    if (event.source === "extension") return { action: "continue" as const };
+    // `source === "extension"` is NOT a trust signal and is deliberately not exempted.
+    //
+    // It means "an extension called sendUserMessage()", which says nothing about where the text came from.
+    // `pi-mcp-adapter` uses it to inject an MCP server's prompt content as a user turn — text from an external
+    // server, flattened and handed to the model. Exempting the whole source (the original scaffolding did, from
+    // the first commit, without a recorded reason) let exactly the kind of content this gate exists to catch walk
+    // straight past it. Whatever BlitzPi itself might inject later is trusted text that will simply pass the scan;
+    // paying for a check is the right trade against a blanket bypass keyed on the caller rather than the content.
     const text = event.text ?? "";
-    if (text.startsWith("/")) return { action: "continue" as const }; // slash commands are not model prompts
+    // Locally-typed slash commands are commands, not model prompts. Bridge prompts are unaffected: they always
+    // arrive prefixed with `[caller …]`, so a chat message beginning with "/" cannot reach this branch.
+    if (text.startsWith("/")) return { action: "continue" as const };
     const behalf = noteCaller(text); // a bridge prompt names its human: `[caller discord:123#alice]` → audit on_behalf_of
     const model = ctx.model?.id ?? "unknown";
     const verdict = await decide(text, model);
@@ -164,6 +173,7 @@ export function setupGovernance(
       run_id: runId,
       model,
       stage: "input",
+      source: event.source ?? "interactive",
       ...(behalf ? { on_behalf_of: behalf } : {}),
       approved: verdict.approved,
       enforced: true,
