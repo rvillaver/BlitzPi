@@ -123,9 +123,13 @@ export function launchBlitzPi(args: string[]): Promise<number> {
     PI_CACHE_RETENTION: process.env.PI_CACHE_RETENTION ?? "long",
   };
   const child = spawn(process.execPath, [cli, ...piArgs], { stdio: "inherit", env });
-  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
     process.on(sig, () => child.kill(sig));
   }
+  // Belt and braces for the orphan case: if this launcher exits for any reason it did not forward (SIGKILL cannot
+  // be caught, but an uncaught throw or a closed stdio can end us), take the Pi process with us rather than
+  // leaving a session holding memory under init.
+  process.on("exit", () => { try { child.kill("SIGKILL"); } catch { /* already gone */ } });
   return new Promise((done) => {
     child.on("error", (err) => {
       console.error("[BlitzPi] Failed to start Pi:", err.message);

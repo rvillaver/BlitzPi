@@ -55,10 +55,9 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
     if (bound.length) {
       console.log("");
       for (const e of bound) {
-        const r = routeFor(e.binding.project, reg);
-        const msg = routingMessage(e.binding.project, r);
-        console.log(`  ${e.conv.platform}:${e.conv.id} -> ${e.binding.project}`);
-        console.log(`     ${r.kind === "one" ? `would run in pid ${r.session.pid}` : r.kind === "none" ? "no live session" : `AMBIGUOUS (${r.sessions.length} sessions)`}${msg ? "" : ""}`);
+        const r = routeFor(`${e.conv.platform}:${e.conv.id}`, e.binding.project, reg);
+        console.log(`  ${e.conv.platform}:${e.conv.id} -> ${e.binding.project}${e.binding.attached ? "  (attach on launch)" : ""}`);
+        console.log(`     ${r.kind === "held" ? `attached to pid ${r.session.pid}` : r.onProject.length ? `not attached (${r.onProject.length} session(s) here)` : "no session"}`);
       }
     }
     return;

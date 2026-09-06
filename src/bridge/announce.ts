@@ -50,16 +50,29 @@ export function announceSession(
     return undefined;
   }
 
-  // B18: until attach-only routing lands (B21), a chat message runs a SEPARATE agent in this same directory.
-  // Finding that out by way of surprising edits is the worst way to learn it.
   try {
     const bound = bindings.byProject(cwd);
     if (!bound) return undefined;
+    const key = `${bound.conv.platform}:${bound.conv.id}`;
+
+    // Reclaim on launch (B22): a project that was attached before wants its conversation back, and wins when no
+    // other live session holds it. Not automatic for a project that was never attached — turning the bridge on is
+    // a deliberate act, and a session should not silently start taking chat messages because it opened somewhere.
+    if (bound.binding.attached) {
+      const { ok, holder } = registry.tryClaim(key, process.pid);
+      const msg = ok
+        ? `Attached to ${key} — messages there run in this session.`
+        : `${key} is held by another BlitzPi session (pid ${holder?.pid}); this one is not attached. Close that one, or run /blitz-bridge attach here.`;
+      if (ctx.hasUI) ctx.ui.notify(msg, ok ? "info" : "warning");
+      return msg;
+    }
+
+    // Bound but not attached: chat still runs its own agent in this directory, which is worth saying out loud.
     const others = registry.forProject(cwd).filter((s) => s.pid !== process.pid);
     const also = others.length
       ? ` ${others.length} other BlitzPi session${others.length > 1 ? "s are" : " is"} also open here (pid ${others.map((s) => s.pid).join(", ")}).`
       : "";
-    const msg = `This project is bound to ${bound.conv.platform}:${bound.conv.id} — messages there run their own agent in this same directory.${also}`;
+    const msg = `This project is bound to ${key} — messages there run their own agent in this same directory. /blitz-bridge attach makes them run here instead.${also}`;
     if (ctx.hasUI) ctx.ui.notify(msg, others.length ? "warning" : "info");
     return msg;
   } catch { return undefined; } // the warning is a courtesy; never let it break startup

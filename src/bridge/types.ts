@@ -49,6 +49,8 @@ export interface Binding {
   project: string; sessionId?: string; name?: string;
   trigger: TriggerMode; activity: ActivityLevel; operators: string[]; context_window: number; announce_done: boolean;
   threads?: ThreadMode; threadId?: string;
+  /** This project wants a CLI session to hold its conversation: a session launching here reclaims it. */
+  attached?: boolean;
 }
 export const convKey = (c: ConvRef) => `${c.platform}:${c.id}`;
 export const defaultBinding = (project: string, partial: Partial<Binding> = {}): Binding => ({ project, trigger: "mentions", activity: "full", operators: [], context_window: 5, announce_done: true, ...partial });

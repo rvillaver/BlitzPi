@@ -15,7 +15,7 @@ const HELP = `/blitz-bridge status                      daemon, platforms, this 
 /blitz-bridge setup discord               store the bot token (asked privately) + the portal checklist
 /blitz-bridge start | stop | restart      the daemon (detached; log ~/.blitz/bridge/daemon.log)
 /blitz-bridge bind [#channel] [dir]       bind this project (default: a channel named after the folder)
-/blitz-bridge unbind | post <text> | run <prompt>
+/blitz-bridge unattach | detach | bind | post <text> | run <prompt>
 /blitz-bridge trigger mentions|all|operators · activity full|tools|quiet · threads on|answer|off · context <n> · operators add|remove <user id>`;
 
 async function daemonUp(sock: string): Promise<boolean> { try { await bridgeCall(sock, "projects", {}, 3000); return true; } catch { return false; } }
@@ -51,6 +51,24 @@ export function setupBridgeCommands(pi: ExtensionAPI): void {
           const start = await ctx.ui.select("Token stored. Start the bridge daemon now?", ["Yes — start it", "No"]);
           if (start?.startsWith("Yes")) return startDaemon(out);
           return out("Stored. Start with /blitz-bridge start, then /blitz-bridge bind.");
+        }
+        if (sub === "attach" || sub === "detach") {
+          const { SessionRegistry } = await import("../bridge/sessions");
+          const reg = new SessionRegistry();
+          const mine = store.byProject(project);
+          if (!mine) return out(`This project is not bound to a conversation. Bind one first: /blitz-bridge bind`);
+          const key = `${mine.conv.platform}:${mine.conv.id}`;
+          if (sub === "detach") {
+            reg.release(key);
+            store.update(mine.conv, { attached: false });
+            return out(`Detached from ${key}. Messages there will not run in this session, and this project will not reattach on launch.`);
+          }
+          const { ok, holder } = reg.tryClaim(key);
+          // `attached` is remembered on the binding so the next session in this folder reclaims it automatically.
+          if (ok) store.update(mine.conv, { attached: true });
+          return out(ok
+            ? `Attached to ${key} — messages there now run in this session, and this project will reattach on launch.`
+            : `${key} is already held by another BlitzPi session (pid ${holder?.pid}). Close it, or run /blitz-bridge detach there.`);
         }
         if (sub === "start") return startDaemon(out);
         if (sub === "restart") { const pidFile = path.join(bridgeDir(), "daemon.pid"); try { const pid = Number(fs.readFileSync(pidFile, "utf8")); process.kill(pid, "SIGTERM"); await new Promise((r) => setTimeout(r, 1500)); } catch { /* none running */ } try { fs.unlinkSync(pidFile); } catch { /* fine */ } return startDaemon(out); }
