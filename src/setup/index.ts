@@ -18,6 +18,7 @@ import { FeedStore } from "../feeds/store";
 import { RuntimeStore } from "../runtimes/store";
 import { PYTHON_VERSION } from "../runtimes/pinned";
 import { info } from "../log";
+import { announceSession, dropSession } from "../bridge/announce";
 
 function blitzVersion(): string {
   try { return require("../../package.json").version as string; } catch { return "unknown"; }
@@ -111,6 +112,10 @@ export function setupFirstRunFlow(pi: ExtensionAPI, audit: AuditLogger): void {
   pi.on("session_start", async (_event: any, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
     const cwd = process.cwd();
+    // Tell the bridge this session exists, and warn if a conversation is bound to the same directory
+    // (CHAT-BRIDGE B17/B18). Lives here rather than in its own module because a handler registered from
+    // `bridge/announce.ts` never fired — see that file's header.
+    announceSession(ctx, cwd);
     const firstRun = !isProjectSetUp(cwd);
 
     // An established project keeps the compact banner and is never re-introduced; it only gets steps it has
@@ -133,6 +138,8 @@ export function setupFirstRunFlow(pi: ExtensionAPI, audit: AuditLogger): void {
       });
     }
   });
+
+  pi.on("session_shutdown", async () => dropSession());
 
   pi.registerCommand("setup", {
     description: "Re-run BlitzPi's first-run setup for this project: shows your current answers and lets you change them.",

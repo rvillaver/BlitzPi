@@ -78,7 +78,14 @@ export class DiscordAdapter implements ChatAdapter {
     }];
     const rest = new REST().setToken(this.opts.token);
     for (const g of this.client.guilds.cache.values()) {
-      try { await rest.put(Routes.applicationGuildCommands(this.client.user!.id, g.id), { body: cmds }); } catch (e) { this.opts.log?.(`[discord] slash registration failed in ${g.name}: ${e instanceof Error ? e.message : e}`); }
+      try { await rest.put(Routes.applicationGuildCommands(this.client.user!.id, g.id), { body: cmds }); } catch (e) {
+        // Discord answers a rejected command payload with "Invalid Form Body" and a `rawError.errors` tree naming
+        // the exact field. Logging only `e.message` threw that away and left the failure undiagnosable — it ran on
+        // every startup for days saying nothing useful. Surface the field paths.
+        const raw = (e as { rawError?: { errors?: unknown; message?: string } }).rawError;
+        const detail = raw?.errors ? ` — ${JSON.stringify(raw.errors).slice(0, 600)}` : "";
+        this.opts.log?.(`[discord] slash registration failed in ${g.name}: ${e instanceof Error ? e.message : e}${detail}`);
+      }
     }
   }
 

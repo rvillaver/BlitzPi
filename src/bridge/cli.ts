@@ -19,6 +19,7 @@ const USAGE = `Usage: blitzpi bridge <command>
   stop | status | new [--project DIR|--conv P:ID]   stop = abort the run · new = fresh session
   model [--project DIR|--conv P:ID] [provider/id]   show/list models, or switch the session's model
   projects                              bound conversations
+  sessions                              live BlitzPi sessions, and where a chat message would go
   install-service | uninstall-service | service-status   run the daemon under systemd/launchd (survives reboot)
   bind <platform:id> [DIR] [--trigger mentions|all|operators] [--activity full|tools|quiet] [--context N] [--operator ID…] [--force]
                                         (--force: bind a project that another conversation already has)
@@ -42,6 +43,26 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
   const store = new BindingsStore(); const socketPath = process.env.BLITZ_BRIDGE_SOCKET || defaultSocketPath();
   const sel = () => (f.conv ? { conv: String(f.conv) } : { project: String(f.project ?? process.cwd()) });
   if (!sub || sub === "--help" || sub === "-h") { console.log(USAGE); return; }
+
+  if (sub === "sessions") {
+    const { SessionRegistry, routeFor, routingMessage } = await import("./sessions");
+    const reg = new SessionRegistry();
+    const live = reg.list();
+    if (!live.length) console.log("[Blitz] no BlitzPi sessions are running.");
+    for (const s of live) console.log(`  pid ${String(s.pid).padEnd(8)} ${s.project}${s.sessionId ? `  session ${s.sessionId.slice(0, 8)}` : ""}  since ${s.startedAt}`);
+    // What a chat message for each bound project would do right now.
+    const bound = store.list();
+    if (bound.length) {
+      console.log("");
+      for (const e of bound) {
+        const r = routeFor(e.binding.project, reg);
+        const msg = routingMessage(e.binding.project, r);
+        console.log(`  ${e.conv.platform}:${e.conv.id} -> ${e.binding.project}`);
+        console.log(`     ${r.kind === "one" ? `would run in pid ${r.session.pid}` : r.kind === "none" ? "no live session" : `AMBIGUOUS (${r.sessions.length} sessions)`}${msg ? "" : ""}`);
+      }
+    }
+    return;
+  }
 
   if (sub === "install-service" || sub === "uninstall-service" || sub === "service-status") {
     const { installService, uninstallService, serviceStatus } = await import("./service");
