@@ -4,6 +4,14 @@ Governance changes are called out explicitly in every release: what the runtime 
 
 ## Unreleased
 
+## 1.2.123 — 2026-09-06
+
+- **Setup flow now confirms when a profile is selected, and shows if it persists.** The first-run setup asks what kind of project you're building, but did not confirm the choice. A notification now appears when you pick a profile ("Profile set to 'X' — the agent will check work against this"), and the completion message warns if it's still the generic default instead of your choice. If you defer the profile question, that's also confirmed.
+- **Security level changes now clearly say they require a session restart.** The `/blitz-level` command worked but the message did not make it obvious that a new BlitzPi session is needed — it just said "takes effect next session start". The message now explicitly says *"close and reopen this terminal or run 'blitzpi' again"*.
+- **Profile persistence is now logged with diagnostics.** If `selectProfile` writes the config file but the change does not stick, a warning now appears: `[Blitz:Setup] ⚠ Profile write verification failed`. On startup, the log shows the full path to the profile file being used, making it obvious if it fell back to the shipped default. These additions help diagnose why a selected profile might not persist.
+
+## Unreleased
+
 - **Security: prompts injected by an extension are no longer exempt from the governance input gate.** The gate skipped anything arriving with `source: "extension"`, which sounds like "BlitzPi's own text" but actually means "some extension called `sendUserMessage()`" — and the bundled MCP adapter uses exactly that call to inject an MCP server's prompt content as a user turn. So text supplied by an external MCP server reached the model without the prompt-injection scan the gate exists to perform, and without an audit entry. The exemption dated from the very first commit with no recorded reason and protected nothing BlitzPi itself does: BlitzPi never injects prompts. Extension-sourced prompts are now scanned like any other, and the audit entry records which source a prompt came from. Locally typed slash commands are still exempt — they are commands, not model prompts — and bridge prompts were never affected, since they arrive prefixed with `[caller …]`.
 
 ## 1.2.122 — 2026-09-05
