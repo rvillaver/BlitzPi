@@ -40,10 +40,22 @@ function selectProfile(cwd: string, name: string): void {
   const f = path.join(cwd, ".blitz", "blitz.config.yaml");
   let text = "";
   try { text = fs.readFileSync(f, "utf-8"); } catch { /* new */ }
+  const original = text;
   text = /^goodbehavior:/m.test(text)
     ? text.replace(/^goodbehavior:\n(\s+profile:.*\n)?/m, `goodbehavior:\n  profile: ${name}\n`)
     : `${text}${text.endsWith("\n") || !text ? "" : "\n"}goodbehavior:\n  profile: ${name}\n`;
-  try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); } catch { /* best effort */ }
+  try {
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, text);
+    // Verify it was written correctly
+    const verify = fs.readFileSync(f, "utf-8");
+    const hasProfile = new RegExp(`^goodbehavior:\\s*\\n\\s*profile:\\s*${name}`).test(verify);
+    if (!hasProfile) {
+      info(`[Blitz:Setup] ⚠ Profile write verification failed for "${name}" — config may not persist`);
+    }
+  } catch (e) {
+    info(`[Blitz:Setup] ⚠ Failed to write profile "${name}" to config: ${e}`);
+  }
 }
 
 function trustProject(cwd: string): void {
@@ -128,12 +140,13 @@ export function setupFirstRunFlow(pi: ExtensionAPI, audit: AuditLogger): void {
     const r = await runSteps(steps, stepCtx, { version: blitzVersion() });
     if (r.aborted) return;
     if (firstRun) {
+      const finalProfile = configuredProfile(cwd);
       pi.sendMessage({
         customType: "blitz-setup",
         content: `BlitzPi is set up in ${cwd}\n` +
           `- GoodBehavior's skills ship with BlitzPi and are active now — nothing installed into your folder\n` +
-          `- profile: ${configuredProfile(cwd)} (.blitz/goodbehavior/profiles/)\n` +
-          `- security config in .blitz/ · change any answer later with blitzpi setup`,
+          `- profile: ${finalProfile}${finalProfile === "development" ? " (still the generic default — consider drafting a project-specific profile)" : " ✓"}\n` +
+          `- security config in .blitz/ · change any answer later with blitzpi setup or /blitz-level`,
         display: true,
       });
     }

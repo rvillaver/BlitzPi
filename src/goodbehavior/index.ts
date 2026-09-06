@@ -81,7 +81,9 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   let profileName = config.goodbehavior?.profile ?? "development";
   buildGateFor(cwd, profileName);
   const adopted = isAdopted(cwd);
-  info(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"` : "not adopted in this project (/adopt-goodbehavior)"}`);
+  const profile = adopted ? loadProfile(cwd, profileName) : null;
+  const profilePath = adopted && profile ? ` → ${profile.path}` : "";
+  info(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"${profilePath}` : "not adopted in this project (/adopt-goodbehavior)"}`);
 
   // The generic shipped profile isn't written for this project. Nudge every interactive session until someone
   // (the agent, via draft-profile-goodbehavior, or a human by hand) points goodbehavior.profile somewhere else —

@@ -108,7 +108,7 @@ export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audi
       }
       if (!(LEVELS as string[]).includes(value)) return show(pi, ctx, `unknown level "${value}" — one of: ${LEVELS.join(", ")}`);
       const { from, file } = setSecurityLevel(value as (typeof LEVELS)[number], { global }, audit);
-      show(pi, ctx, `security level: ${from} -> ${value} (${file}) — takes effect next session start`);
+      show(pi, ctx, `security level: ${from} → ${value}\n  (written to ${file})\n  ⓘ Takes effect on your next BlitzPi session start (close and reopen this terminal or run 'blitzpi' again)`);
     },
   });
   // Replace Pi's startup header and the terminal title (TUI only). Applied now and again after every

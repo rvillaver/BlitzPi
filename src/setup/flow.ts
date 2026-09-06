@@ -83,9 +83,12 @@ export function profileStep(configuredProfile: (cwd: string) => string, adopt: (
         "What kind of project is this — and how would you know the work is actually right?",
         [...labels, NOT_NOW],
       );
-      if (!choice || choice === NOT_NOW) return "later";
+      if (!choice || choice === NOT_NOW) { ctx.ui.notify("Profile selection deferred — run 'blitzpi setup' or /draft-profile-goodbehavior to choose later", "info"); return "later"; }
       const picked = OPTIONS[labels.indexOf(choice)];
-      if (picked) adopt(ctx.cwd, picked.profile);
+      if (picked) {
+        adopt(ctx.cwd, picked.profile);
+        ctx.ui.notify(`Profile set to "${picked.label}" — the agent will check work against this.`, "info");
+      }
       return "ok";
     },
   };
