@@ -32,6 +32,19 @@ export class Pacer {
   /** Thinking text — rendered to the activity target as `>`-quoted lines, visually distinct from the answer. */
   thinking(t: string): void { this.thought += t; if (this.thought.length >= this.maxChars) this.flush(); else this.schedule(); }
   private schedule(): void { if (!this.timer) this.timer = setTimeout(() => this.flush(), this.windowMs); }
+  /**
+   * Everything buffered is posted and every post already chained has completed.
+   *
+   * `flush()` alone is not enough: it starts the sends and returns, so a caller can observe an adapter that has not
+   * received them yet. That gap is what made "a run finished" and "its output has been posted" two different
+   * moments — a race that showed up as an intermittent test failure under parallel load, where the assertion beat
+   * the pending 30 ms window.
+   */
+  async drain(): Promise<void> {
+    await this.flush();
+    await this.chain;
+  }
+
   flush(): Promise<void> {
     if (this.timer) { clearTimeout(this.timer); this.timer = undefined; }
     if (this.lines.length) { const m = this.lines.join("\n"); this.lines = []; this.chain = this.chain.then(() => this.send(m)).catch(() => {}); }
@@ -50,6 +63,8 @@ interface Conversation {
   conv: ConvRef; adapter: ChatAdapter; binding: Binding; host?: RpcHost;
   running: boolean; thread?: ThreadRef | ConvRef; answerTarget?: ThreadRef | ConvRef; seedId?: string; pacer?: Pacer; startedAt?: number; lastEventAt?: number; lastBotMessageId?: string; queue: string[];
   statsAtStart?: { tokens: number; cost: number }; runError?: string;
+  /** finishRun()'s promise: the agent has stopped but its output is still being posted. */
+  finishing?: Promise<void>;
   retries: number; retryTimer?: NodeJS.Timeout;
   outSnapshot?: OutSnapshot; delivered: Set<string>;
 }
@@ -276,7 +291,9 @@ export class Bridge {
       case "compaction_end": p.activity(e.errorMessage ? `⚠️ compaction failed — ${String(e.errorMessage).slice(0, 160)}` : "♻️ context compacted"); break;
       case "auto_retry_start": if (lvl !== "quiet") p.activity(`⏳ provider busy — retrying in ${Math.round(Number(e.delayMs ?? 0) / 1000)}s (attempt ${e.attempt}/${e.maxAttempts})`); break;
       case "agent_end": { const msgs = e.messages as { role?: string; stopReason?: string; errorMessage?: string }[] | undefined; const last = msgs?.[msgs.length - 1]; if (last?.role === "assistant" && last.stopReason === "error") c.runError = String(last.errorMessage ?? "unknown error"); break; }
-      case "agent_settled": void this.finishRun(c); break;
+      // `running` flips at the top of finishRun, but the summary, files and stats are posted after it.
+      // Hold the promise so anything asking "is this conversation done?" can wait for the output too.
+      case "agent_settled": c.finishing = this.finishRun(c).finally(() => { c.finishing = undefined; }); break;
     }
   }
   private async finishRun(c: Conversation): Promise<void> {
@@ -394,7 +411,12 @@ export class Bridge {
   /** For tests and the console runner: wait until the conversation is idle. */
   async waitIdle(conv: ConvRef, timeoutMs = 120_000): Promise<void> {
     const c = this.conversation(conv); const t0 = Date.now();
-    while ((this.inflight > 0 || c?.running || c?.retryTimer) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 50));
+    while ((this.inflight > 0 || c?.running || c?.retryTimer || c?.finishing) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 50));
+    // "The agent stopped" is not "the channel has everything": finishRun still posts the summary, delivers files
+    // and fetches stats after `running` flips, and the Pacer holds a coalescing window plus a chain of in-flight
+    // posts behind that. Wait for both, or an observer sees a finished run with half its output missing.
+    try { await c?.finishing; } catch { /* reported elsewhere */ }
+    try { await c?.pacer?.drain(); } catch { /* a failed post is reported elsewhere; never hang idle-waiting */ }
   }
 }
 
