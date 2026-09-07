@@ -26,6 +26,7 @@ import { setupChannelPostTool } from "./tools/channel-post";
 import { setupBridgeCommands } from "./ui/bridge-commands";
 import { defaultScratchDirs } from "./zones";
 import { info } from "./log";
+import { setupLoop } from "./loop";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -77,6 +78,7 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     setupQuestionTool(pi); // ask the user via ctx.ui — buttons over RPC (chat bridge), a picker in the TUI
     setupChannelPostTool(pi); // only under the bridge daemon (BLITZ_BRIDGE_SOCKET)
     setupBridgeCommands(pi); // /blitz-bridge setup|start|bind|… (the `bridge` skill drives these conversationally)
+    setupLoop(pi); // /loop <interval> "<prompt>" — repeat until agent signals [STOP_LOOP]
 
     info("[Blitz Pi] Security layer ready");
   } catch (error) {
