@@ -68,7 +68,12 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     if (!res.allow) { stats.blocked.bash++; return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` }; }
     // A dangerous SHAPE (sudo, download|shell, reverse shell) the user allowed runs unconfined — the backend cannot
     // host it. An approved out-of-project PATH keeps the OS sandbox: the backend opens exactly that path (G2c).
-    runPlan.set(command, shape ? { confined: false, grants: [] } : { confined: true, grants: grantsFor(targets, gate.roots) });
+    let grants = grantsFor(targets, gate.roots);
+    // Docker commands need implicit socket access: add /var/run/docker.sock grant if docker command detected
+    if (/\bdocker\b/.test(command) && !grants.some((g) => g.path === "/var/run/docker.sock")) {
+      grants.push({ path: "/var/run/docker.sock", write: false });
+    }
+    runPlan.set(command, shape ? { confined: false, grants: [] } : { confined: true, grants });
   });
 
   const def = createBashToolDefinition(runDir, {
