@@ -79,6 +79,25 @@ The table above is the `guarded` level — BlitzPi's shipped default. `blitzpi l
 - Config precedence: a project's `.blitz/blitz.config.yaml` overrides individual fields on top of
   `~/.blitz/blitz.config.yaml` (a global default) — it does not replace the global file wholesale.
 
+## Docker support
+
+Docker volume mounts (`-v`, `--volume`, `--mount`) are automatically inspected: their host paths are
+extracted and governed by the same zone + permission ladder as other file paths. This enables:
+
+- **Project-aware Docker (guarded mode):** containers can mount project files. Mounts outside the project
+  prompt per the permission ladder (ask in `guarded`; auto-allow reads in `monitored`).
+- **Blanket host access (monitored mode):** switch to `monitored` tier for development workflows that need
+  arbitrary Docker host access without prompts.
+
+**Example:** `docker run -v /home/user/project:/app -v /etc/config:/config myimage`
+- In `guarded`: `/home/user/project` (outside-project read) and `/etc/config` (system read) each prompt separately
+- In `monitored`: both auto-allow (still audited in `~/.blitz/audit`)
+
+The extraction handles:
+- `-v` and `--volume` flags: `-v /host:/container`, `--volume "/host:/container"`
+- `--mount` syntax: `--mount type=bind,source=/host,target=/container` (and `src=` / `destination=` variants)
+- Dynamic paths with `$` or backticks are skipped (they can't be statically analyzed)
+
 ## The two-layer rule
 
 - **Scratch is shared, not isolated.** The bash sandbox binds the host temp dir (bwrap) / allows writes there

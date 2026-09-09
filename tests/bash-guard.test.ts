@@ -97,3 +97,35 @@ test("dehomeTarget: ~ is the workspace for confined commands", () => {
   expect(dehomeTarget("/etc/hosts", "/proj")).toBe("/etc/hosts");
   expect(dehomeTarget("~user/x", "/proj")).toBe("~user/x"); // another user's home is not ours to remap
 });
+
+describe("Docker volume mounts are extracted as path targets", () => {
+  test.each([
+    ["docker run -v /home/user/project:/app myimage", [{ path: "/home/user/project", write: false }]],
+    ["docker run --volume /data:/data myimage", [{ path: "/data", write: false }]],
+    ["docker run -v src:/app/src myimage", [{ path: "src", write: false }]],
+    ["docker run -v /home/user/project:/app -v /etc/config:/config myimage", [{ path: "/home/user/project", write: false }, { path: "/etc/config", write: false }]],
+    ["docker run --mount type=bind,source=/home/data,target=/data myimage", [{ path: "/home/data", write: false }]],
+    ["docker run --mount type=bind,src=/mnt/storage,dst=/storage myimage", [{ path: "/mnt/storage", write: false }]],
+    ["docker run -v $(pwd):/app myimage", []], // dynamic paths not extracted (contain $)
+  ])("docker %s", (c, expected) => {
+    const targets = extractTargets(c);
+    expect(targets).toEqual(expected);
+  });
+
+  test("Docker volume mounts from multi-line commands", () => {
+    const c = `docker run \\
+      -v /home/user/project:/app \\
+      -v /data:/data \\
+      myimage`;
+    expect(extractTargets(c)).toEqual([
+      { path: "/home/user/project", write: false },
+      { path: "/data", write: false },
+    ]);
+  });
+
+  test("Docker mounts are reads (conservative; container writes don't affect host)", () => {
+    const c = "docker run -v /host/path:/container/path myimage";
+    const targets = extractTargets(c);
+    expect(targets.every(t => !t.write)).toBe(true);
+  });
+});

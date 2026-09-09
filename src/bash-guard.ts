@@ -79,7 +79,13 @@ const outside = (cwd: string | null) => !!cwd && (cwd.startsWith("/") || cwd ===
 /** Absolute or ~ paths, plus relative paths containing a ".." escape — each resolved against the directory the
  *  statement actually runs in (see segmentsWithCwd), so `(cd apps/api && … > ../../.tmp/x.log)` is `.tmp/x.log`. */
 export function extractTargets(rawCommand: string): CmdTarget[] {
-  const command = rawCommand.replace(URL_TOKEN, (u) => " ".repeat(u.length));
+  let command = rawCommand.replace(URL_TOKEN, (u) => " ".repeat(u.length));
+  // Remove Docker volume arguments to prevent generic path regex from matching them
+  // This replaces -v/--volume specs and --mount specs with spaces, preserving indices
+  command = command
+    .replace(/(?:^|\s)(?:-v|--volume)\s+("?)([^:\s"]+)\1:[^\s]*/g, (m) => " ".repeat(m.length))
+    .replace(/(?:^|\s)--mount\s+[^\s;|&)]+/g, (m) => " ".repeat(m.length));
+
   const segs = segmentsWithCwd(command);
   const cwdAt = (idx: number) => segs.find((s) => idx >= s.start && idx < s.end)?.cwd ?? null;
   const targets = new Map<string, boolean>(); // path -> write
@@ -114,6 +120,28 @@ export function extractTargets(rawCommand: string): CmdTarget[] {
       const file = am[2].replace(/^["']|["']$/g, "");
       if (file === "-" || file.startsWith("-")) continue;
       add(file, true, base + am.index);
+    }
+  }
+
+  // Docker volume mounts: extract from original rawCommand (command has been sanitized)
+  // -v host_path:container_path or --volume host_path:container_path
+  // Skip dynamic paths with $, backticks, or other shell expansions
+  const dockerVolRe = /(?:^|\s)(?:-v|--volume)\s+("?)([^:\s"$`]+)\1:/g;
+  let dvmatch: RegExpExecArray | null;
+  while ((dvmatch = dockerVolRe.exec(rawCommand))) {
+    const hostPath = dvmatch[2];
+    add(hostPath, false, dvmatch.index);
+  }
+  // --mount type=bind,source=/host/path,target=/container/path (and variations: source, src)
+  const dockerMountRe = /(?:^|\s)--mount\s+([^\s;|&)]+)/g;
+  let dmatch: RegExpExecArray | null;
+  while ((dmatch = dockerMountRe.exec(rawCommand))) {
+    const mountSpec = dmatch[1].replace(/^["']|["']$/g, "");
+    // Extract source path from key=value pairs (source= or src=)
+    const sourceMatch = /(?:source|src)=([^,\s]+)/.exec(mountSpec);
+    if (sourceMatch) {
+      const sourcePath = sourceMatch[1].trim();
+      add(sourcePath, false, dmatch.index);
     }
   }
 
