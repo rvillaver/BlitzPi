@@ -139,7 +139,11 @@ class BwrapBackend implements SandboxBackend {
   describe(runDir: string) { return `bubblewrap — workspace ${runDir} is the only writable path (host network kept)`; }
   exec(command: string, runDir: string, options: ExecOptions) {
     const args: string[] = [];
-    for (const d of RO_SYSTEM_DIRS) args.push("--ro-bind-try", d, d);
+    const skipReadOnlyRun = (options as any).skipReadOnlyRun ?? false;
+    for (const d of RO_SYSTEM_DIRS) {
+      if (skipReadOnlyRun && d === "/run") continue; // Skip /run for docker — it'll be mounted writable via grants
+      args.push("--ro-bind-try", d, d);
+    }
     // OpenSSH refuses config includes whose owner is unmapped in the user namespace ("Bad owner or permissions on
     // /etc/ssh/ssh_config.d/…" — root maps to nobody under --unshare-user), which broke git push/pull over ssh.
     // An empty tmpfs over the include dir keeps ssh usable; /etc/ssh/ssh_config itself is not ownership-checked.
@@ -150,8 +154,10 @@ class BwrapBackend implements SandboxBackend {
     for (const d of defaultScratchDirs()) args.push("--bind-try", d, d); // scratch: the host temp dir, shared with the file tools
     for (const g of options.grants ?? []) { const m = grantMount(g); if (m) args.push(g.write ? "--bind-try" : "--ro-bind-try", m, m); } // approved escapes, and only those
     args.push("--proc", "/proc", "--dev", "/dev",
-      "--bind", runDir, runDir, "--chdir", runDir,
-      "--unshare-user", "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
+      "--bind", runDir, runDir, "--chdir", runDir);
+    // Docker commands need to keep user/group mappings to access the socket owned by the docker group
+    if (!skipReadOnlyRun) args.push("--unshare-user");
+    args.push("--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup",
       "--setenv", "HOME", runDir,
       "--setenv", "PATH", sandboxPath(runtimeDirs, options.env),
       "/bin/bash", "-c", wrapForNamespace(command));
