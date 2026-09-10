@@ -39,6 +39,7 @@ function harness(entries: any[] = []) {
     }),
   };
 
+  const idle = { value: true };
   const ctx = {
     ui: {
       setStatus: jest.fn(),
@@ -48,10 +49,12 @@ function harness(entries: any[] = []) {
     },
     sessionManager: { getEntries: () => entries },
     waitForIdle: jest.fn(() => Promise.resolve()),
+    // Pi's real context exposes this; the loop must not hand a message to a busy session.
+    isIdle: jest.fn(() => idle.value),
   };
 
   setupLoop(pi as any);
-  return { pi, ctx, sends, notifications, run: (args: string) => handler(args, ctx) };
+  return { pi, ctx, sends, notifications, idle, run: (args: string) => handler(args, ctx) };
 }
 
 const assistant = (text: string) => ({
@@ -111,6 +114,29 @@ describe("/loop", () => {
 
     expect(h.pi.sendUserMessage).toHaveBeenCalledTimes(1);
     expect(h.notifications.some((n) => n.message.includes("[STOP_LOOP]"))).toBe(true);
+  });
+
+  // Reproduced live 2026-09-10: a follow-up delivered while a turn is streaming sits on Pi's queue, and
+  // escape (the interrupt key) makes restoreQueuedMessagesToEditor() join every queued message and setText()
+  // it into the editor, above what the user was typing. Their prompt line fills with text they never wrote.
+  it("does not send while the session is busy — it waits for the next interval instead", async () => {
+    const h = harness();
+    h.idle.value = false;
+    await h.run('30s "check status"');
+
+    // The first tick lands on a busy session: nothing may be handed to the queue.
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(h.pi.sendUserMessage).not.toHaveBeenCalled();
+
+    // It keeps trying, and sends as soon as the session is free.
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(h.pi.sendUserMessage).not.toHaveBeenCalled();
+    h.idle.value = true;
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(h.pi.sendUserMessage).toHaveBeenCalledTimes(1);
+
+    // `activeLoop` is module state: a loop left running here refuses the next test's /loop.
+    await h.run("stop");
   });
 
   it("stops and reports when a send rejects, without scheduling another turn", async () => {

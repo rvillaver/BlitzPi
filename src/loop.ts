@@ -58,6 +58,18 @@ function scheduleNextIteration(loop: LoopState, pi: ExtensionAPI): void {
 async function runIteration(loop: LoopState, pi: ExtensionAPI): Promise<void> {
   if (!loop.running) return;
 
+  // Never hand a message to a session that is already working. A follow-up delivered mid-turn sits on Pi's
+  // queue, and the moment the user presses escape (Pi's interrupt key) `restoreQueuedMessagesToEditor` joins
+  // EVERY queued message with a blank line and setText()s it into the editor, above whatever they were part-way
+  // through typing. The user then sees their prompt line fill with text they never wrote — the reported
+  // "bad character inputs", reproduced live 2026-09-10. Skipping the tick costs one interval; queuing corrupts
+  // what they are typing. Awaiting the send below is what normally keeps us idle here; this covers the rest:
+  // a turn the user started themselves, and the window where our own send has not yet settled.
+  if (!loop.ctx.isIdle()) {
+    scheduleNextIteration(loop, pi);
+    return;
+  }
+
   loop.iterations++;
   loop.ctx.ui.setStatus("loop", `Loop iteration ${loop.iterations}... (/loop stop to cancel)`);
 
