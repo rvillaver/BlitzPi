@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.124 — 2026-09-10
 
 - **Fixed: a permission question raised while another was open could hang the session outright.** BlitzPi asks before a command reaches outside your project — and Pi shows one dialog at a time, with no queue. When two questions were raised at once, the second replaced the first on screen and the first was silently dropped: never shown again, never answered, and the tool call waiting on it waited forever. The session simply stopped, mid-turn, with no error and nothing to answer. The way to hit it was ordinary — one turn running several shell commands in parallel, one of them touching something that needs approval, such as a `docker`/`podman` command reaching the daemon socket. Pressing ctrl+c did not help, because in Pi ctrl+c clears the editor rather than interrupting (escape interrupts; ctrl+c twice exits), and the question carried nothing that could cancel it. Now every question BlitzPi asks goes through a queue, so you are asked them one after another and none is lost. Questions asked while the agent is waiting on them can also be cancelled with escape, and expire rather than hang — an expired or cancelled question is recorded as *dismissed*, and refused, not approved.
 
