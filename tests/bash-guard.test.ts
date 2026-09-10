@@ -99,17 +99,27 @@ test("dehomeTarget: ~ is the workspace for confined commands", () => {
 });
 
 describe("Docker volume mounts are extracted as path targets", () => {
+  // These expectations were inverted until 2026-09-10. The originals asserted `write: false` for every bind mount,
+  // under the heading "container writes don't affect host" — which is exactly backwards: a bind mount is
+  // READ-WRITE unless the spec says `:ro`/`readonly`, so a container write lands on the host path. They also
+  // asserted that a mount containing `$` is not extracted at all, documenting audit finding G15-2 as intended
+  // behaviour. Corrected per audit batch 15 (G15-1, G15-2); `$PWD`/`$HOME`/`$(pwd)` resolve to the workspace
+  // because every backend pins both, so the commonest idiom does not read as an unresolvable path.
   test.each([
-    ["docker run -v /home/user/project:/app myimage", [{ path: "/home/user/project", write: false }]],
-    ["docker run --volume /data:/data myimage", [{ path: "/data", write: false }]],
-    ["docker run -v src:/app/src myimage", [{ path: "src", write: false }]],
-    ["docker run -v /home/user/project:/app -v /etc/config:/config myimage", [{ path: "/home/user/project", write: false }, { path: "/etc/config", write: false }]],
-    ["docker run --mount type=bind,source=/home/data,target=/data myimage", [{ path: "/home/data", write: false }]],
-    ["docker run --mount type=bind,src=/mnt/storage,dst=/storage myimage", [{ path: "/mnt/storage", write: false }]],
-    ["docker run -v $(pwd):/app myimage", []], // dynamic paths not extracted (contain $)
+    ["docker run -v /home/user/project:/app myimage", [{ path: "/home/user/project", write: true }]],
+    ["docker run --volume /data:/data myimage", [{ path: "/data", write: true }]],
+    ["docker run -v src:/app/src myimage", [{ path: "src", write: true }]],
+    ["docker run -v /home/user/project:/app -v /etc/config:/config myimage", [{ path: "/home/user/project", write: true }, { path: "/etc/config", write: true }]],
+    ["docker run --mount type=bind,source=/home/data,target=/data myimage", [{ path: "/home/data", write: true }]],
+    ["docker run --mount type=bind,src=/mnt/storage,dst=/storage myimage", [{ path: "/mnt/storage", write: true }]],
+    ["docker run -v $(pwd):/app myimage", [{ path: "$(pwd)", write: true }]],
   ])("docker %s", (c, expected) => {
-    const targets = extractTargets(c);
-    expect(targets).toEqual(expected);
+    expect(extractTargets(c)).toEqual(expected);
+  });
+
+  test("read-only mounts are reads", () => {
+    expect(extractTargets("docker run -v /etc:/etc:ro myimage")).toEqual([{ path: "/etc", write: false }]);
+    expect(extractTargets("docker run --mount type=bind,source=/etc,target=/etc,readonly myimage")).toEqual([{ path: "/etc", write: false }]);
   });
 
   test("Docker volume mounts from multi-line commands", () => {
@@ -118,14 +128,17 @@ describe("Docker volume mounts are extracted as path targets", () => {
       -v /data:/data \\
       myimage`;
     expect(extractTargets(c)).toEqual([
-      { path: "/home/user/project", write: false },
-      { path: "/data", write: false },
+      { path: "/home/user/project", write: true },
+      { path: "/data", write: true },
     ]);
   });
 
-  test("Docker mounts are reads (conservative; container writes don't affect host)", () => {
-    const c = "docker run -v /host/path:/container/path myimage";
-    const targets = extractTargets(c);
-    expect(targets.every(t => !t.write)).toBe(true);
+  test("a bind mount is a WRITE to the host path (audit 15, G15-1)", () => {
+    expect(extractTargets("docker run -v /host/path:/container/path myimage")).toEqual([{ path: "/host/path", write: true }]);
+  });
+
+  test("mounts hidden behind shell expansion are still extracted (audit 15, G15-2)", () => {
+    expect(extractTargets("docker run -v $HOME:/data alpine")).toEqual([{ path: "$HOME", write: true }]);
+    expect(extractTargets("docker run -v $PWD:/app node")).toEqual([{ path: "$PWD", write: true }]);
   });
 });

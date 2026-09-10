@@ -9,10 +9,11 @@ import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-wo
 import { stats } from "./security-status";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
-import { dangerousShape, dehomeTarget, extractTargets } from "./bash-guard";
+import { dangerousShape, dehomeTarget, extractTargets, invokesContainerCli } from "./bash-guard";
 import { selectBackend, type SandboxBackend, type BackendPref, type Grant, toolTimeoutMs } from "./sandbox-backends";
 import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
@@ -22,6 +23,17 @@ import { debug, info } from "./log";
 import { bashFacts } from "./bash-facts";
 import { redactCommand } from "./feeds/secrets";
 import { startCapabilityProbe } from "./sandbox-probe";
+
+
+/** Where the container daemon listens: `DOCKER_HOST=unix://…` when set, else the usual socket, else null when there
+ *  is none to reach. Only the socket is ever opened — never all of `/var` and `/run`, which is what the original
+ *  fix did (audit 17, G17-3). */
+function containerSocketPath(): string | null {
+  const host = process.env.DOCKER_HOST;
+  if (host?.startsWith("unix://")) return host.slice("unix://".length);
+  for (const p of ["/var/run/docker.sock", "/run/docker.sock", "/run/podman/podman.sock"]) if (existsSync(p)) return p;
+  return null;
+}
 
 let activeBackend: string | null = null;
 /** Name of the bash sandbox backend in use this session (bwrap | sandbox-exec | pinned), or null. */
@@ -60,25 +72,33 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     const shape = dangerousShape(command);
     // With a sandbox backend, HOME is pinned to the workspace: `~` targets are workspace paths and must classify
     // that way (file tools and backend-less runs keep real-home resolution).
-    const targets = shape ? [] : extractTargets(command).map((t) => (backend ? { ...t, path: dehomeTarget(t.path, runDir) } : t));
+    // The container daemon's socket is root-owned: reaching it is a privileged out-of-project WRITE, so it is added
+    // as a target *before* the gate decides, like every other escape. It used to be appended to the grants after
+    // `gate.resolve()` had already returned, where no rung of the ladder could see it (audit 17, G17-1/G17-4).
+    const socket = !shape && invokesContainerCli(command) ? containerSocketPath() : null;
+    const targets = shape
+      ? []
+      : [
+          ...extractTargets(command).map((t) => (backend ? { ...t, path: dehomeTarget(t.path, runDir) } : t)),
+          ...(socket ? [{ path: socket, write: true }] : []),
+        ];
+    // Shell expansion hides paths from extraction: `cat "$SECRET"` yields no targets at all. A *hardened* backend
+    // confines the command whatever it names, so silence is correct there. A non-hardened backend (pinned — Windows,
+    // and macOS without sandbox-exec) only pins cwd/HOME, so an unparseable command must not fall through to
+    // worst()'s in-project seed, which would silently approve it (audit 16, G16-1).
+    const opaque = !shape && !backend?.hardened && targets.length === 0 && /[$`]/.test(command);
     const res = shape
       ? await gate.resolveDangerousCommand(command, shape, ctx)
+      : opaque
+      ? await gate.resolve("read", "other", command, "bash command (unresolvable paths, unconfined backend)", ctx, command)
       : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx, command); })();
 
     if (!res.allow) { stats.blocked.bash++; return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` }; }
     // A dangerous SHAPE (sudo, download|shell, reverse shell) the user allowed runs unconfined — the backend cannot
     // host it. An approved out-of-project PATH keeps the OS sandbox: the backend opens exactly that path (G2c).
-    const needsDocker = /\bdocker\b/.test(command);
-    let grants = grantsFor(targets, gate.roots);
-    // Docker needs /run writable AND /var must be accessible for /var/run/docker.sock.
-    // /var is mounted writable so namespace remapping doesn't block socket access.
-    if (needsDocker && !grants.some((g) => g.path === "/run" || g.path === "/var")) {
-      grants.push({ path: "/run", write: true });
-      grants.push({ path: "/var", write: true }); // /var/run needs write access through namespace mapping
-    }
-    const plan = shape ? { confined: false, grants: [] } : { confined: true, grants };
-    if (needsDocker) (plan as any).skipReadOnlyRun = true;
-    runPlan.set(command, plan);
+    // Grants follow from the approved targets and nothing else. The socket, when present, is already one of them.
+    const grants = grantsFor(targets, gate.roots);
+    runPlan.set(command, shape ? { confined: false, grants: [] } : { confined: true, grants });
   });
 
   const def = createBashToolDefinition(runDir, {
@@ -91,7 +111,7 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         const t0 = Date.now();
         if (plan.confined && backend) {
           audit.log({ type: "bash_exec", confined: true, backend: backend.name, command: redactCommand(command), ...bashFacts(command), ...(plan.grants.length ? { grants: plan.grants } : {}) });
-          const execOpts = { ...options, env: withCache(options.env), grants: [...cacheGrant, ...policyGrant, ...plan.grants], ...((plan as any).skipReadOnlyRun && { skipReadOnlyRun: true }) };
+          const execOpts = { ...options, env: withCache(options.env), grants: [...cacheGrant, ...policyGrant, ...plan.grants] };
           return backend.exec(command, runDir, execOpts).then(async (r) => {
             audit.log({ type: "bash_exit", backend: backend.name, exit_code: r.exitCode, aborted: !!options.signal?.aborted, ms: Date.now() - t0, command: redactCommand(command).slice(0, 120) });
             if (r.exitCode === 0 && isBunInstall(command) && !options.signal?.aborted) {

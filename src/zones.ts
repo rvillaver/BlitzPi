@@ -67,6 +67,10 @@ export function classifyZone(target: string, roots: ZoneRoots): Zone {
   // `~` resolves to the real home here (right for file tools, which run unpinned); confined bash commands pre-map
   // `~` to the workspace before classification (bash-guard.dehomeTarget), where HOME is pinned to the project.
   const t = target === "~" || target.startsWith("~/") || target.startsWith("~\\") ? p.join(home, target.slice(1)) : target;
+  // A target still carrying an unexpanded shell expansion (`$HOME`, `$(…)`, backticks) cannot be resolved here.
+  // Joining it to the project root would claim it is in-project — the permissive answer for the one case we
+  // genuinely cannot classify (audit 15/16). Unknown resolves to `other`, the conservative zone.
+  if (/[$`]/.test(t)) return "other";
   const abs = p.isAbsolute(t) ? p.resolve(t) : p.resolve(roots.project, t);
   const u = (root: string) => underIn(roots, abs, root);
 

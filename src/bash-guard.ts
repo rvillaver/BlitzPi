@@ -15,13 +15,47 @@ export function dangerousShape(command: string): string | null {
   return null;
 }
 
+/**
+ * The program each statement actually invokes.
+ *
+ * Exists because the sandbox once keyed a privilege decision off `/\bdocker\b/` against the whole command, so a
+ * commit message, a grep pattern or a path like `/var/run/docker.sock` was enough to trip it (audit 17, G17-1).
+ * Naming a tool is not running it. Leading env assignments and command wrappers are skipped so `FOO=1 sudo docker …`
+ * still reports `docker`.
+ */
+export function invokedPrograms(command: string): string[] {
+  const out: string[] = [];
+  for (const seg of segmentsWithCwd(command)) {
+    let text = command.slice(seg.start, seg.end).trim();
+    for (;;) {
+      const m = /^(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+|(?:sudo|doas|env|nice|nohup|time|command|builtin|exec)\s+)/.exec(text);
+      if (!m) break;
+      text = text.slice(m[0].length);
+    }
+    const word = /^([^\s;|&()<>]+)/.exec(text)?.[1];
+    if (word) out.push(word.replace(/^.*\//, "").replace(/^["']|["']$/g, ""));
+  }
+  return out;
+}
+
+/** Does this command actually run a container CLI (as opposed to merely mentioning one)? */
+export function invokesContainerCli(command: string): boolean {
+  return invokedPrograms(command).some((p) => p === "docker" || p === "docker-compose" || p === "podman");
+}
+
 export interface CmdTarget { path: string; write: boolean; }
 
 /** Confined commands run with HOME pinned to the workspace, so a `~` target IS a workspace path. Without this,
  *  a sandbox-safe `ssh-keyscan github.com >> ~/.ssh/known_hosts` classifies as a DANGEROUS out-of-project write
  *  (zones resolve `~` against the real home) — a false positive that blocks the agent's own correct fix. */
 export function dehomeTarget(p: string, runDir: string): string {
-  return p === "~" || p.startsWith("~/") || p.startsWith("~\\") ? runDir + p.slice(1) : p;
+  if (p === "~" || p.startsWith("~/") || p.startsWith("~\\")) return runDir + p.slice(1);
+  // `$HOME` and `$PWD` are equally knowable under a backend: every backend pins HOME **and** cwd to the workspace
+  // (bwrap `--setenv HOME runDir --chdir runDir`; pinned `cwd/HOME: runDir`). Without this, the commonest container
+  // idiom of all — `-v $PWD:/app` — classifies as an unresolvable path and rates `dangerous`, which is both wrong
+  // and the kind of false positive that gets a security fix reverted.
+  const m = /^(?:\$(?:\{(?:HOME|PWD)\}|(?:HOME|PWD))|\$\(pwd\)|`pwd`)(?=$|[\/\\])/.exec(p);
+  return m ? runDir + p.slice(m[0].length) : p;
 }
 
 const WRITE_REDIR = /(^|[^0-9<>&])>>?\s*("?~?\/?[^\s"';|&)]+)/g;
@@ -126,11 +160,15 @@ export function extractTargets(rawCommand: string): CmdTarget[] {
   // Docker volume mounts: extract from original rawCommand (command has been sanitized)
   // -v host_path:container_path or --volume host_path:container_path
   // Skip dynamic paths with $, backticks, or other shell expansions
-  const dockerVolRe = /(?:^|\s)(?:-v|--volume)\s+("?)([^:\s"$`]+)\1:/g;
+  // Same character class as the strip pass above — they used to disagree on `$`, so the strip blanked
+  // `-v $PWD:/app` and this pass declined to put it back: the mount vanished entirely (audit 15, G15-2).
+  // A bind mount is READ-WRITE unless the spec ends in `:ro`, so `write` is true by default (G15-1).
+  const dockerVolRe = /(?:^|\s)(?:-v|--volume)\s+("?)([^:\s"]+)\1:([^\s]*)/g;
   let dvmatch: RegExpExecArray | null;
   while ((dvmatch = dockerVolRe.exec(rawCommand))) {
-    const hostPath = dvmatch[2];
-    add(hostPath, false, dvmatch.index);
+    // `-v host:container[:opts]` — the options are the third colon-separated field, e.g. `ro`, `ro,z`.
+    const readOnly = /(^|,)ro(,|$)/.test((dvmatch[3] ?? "").split(":")[1] ?? "");
+    add(dvmatch[2], !readOnly, dvmatch.index);
   }
   // --mount type=bind,source=/host/path,target=/container/path (and variations: source, src)
   const dockerMountRe = /(?:^|\s)--mount\s+([^\s;|&)]+)/g;
@@ -140,8 +178,9 @@ export function extractTargets(rawCommand: string): CmdTarget[] {
     // Extract source path from key=value pairs (source= or src=)
     const sourceMatch = /(?:source|src)=([^,\s]+)/.exec(mountSpec);
     if (sourceMatch) {
-      const sourcePath = sourceMatch[1].trim();
-      add(sourcePath, false, dmatch.index);
+      // `--mount` is read-write unless the spec carries `readonly` / `ro=true` (G15-1).
+      const readOnly = /(^|,)(readonly|ro=true)(,|$)/.test(mountSpec);
+      add(sourceMatch[1].trim(), !readOnly, dmatch.index);
     }
   }
 
