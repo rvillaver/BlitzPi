@@ -69,7 +69,7 @@ function getDefaultRunDir(): string {
   return process.env.BLITZ_RUN_DIR || process.cwd();
 }
 
-const DEFAULT_CONFIG: BlitzConfig = {
+export const DEFAULT_CONFIG: BlitzConfig = {
   security_level: "guarded",
   threat_detection: {
     enabled: true,
@@ -138,29 +138,30 @@ function detectInstallTypeForConfig(): "global" | "local" {
  * own .blitz/blitz.config.yaml, which workspace-init.ts writes for every new project.)
  */
 export function loadConfig(): BlitzConfig {
+  configProblems = [];
   let config = DEFAULT_CONFIG;
   let globalRaw: Partial<BlitzConfig> | undefined;
   let localRaw: Partial<BlitzConfig> | undefined;
 
   const globalConfigPath = path.join(realHome(), ".blitz", "blitz.config.yaml");
   if (fs.existsSync(globalConfigPath)) {
-    globalRaw = loadRawYaml(globalConfigPath);
-    config = validateConfig(globalRaw, config);
+    globalRaw = loadRawYaml(globalConfigPath, "global");
+    if (globalRaw) config = validateConfig(globalRaw, config);
   }
 
   const localConfigPath = path.join(process.cwd(), ".blitz", "blitz.config.yaml");
   if (fs.existsSync(localConfigPath)) {
-    localRaw = loadRawYaml(localConfigPath);
-    config = validateConfig(localRaw, config);
+    localRaw = loadRawYaml(localConfigPath, "project");
+    if (localRaw) config = validateConfig(localRaw, config);
   }
 
   config = applyLevelDefaults(config, globalRaw, localRaw);
 
-  // Ensure run directory exists
-  if (config.sandbox.enabled) {
-    if (!fs.existsSync(config.sandbox.run_dir)) {
-      fs.mkdirSync(config.sandbox.run_dir, { recursive: true });
-    }
+  // Ensure run directory exists. Best-effort: a read-only mount or a permissions problem here must not throw out
+  // of loadConfig() for the same reason a parse error must not (audit 14, G14-1/G14-6).
+  if (config.sandbox.enabled && !fs.existsSync(config.sandbox.run_dir)) {
+    try { fs.mkdirSync(config.sandbox.run_dir, { recursive: true }); }
+    catch (e) { configProblems.push({ file: config.sandbox.run_dir, scope: "project", error: `could not create run directory: ${e instanceof Error ? e.message : String(e)}` }); }
   }
 
   return config;
@@ -188,9 +189,25 @@ function applyLevelDefaults(config: BlitzConfig, globalRaw: Partial<BlitzConfig>
   };
 }
 
-function loadRawYaml(filePath: string): Partial<BlitzConfig> {
-  const content = fs.readFileSync(filePath, "utf-8");
-  return (load(content) as unknown) as Partial<BlitzConfig>;
+/**
+ * A config layer that could not be read, and why. Collected rather than thrown: `loadConfig()` runs third in
+ * `blitz()`, and a throw there makes Pi discard every governance hook and run the agent unguarded (audit 14,
+ * G14-1). A policy we cannot read must cost the policy, never the enforcement.
+ */
+export interface ConfigProblem { file: string; scope: "project" | "global"; error: string }
+let configProblems: ConfigProblem[] = [];
+
+/** Layers that failed to load on the most recent `loadConfig()`. Empty when everything parsed. */
+export function getConfigProblems(): ConfigProblem[] { return configProblems; }
+
+function loadRawYaml(filePath: string, scope: "project" | "global"): Partial<BlitzConfig> | undefined {
+  try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    return (load(content) as unknown) as Partial<BlitzConfig>;
+  } catch (e) {
+    configProblems.push({ file: filePath, scope, error: e instanceof Error ? e.message.split("\n")[0] : String(e) });
+    return undefined;
+  }
 }
 
 function validateConfig(config: Partial<BlitzConfig>, base: BlitzConfig = DEFAULT_CONFIG): BlitzConfig {

@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AuditLogger } from "../audit";
-import { isProjectSetUp, loadProfile } from "../adopt-goodbehavior";
+import { isProfileChosen, isProjectSetUp, loadProfile, recordProfileChoice } from "../adopt-goodbehavior";
 import { describeSecurityLevel, setSecurityLevel, LEVELS, LEVEL_BLURB, LEVEL_CONSTANT_NOTE } from "../security-level";
 import { FeedStore } from "../feeds/store";
 import { capabilities } from "../sandbox-probe";
@@ -71,11 +71,13 @@ export function profileStep(configuredProfile: (cwd: string) => string, adopt: (
   return {
     id: "profile",
     preview: "What kind of project this is, so \"done\" means something concrete here",
-    // "development" is the shipped generic default — present but not actually chosen.
-    done: (cwd) => isProjectSetUp(cwd) && configuredProfile(cwd) !== "development",
+    // Answered = the user answered, recorded explicitly. "development" is BOTH the shipped default and a valid
+    // answer ("An app or service"), so the value alone cannot say whether the question was ever put (G13-1).
+    done: (cwd) => isProjectSetUp(cwd) && (isProfileChosen(cwd) || configuredProfile(cwd) !== "development"),
     current: (cwd) => {
       const n = configuredProfile(cwd);
-      return n === "development" ? null : (loadProfile(cwd, n)?.name ?? n);
+      if (n === "development" && !isProfileChosen(cwd)) return null;
+      return loadProfile(cwd, n)?.name ?? n;
     },
     async run(ctx: StepContext): Promise<StepOutcome> {
       if (!ctx.interactive) return "later";
@@ -88,6 +90,7 @@ export function profileStep(configuredProfile: (cwd: string) => string, adopt: (
       const picked = OPTIONS[labels.indexOf(choice)];
       if (picked) {
         adopt(ctx.cwd, picked.profile);
+        recordProfileChoice(ctx.cwd, picked.profile);
         ctx.ui.notify(`Profile set to "${picked.label}" — the agent will check work against this.`, "info");
       }
       return "ok";

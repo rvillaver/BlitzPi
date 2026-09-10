@@ -10,7 +10,7 @@
  */
 import type { ExtensionAPI, ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { loadConfig, type BlitzConfig } from "../config";
-import { adoptGoodBehavior, isAdopted, isProjectSetUp, loadDoctrine, loadProfile, retireProjectSkillCopies, shippedProfilesDir, unadoptGoodBehavior } from "../adopt-goodbehavior";
+import { adoptGoodBehavior, isAdopted, isProfileChosen, isProjectSetUp, loadDoctrine, loadProfile, retireProjectSkillCopies, shippedProfilesDir, unadoptGoodBehavior } from "../adopt-goodbehavior";
 import { createDoneGate, DoneGate } from "./done-gate";
 import { stripInstallDocs } from "../prompt-hygiene";
 import { info } from "../log";
@@ -38,8 +38,9 @@ function buildGateFor(cwd: string, profileName: string): void {
 
 /** The configured profile, re-read from disk. `loadConfig()` re-layers global + project, so a mid-session edit to
  *  either `.blitz/blitz.config.yaml` is picked up. Falls back to the shipped default if the config is unreadable. */
-function resolveProfileName(): string {
-  try { return loadConfig().goodbehavior?.profile ?? "development"; } catch { return "development"; }
+function resolveProfileName(current: string): string {
+  try { return loadConfig().goodbehavior?.profile ?? "development"; }
+  catch { return current; } // keep what is in force: a transient read error must not silently downgrade
 }
 
 /**
@@ -91,7 +92,11 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   // self-terminating: the condition itself is the state, no separate "asked" marker needed.
   pi.on("session_start", async (_event: any, ctx: ExtensionContext) => {
     if (ctx.mode !== "tui" || !ctx.hasUI) return;
-    if (!adopted || profileName !== "development") return;
+    // Read the state now, not at extension-load time: on a genuinely first run the project is adopted by the
+    // setup flow *after* this module loaded, so the captured value was always false (audit 12, G12-9).
+    if (!isAdopted(cwd) || profileName !== "development") return;
+    // "development" chosen deliberately is an answer, not an absence — do not nag about it (G13-1).
+    if (isProfileChosen(cwd)) return;
     pi.sendMessage({
       customType: "blitz-goodbehavior",
       content: "This project's GoodBehavior profile is still the generic shipped default — draft a project-specific GoodBehavior profile for it.",
@@ -104,7 +109,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
     // goodbehavior.profile at it; before this, only the profile *body* hot-reloaded, so the new profile sat
     // inert until a restart. This hook fires after the user submits but before the agent loop, and the gate is
     // evaluated at agent_end — so swapping here is always between turns, never during an in-flight check (UX-6).
-    const resolved = resolveProfileName();
+    const resolved = resolveProfileName(profileName);
     if (resolved !== profileName) {
       const previous = profileName;
       profileName = resolved;

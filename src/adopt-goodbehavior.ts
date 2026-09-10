@@ -225,3 +225,23 @@ export function loadProfile(cwd: string, name: string): Profile | null {
   if (m) { try { frontmatter = (require("js-yaml").load(m[1]) as Record<string, unknown>) ?? {}; } catch { frontmatter = {}; } }
   return { name, path: file, body: m ? raw.slice(m[0].length).trim() : raw.trim(), frontmatter };
 }
+
+/**
+ * Whether the user has actually *answered* the profile question — recorded separately from the answer.
+ *
+ * `"development"` is both the shipped default and a legitimate choice ("An app or service — I check it by running
+ * it", the right answer for most coding projects). Inferring "unanswered" from the value made that choice
+ * unrecordable: setup re-asked it every session, `blitzpi setup` reported "not set", and the draft-a-profile nudge
+ * never stopped (audit 13, G13-1). The value cannot carry this bit, so a marker does — the same shape
+ * `runtimeStep` already uses for `.runtimes-noted`.
+ */
+export const profileChoiceMarker = (cwd: string) => path.join(cwd, ".blitz", ".profile-chosen");
+export function isProfileChosen(cwd: string): boolean {
+  try { return fs.existsSync(profileChoiceMarker(cwd)); } catch { return false; }
+}
+export function recordProfileChoice(cwd: string, name: string): void {
+  try {
+    fs.mkdirSync(path.dirname(profileChoiceMarker(cwd)), { recursive: true });
+    fs.writeFileSync(profileChoiceMarker(cwd), `${name}\n${new Date().toISOString()}\n`);
+  } catch { /* best effort: the profile itself is already written */ }
+}

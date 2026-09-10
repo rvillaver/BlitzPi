@@ -1,7 +1,7 @@
 {
   "name": "@blitz/pi-coding-agent",
   "version": "1.2.124",
-  "description": "BlitzPi \u2014 the Pi coding agent with Blitz security governance (access profiles, sandbox, threat detection, governance gate, audit trail)",
+  "description": "BlitzPi — the Pi coding agent with Blitz security governance (access profiles, sandbox, threat detection, governance gate, audit trail)",
   "main": "src/index.ts",
   "bin": {
     "blitzpi": "bin/blitzpi.ts"
@@ -54,7 +54,8 @@
     "pi-commandcode-provider": "^0.6.0",
     "pi-mcp-adapter": "^2.27.0",
     "pi-web-access": "^0.26.0",
-    "smol-toml": "^1.8.0"
+    "smol-toml": "^1.8.0",
+    "yaml": "^2.9.0"
   },
   "patchedDependencies": {
     "@earendil-works/pi-coding-agent@0.84.3": "patches/@earendil-works%2Fpi-coding-agent@0.84.3.patch"

@@ -27,6 +27,7 @@ import { setupBridgeCommands } from "./ui/bridge-commands";
 import { defaultScratchDirs } from "./zones";
 import { info } from "./log";
 import { setupLoop } from "./loop";
+import { setupInitRecovery, step, type ModuleFailure } from "./init-recovery";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -35,8 +36,16 @@ import { setupLoop } from "./loop";
 export default async function blitz(pi: ExtensionAPI): Promise<void> {
   info("[Blitz Pi] Initializing security layer...");
 
+  // Nothing below throws out of this function. Pi answers a throwing factory with `load.discard()` — every hook
+  // this extension registered is dropped and the session continues — so for the extension whose job is
+  // confinement, throwing means handing back a working agent with no security layer (audit 14, G14-1). Failures
+  // are collected and answered by setupInitRecovery, with actions scaled to how bad they are.
+  const failures: ModuleFailure[] = [];
+  const core: { failed: string | null } = { failed: null };
+  // Registered before anything else so its dialog is not queued behind another extension's blocking prompt.
+  setupInitRecovery(pi, failures, core);
+
   try {
-    // Phase 1: Core initialization
     const caller = initializeCaller();
     const config = loadConfig();
     const auditLogger = setupAudit(caller, config);
@@ -53,36 +62,35 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     const cache = cacheRoot(config.sandbox.cache ?? "shared", projectRoot);
     const gate = new PermissionGate({ project: projectRoot, install: installRoot, scratch: [...defaultScratchDirs(), ...(cache ? [cache] : [])] }, memory, auditLogger, config.security_level);
 
-    // Register checkpoints and providers
-    setupThreatDetection(pi, config, auditLogger);
-    setupAccessProfiles(pi, config, auditLogger);
-    setupGovernance(pi, config, auditLogger, caller);
-    setupSandbox(pi, config, auditLogger, gate);
-    setupFeeds(pi, config, auditLogger); // before the bash gate: a known-malicious install is refused, not asked about
-    setupSecretsFeed(pi, config, auditLogger);
-    setupCommandsFeed(pi, config, auditLogger);
-    setupUrlsFeed(pi, config, auditLogger);
-    setupContentScan(pi, config, auditLogger);
-        setupSandboxedBash(pi, config, auditLogger, gate);
+    // --- enforcement: the session must not run without these ---
+    step(failures, "threat detection", true, () => setupThreatDetection(pi, config, auditLogger));
+    step(failures, "access profiles", true, () => setupAccessProfiles(pi, config, auditLogger));
+    step(failures, "governance", true, () => setupGovernance(pi, config, auditLogger, caller));
+    step(failures, "file sandbox", true, () => setupSandbox(pi, config, auditLogger, gate));
+    step(failures, "bash sandbox", true, () => setupSandboxedBash(pi, config, auditLogger, gate));
 
-    // Phase 3: GoodBehavior (profile → system prompt when adopted; done-gate; adopt/unadopt commands)
-    setupGoodBehavior(pi, config);
-  // One ordered first-run flow replaces the trust / security-tier / feeds dialogs, which used to fire in
-  // registration order — that is why feeds was asked before the folder had been agreed to (S4b-S4f).
-  setupFirstRunFlow(pi, auditLogger);
-            setupProjectRegistry(pi, config);
-    setupCompaction(pi, auditLogger);
+    // --- detection feeds: opt-in by design, so running without them is a supported state ---
+    step(failures, "package feed", false, () => setupFeeds(pi, config, auditLogger)); // before the bash gate: a known-malicious install is refused, not asked about
+    step(failures, "secrets feed", false, () => setupSecretsFeed(pi, config, auditLogger));
+    step(failures, "commands feed", false, () => setupCommandsFeed(pi, config, auditLogger));
+    step(failures, "urls feed", false, () => setupUrlsFeed(pi, config, auditLogger));
+    step(failures, "content scan", false, () => setupContentScan(pi, config, auditLogger));
 
-    // Phase 4: Setup UI & Branding (BlitzPi identity + live status commands)
-    setupBlitzPiBranding(pi, config, auditLogger);
-    setupQuestionTool(pi); // ask the user via ctx.ui — buttons over RPC (chat bridge), a picker in the TUI
-    setupChannelPostTool(pi); // only under the bridge daemon (BLITZ_BRIDGE_SOCKET)
-    setupBridgeCommands(pi); // /blitz-bridge setup|start|bind|… (the `bridge` skill drives these conversationally)
-    setupLoop(pi); // /loop <interval> "<prompt>" — repeat until agent signals [STOP_LOOP]
-
-    info("[Blitz Pi] Security layer ready");
+    // --- everything else: a failure here costs that feature and nothing more ---
+    step(failures, "goodbehavior", false, () => setupGoodBehavior(pi, config));
+    step(failures, "setup flow", false, () => setupFirstRunFlow(pi, auditLogger));
+    step(failures, "project registry", false, () => setupProjectRegistry(pi, config));
+    step(failures, "compaction", false, () => setupCompaction(pi, auditLogger));
+    step(failures, "branding", false, () => setupBlitzPiBranding(pi, config, auditLogger));
+    step(failures, "question tool", false, () => setupQuestionTool(pi));
+    step(failures, "channel post tool", false, () => setupChannelPostTool(pi));
+    step(failures, "bridge commands", false, () => setupBridgeCommands(pi));
+    step(failures, "loop", false, () => setupLoop(pi));
   } catch (error) {
-    console.error("[Blitz Pi] Failed to initialize:", error);
-    throw error;
+    // Core init (caller / config / audit / permission gate). Nothing security-related got registered.
+    core.failed = error instanceof Error ? error.message : String(error);
   }
+
+  const broken = failures.filter((f) => f.critical).length;
+  info(core.failed || broken ? `[Blitz Pi] Security layer INCOMPLETE — see the message above` : "[Blitz Pi] Security layer ready");
 }

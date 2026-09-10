@@ -4,8 +4,9 @@
  * with comments (see the project's own .blitz/blitz.config.yaml), and a parse-then-reserialize would strip them.
  */
 import fs from "node:fs";
+import { setConfigValue } from "./config-write";
 import path from "node:path";
-import { loadConfig } from "./config";
+import { DEFAULT_CONFIG } from "./config";
 import type { SecurityLevel } from "./permissions";
 import type { AuditLogger } from "./audit";
 import { realHome } from "./real-home";
@@ -39,14 +40,18 @@ export function describeSecurityLevel(cwd: string = process.cwd()): { level: Sec
   if (projectLevel) return { level: projectLevel, source: "project" };
   const globalLevel = readLevel(globalConfigPath());
   if (globalLevel) return { level: globalLevel, source: "global" };
-  return { level: loadConfig().security_level, source: "default" };
+  // The built-in default, NOT loadConfig(): loadConfig() reads `process.cwd()`'s project file
+  // (config.ts), so using it here made the "default" branch a third, cwd-scoped project read — a project
+  // with no config of its own reported whatever tier the *current directory* happened to carry, while
+  // still labelling the source "default". The two layers that answer for this cwd are above; below them
+  // there is only the shipped default.
+  return { level: DEFAULT_CONFIG.security_level, source: "default" };
 }
 
 function patchLevel(filePath: string, level: SecurityLevel): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf-8") : "";
-  const line = `security_level: ${level}`;
-  fs.writeFileSync(filePath, /^security_level:.*$/m.test(content) ? content.replace(/^security_level:.*$/m, line) : content ? `${line}\n${content}` : `${line}\n`);
+  // Parse-modify-serialise, verified by parsing back (audit 14, G14-7). Comments in the user's config survive.
+  const r = setConfigValue(filePath, ["security_level"], level);
+  if (!r.ok) throw new Error(`could not write security level to ${filePath}: ${r.error}`);
 }
 
 /** Sets the tier at project scope by default (the ordinary case: a choice for the project the user is in),

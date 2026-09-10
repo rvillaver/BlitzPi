@@ -10,14 +10,16 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import type { AuditLogger } from "../audit";
-import { adoptGoodBehavior, isProjectSetUp } from "../adopt-goodbehavior";
+import { adoptGoodBehavior, isProfileChosen, isProjectSetUp } from "../adopt-goodbehavior";
 import { pinPackageManager, seedThinkingDisplay } from "../workspace-init";
 import { touchProject } from "../projects";
+import { loadConfig } from "../config";
 import { installFeeds } from "../feeds/onboard";
 import { FeedStore } from "../feeds/store";
 import { RuntimeStore } from "../runtimes/store";
 import { PYTHON_VERSION } from "../runtimes/pinned";
 import { info } from "../log";
+import { setConfigValue } from "../config-write";
 import { announceSession, dropSession } from "../bridge/announce";
 
 function blitzVersion(): string {
@@ -27,36 +29,21 @@ import { currentAnswers, introText, runSteps, type SetupStep, type StepContext }
 import { feedsStep, introStep, levelStep, profileStep, runtimeStep, trustStep } from "./flow";
 import { askSelect } from "../ui-ask";
 
-function configuredProfile(cwd: string): string {
-  try {
-    const f = path.join(cwd, ".blitz", "blitz.config.yaml");
-    const cfg = require("js-yaml").load(fs.readFileSync(f, "utf-8")) as { goodbehavior?: { profile?: string } };
-    return cfg?.goodbehavior?.profile ?? "development";
-  } catch { return "development"; }
+/** The profile actually in force. Must agree with `goodbehavior/index.ts`'s resolver, which layers global over
+ *  project via `loadConfig()` — reading only the project file made `blitzpi setup` report "not set" while the
+ *  agent ran a globally-configured profile (audit 12, G12-7). */
+function configuredProfile(_cwd: string): string {
+  try { return loadConfig().goodbehavior?.profile ?? "development"; } catch { return "development"; }
 }
 
-/** Point `goodbehavior.profile` at a core profile and copy it in. Regex, not parse-reserialize: keeps comments. */
+/** Point `goodbehavior.profile` at a core profile and copy it in. Parse-modify-serialise (comments survive), and
+ *  the write is verified by parsing it back — the old regex surgery could emit duplicate keys from an ordinary
+ *  edit, and its own verification regex never matched (audit 14 G14-7, audit 12 G12-6). */
 function selectProfile(cwd: string, name: string): void {
   adoptGoodBehavior(cwd, name);
   const f = path.join(cwd, ".blitz", "blitz.config.yaml");
-  let text = "";
-  try { text = fs.readFileSync(f, "utf-8"); } catch { /* new */ }
-  const original = text;
-  text = /^goodbehavior:/m.test(text)
-    ? text.replace(/^goodbehavior:\n(\s+profile:.*\n)?/m, `goodbehavior:\n  profile: ${name}\n`)
-    : `${text}${text.endsWith("\n") || !text ? "" : "\n"}goodbehavior:\n  profile: ${name}\n`;
-  try {
-    fs.mkdirSync(path.dirname(f), { recursive: true });
-    fs.writeFileSync(f, text);
-    // Verify it was written correctly
-    const verify = fs.readFileSync(f, "utf-8");
-    const hasProfile = new RegExp(`^goodbehavior:\\s*\\n\\s*profile:\\s*${name}`).test(verify);
-    if (!hasProfile) {
-      info(`[Blitz:Setup] ⚠ Profile write verification failed for "${name}" — config may not persist`);
-    }
-  } catch (e) {
-    info(`[Blitz:Setup] ⚠ Failed to write profile "${name}" to config: ${e}`);
-  }
+  const r = setConfigValue(f, ["goodbehavior", "profile"], name);
+  if (!r.ok) info(`[Blitz:Setup] ⚠ could not record profile "${name}" — ${r.error}. Your config file was left unchanged; fix it and run 'blitzpi setup' again.`);
 }
 
 function trustProject(cwd: string): void {
@@ -146,7 +133,7 @@ export function setupFirstRunFlow(pi: ExtensionAPI, audit: AuditLogger): void {
         customType: "blitz-setup",
         content: `BlitzPi is set up in ${cwd}\n` +
           `- GoodBehavior's skills ship with BlitzPi and are active now — nothing installed into your folder\n` +
-          `- profile: ${finalProfile}${finalProfile === "development" ? " (still the generic default — consider drafting a project-specific profile)" : " ✓"}\n` +
+          `- profile: ${finalProfile}${finalProfile === "development" && !isProfileChosen(cwd) ? " (still the generic default — consider drafting a project-specific profile)" : " ✓"}\n` +
           `- security config in .blitz/ · change any answer later with blitzpi setup or /blitz-level`,
         display: true,
       });

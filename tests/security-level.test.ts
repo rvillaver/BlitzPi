@@ -77,6 +77,25 @@ describe("security-level module (SP-5)", () => {
     expect(describeSecurityLevel(project)).toEqual({ level: "guarded", source: "default" });
   });
 
+  // The two tests above only caught this by accident, because the repo they run in happens to carry a level.
+  // The "default" branch used to call loadConfig(), which reads `process.cwd()`'s project file — so a project
+  // with no config of its own reported whatever tier the *current directory* carried, labelled source "default".
+  // A security tier must come from the project it is being asked about, or from the shipped default. Nothing else.
+  test("a project with no config is not influenced by the process's current directory", () => {
+    jest.resetModules();
+    const { describeSecurityLevel } = require("../src/security-level");
+    const elsewhere = tmpProject();
+    fs.writeFileSync(path.join(elsewhere, ".blitz", "blitz.config.yaml"), "security_level: strict\n");
+    const project = tmpProject();
+    const previous = process.cwd();
+    try {
+      process.chdir(elsewhere);
+      expect(describeSecurityLevel(project)).toEqual({ level: "guarded", source: "default" });
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
   test("setSecurityLevel inserts the line without disturbing existing comments/content", () => {
     jest.resetModules();
     const { setSecurityLevel, describeSecurityLevel } = require("../src/security-level");
