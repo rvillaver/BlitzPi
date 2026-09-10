@@ -10,6 +10,7 @@ import { REPO_ROOT } from "../launcher";
 import { BindingsStore, bridgeDir } from "../bridge/bindings";
 import { bridgeCall, defaultSocketPath } from "../bridge/socket";
 import { show } from "./blitzpi-branding";
+import { askSelect, askInput } from "../ui-ask";
 
 const HELP = `/blitz-bridge status                      daemon, platforms, this project's binding
 /blitz-bridge setup discord               store the bot token (asked privately) + the portal checklist
@@ -44,11 +45,11 @@ export function setupBridgeCommands(pi: ExtensionAPI): void {
           if (platform !== "discord") return out("Only discord is available in this version (Telegram and Slack follow).");
           if (!ctx.hasUI) return out("Run this in an interactive session (the token is asked privately), or put it in ~/.blitz/bridge/discord.token (0600).");
           out("Portal checklist: discord.com/developers → New Application → Bot → Reset Token · Message Content Intent ON · OAuth2 URL Generator: bot + applications.commands, permissions Send Messages, Create Public Threads, Send Messages in Threads, Read Message History, Embed Links, Attach Files, Use Slash Commands (+ Manage Channels to let bind create channels) → invite to your server.");
-          const token = ((await ctx.ui.input("Paste the Discord bot token (stored at ~/.blitz/bridge/discord.token, never shown again)", "")) ?? "").trim();
+          const token = ((await askInput(ctx, "Paste the Discord bot token (stored at ~/.blitz/bridge/discord.token, never shown again)", "")) ?? "").trim();
           if (!token) return out("No token entered — nothing changed.");
           fs.mkdirSync(bridgeDir(), { recursive: true, mode: 0o700 });
           const file = path.join(bridgeDir(), "discord.token"); fs.writeFileSync(file, token, { mode: 0o600 }); fs.chmodSync(file, 0o600);
-          const start = await ctx.ui.select("Token stored. Start the bridge daemon now?", ["Yes — start it", "No"]);
+          const start = await askSelect(ctx, "Token stored. Start the bridge daemon now?", ["Yes — start it", "No"]);
           if (start?.startsWith("Yes")) return startDaemon(out);
           return out("Stored. Start with /blitz-bridge start, then /blitz-bridge bind.");
         }

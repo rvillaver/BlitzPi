@@ -5,6 +5,7 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { askSelect, askInput, ASK_CEILING_MS } from "../ui-ask";
 
 const OTHER = "Other — type an answer";
 
@@ -23,10 +24,10 @@ export function setupQuestionTool(pi: ExtensionAPI): void {
       if (!ctx.hasUI) return { content: [{ type: "text", text: "No user is available to answer (non-interactive run). Decide yourself and state the assumption." }], details: { question: params.question, answer: null } };
       const labels = params.options.map((o) => (o.description ? `${o.label} — ${o.description}` : o.label));
       const choices = params.allowOther === false ? labels : [...labels, OTHER];
-      const picked = await ctx.ui.select(params.question, choices);
+      const picked = await askSelect(ctx, params.question, choices);
       if (picked === undefined) return { content: [{ type: "text", text: "The user dismissed the question without answering." }], details: { question: params.question, answer: null } };
       if (picked === OTHER) {
-        const typed = (await ctx.ui.input("Your answer", "")) ?? "";
+        const typed = (await askInput(ctx, "Your answer", "")) ?? "";
         return { content: [{ type: "text", text: typed.trim() ? `User answered: ${typed.trim()}` : "The user gave no answer." }], details: { question: params.question, answer: typed.trim() || null, typed: true } };
       }
       const idx = labels.indexOf(picked);

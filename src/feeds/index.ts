@@ -12,6 +12,7 @@ import { parseInstalls } from "./packages";
 import { OsvClient, maliciousOf, type CheckResult } from "./osv";
 import { redactCommand } from "./secrets";
 import { info } from "../log";
+import { askSelect, ASK_CEILING_MS } from "../ui-ask";
 
 export function describeBlock(r: CheckResult): string {
   return maliciousOf(r).map((v) => `${v.ecosystem} "${v.name}" is a known malicious package (${v.malicious.join(", ")}${v.summary ? ": " + v.summary : ""})`).join("; ");
@@ -61,7 +62,7 @@ export function setupFeeds(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLo
     if (askOnInstall) {
       const names = pkgs.map((p) => `${p.ecosystem}:${p.name}`).join(", ");
       // No human to ask ⇒ same rule as the rest of the ladder: an "ask"-class action auto-allows, it is not "dangerous".
-      const allowed = !ctx.hasUI || (await ctx.ui.select(`Allow install (security level: strict)? ${names}`, ["Yes", "No"])) === "Yes";
+      const allowed = !ctx.hasUI || (await askSelect(ctx, `Allow install (security level: strict)? ${names}`, ["Yes", "No"])) === "Yes";
       audit.log({ type: "security_level_install_ask", level: "strict", packages: names, allowed, via: ctx.hasUI ? "prompt" : "auto (non-interactive)", command: redactCommand(command).slice(0, 300) });
       if (!allowed) {
         stats.blocked.profile++;

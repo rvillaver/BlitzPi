@@ -11,6 +11,11 @@ import type { AuditLogger } from "./audit";
 import { redactCommand } from "./feeds/secrets";
 import type { Grant } from "./sandbox-backends";
 import { isAbsolute, resolve } from "node:path";
+import { askSelect, ASK_CEILING_MS } from "./ui-ask";
+
+/** Every gate ask has a tool call — and therefore an agent run — blocked behind it: cancellable by escape
+ *  (via ctx.signal) and bounded, so a dialog that never reaches the screen denies instead of hanging. */
+const ASK_OPTS = { timeout: ASK_CEILING_MS };
 
 /** Confined zones never need a grant: the backend already opens them. */
 const CONFINED_ZONES = new Set<Zone>(["project", "goodbehavior", "project-config", "plumbing", "scratch"]);
@@ -88,15 +93,15 @@ export class PermissionGate {
     const why = context && context.trim() !== target.trim() ? `  (${redactCommand(context).replace(/\s+/g, " ").slice(0, 100)})` : "";
     let choice: string | undefined;
     if (level === "dangerous") {
-      choice = await ctx!.ui.select(`⚠ Allow DANGEROUS ${action}? ${what}${why}`, ["No", "Yes (I understand the risk)"]);
+      choice = await askSelect(ctx!, `⚠ Allow DANGEROUS ${action}? ${what}${why}`, ["No", "Yes (I understand the risk)"], ASK_OPTS);
       choice = choice?.startsWith("Yes") ? "Yes" : "No";
     } else if (level === "ask-noalways") {
-      choice = await ctx!.ui.select(`Allow ${action} to security config? ${what}${why}`, ["No", "Yes"]);
+      choice = await askSelect(ctx!, `Allow ${action} to security config? ${what}${why}`, ["No", "Yes"], ASK_OPTS);
     } else if (!key) {
-      choice = await ctx!.ui.select(`Allow ${action}? ${what}${why}`, ["Yes", "No"]);
+      choice = await askSelect(ctx!, `Allow ${action}? ${what}${why}`, ["Yes", "No"], ASK_OPTS);
     } else {
       const scope = zone === "other" ? ` for ${key.slice(`${action}:${zone}:`.length)}` : "";
-      choice = await ctx!.ui.select(`Allow ${action}? ${what}${why}`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`]);
+      choice = await askSelect(ctx!, `Allow ${action}? ${what}${why}`, ["Yes", "No", `Always this session${scope}`, `Always${scope}`], ASK_OPTS);
     }
 
     let allow = false;
@@ -104,7 +109,9 @@ export class PermissionGate {
     else if (choice?.startsWith("Always this session")) { allow = true; if (key) this.memory.rememberSession(key); }
     else if (choice?.startsWith("Always")) { allow = true; if (key) this.memory.rememberAlways(key); }
     this.log(action, zone, target, allow, "prompt", label);
-    return { allow, reason: allow ? `approved (${choice})` : "declined", ...base };
+    // `choice` is undefined for all three non-answers — No, escape/ctrl+c, and the ceiling expiring —
+    // so the reason says "dismissed" rather than claiming the user actively said no.
+    return { allow, reason: allow ? `approved (${choice})` : choice === undefined ? "dismissed (cancelled or timed out)" : "declined", ...base };
   }
 
   private log(action: Action, zone: Zone, target: string, allowed: boolean, via: string, tool?: string): void {

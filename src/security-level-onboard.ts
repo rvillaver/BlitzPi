@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AuditLogger } from "./audit";
 import { LEVELS, LEVEL_BLURB, LEVEL_CONSTANT_NOTE, describeSecurityLevel, setSecurityLevel } from "./security-level";
+import { askSelect } from "./ui-ask";
 
 export const LEVEL_QUESTION = `How much should BlitzPi stop to ask you in this project?\n${LEVEL_CONSTANT_NOTE}`;
 export const NOT_NOW = "Not now — ask me again after the next update";
@@ -32,7 +33,7 @@ export function setupSecurityLevelOnboarding(pi: ExtensionAPI, audit: AuditLogge
     if (describeSecurityLevel(cwd).source !== "default") return; // already decided, at project or global scope
     const marker = askedMarker(cwd, version ?? "unknown");
     if (fs.existsSync(marker)) return; // "not now" for this version
-    const choice = await ctx.ui.select(LEVEL_QUESTION, CHOICES);
+    const choice = await askSelect(ctx, LEVEL_QUESTION, CHOICES);
     if (!choice || choice === NOT_NOW) {
       try { fs.mkdirSync(path.dirname(marker), { recursive: true }); fs.writeFileSync(marker, new Date().toISOString() + "\n"); } catch { /* best effort */ }
       audit.log({ type: "security_level_onboarding", decision: "later", version });

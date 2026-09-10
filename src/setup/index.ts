@@ -25,6 +25,7 @@ function blitzVersion(): string {
 }
 import { currentAnswers, introText, runSteps, type SetupStep, type StepContext } from "./steps";
 import { feedsStep, introStep, levelStep, profileStep, runtimeStep, trustStep } from "./flow";
+import { askSelect } from "../ui-ask";
 
 function configuredProfile(cwd: string): string {
   try {
@@ -162,7 +163,7 @@ export function setupFirstRunFlow(pi: ExtensionAPI, audit: AuditLogger): void {
       pi.sendMessage({ customType: "blitz-setup", content: `BlitzPi setup — ${cwd}\n\n${lines.join("\n")}`, display: true });
       if (!ctx.hasUI) return;
       const askable = steps.filter((s) => !s.informational);
-      const pick = await ctx.ui.select("Change any of these?", [...askable.map((s) => s.preview), "No — leave everything as it is"]);
+      const pick = await askSelect(ctx, "Change any of these?", [...askable.map((s) => s.preview), "No — leave everything as it is"]);
       if (!pick || pick.startsWith("No —")) return;
       const step = askable.find((s) => s.preview === pick);
       if (!step) return;

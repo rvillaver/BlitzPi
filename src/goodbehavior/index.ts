@@ -14,6 +14,7 @@ import { adoptGoodBehavior, isAdopted, isProjectSetUp, loadDoctrine, loadProfile
 import { createDoneGate, DoneGate } from "./done-gate";
 import { stripInstallDocs } from "../prompt-hygiene";
 import { info } from "../log";
+import { askSelect } from "../ui-ask";
 
 export interface GoodBehaviorContext { doneGate: DoneGate; toolsCalled: string[] }
 let gbContext: GoodBehaviorContext | null = null;
@@ -162,7 +163,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
       if (!isAdopted(cwd)) { ctx.ui.notify("GoodBehavior is not adopted in this project.", "info"); return; }
       let purge = /--purge|--memory/.test(args ?? "");
       if (ctx.hasUI) {
-        const c = await ctx.ui.select(`Remove GoodBehavior from ${cwd}?`, ["Yes — keep project memory", "Yes — also delete .blitz/goodbehavior/memory", "No"]);
+        const c = await askSelect(ctx, `Remove GoodBehavior from ${cwd}?`, ["Yes — keep project memory", "Yes — also delete .blitz/goodbehavior/memory", "No"]);
         if (!c || c === "No") return;
         purge = c.includes("delete");
       }

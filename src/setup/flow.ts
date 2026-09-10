@@ -12,6 +12,7 @@ import { capabilities } from "../sandbox-probe";
 import { pinnedPythonFor, PYTHON_VERSION } from "../runtimes/pinned";
 import { RuntimeStore } from "../runtimes/store";
 import type { SetupStep, StepContext, StepOutcome } from "./steps";
+import { askSelect } from "../ui-ask";
 
 const NOT_NOW = "Not now — you can do this later";
 
@@ -30,7 +31,7 @@ export function introStep(intro: (cwd: string) => string): SetupStep {
     current: () => null,
     async run(ctx: StepContext): Promise<StepOutcome> {
       if (!ctx.interactive) return "ok";
-      await ctx.ui.select(intro(ctx.cwd), ["Let's set it up"]);
+      await askSelect(ctx, intro(ctx.cwd), ["Let's set it up"]);
       return "ok";
     },
   };
@@ -47,7 +48,7 @@ export function trustStep(setUp: (cwd: string) => void, onDecline: () => void): 
     async run(ctx: StepContext) {
       const hasFiles = fs.readdirSync(ctx.cwd).some((f) => !f.startsWith("."));
       if (!ctx.interactive) return "abort"; // no one to ask: do NOT silently adopt a folder
-      const choice = await ctx.ui.select(
+      const choice = await askSelect(ctx, 
         `Set up this folder as your BlitzPi project?\n  ${ctx.cwd}${hasFiles ? "\n  (it already contains files — they become your workspace)" : ""}`,
         ["Yes — trust & set up here", "No — exit"],
       );
@@ -79,7 +80,7 @@ export function profileStep(configuredProfile: (cwd: string) => string, adopt: (
     async run(ctx: StepContext): Promise<StepOutcome> {
       if (!ctx.interactive) return "later";
       const labels = OPTIONS.map((o) => `${o.label} — ${o.hint}`);
-      const choice = await ctx.ui.select(
+      const choice = await askSelect(ctx, 
         "What kind of project is this — and how would you know the work is actually right?",
         [...labels, NOT_NOW],
       );
@@ -125,12 +126,12 @@ export function runtimeStep(install?: (ctx: StepContext) => Promise<void>, store
       // Only offer what can actually be delivered: a pinned build for this platform, not already installed.
       const canOffer = pythonMissing && !!pin && !store.installed("python") && !!install;
       if (!canOffer) {
-        await ctx.ui.select(body, ["OK, continue"]);
+        await askSelect(ctx, body, ["OK, continue"]);
         note(ctx.cwd);
         return "ok";
       }
       const yes = `Yes — download Python ${PYTHON_VERSION} (${(pin!.bytes / 1048576).toFixed(0)} MB download, ~350 MB on disk)`;
-      const choice = await ctx.ui.select(
+      const choice = await askSelect(ctx, 
         `${body}\n\nBlitzPi can install its own Python for the sandbox to use. It is downloaded only if you ask, and only the agent's shell sees it — your own PATH is untouched.`,
         [yes, "No — don't install it", NOT_NOW],
       );
@@ -153,7 +154,7 @@ export function levelStep(audit: AuditLogger): SetupStep {
     async run(ctx: StepContext): Promise<StepOutcome> {
       if (!ctx.interactive) return "later";
       const choices = [...LEVELS.map((l) => `${l} — ${LEVEL_BLURB[l]}`), NOT_NOW];
-      const choice = await ctx.ui.select(`How much should BlitzPi stop to ask you in this project?\n${LEVEL_CONSTANT_NOTE}`, choices);
+      const choice = await askSelect(ctx, `How much should BlitzPi stop to ask you in this project?\n${LEVEL_CONSTANT_NOTE}`, choices);
       if (!choice || choice === NOT_NOW) { audit.log({ type: "security_level_onboarding", decision: "later" }); return "later"; }
       const level = LEVELS.find((l) => choice.startsWith(l))!;
       setSecurityLevel(level, { cwd: ctx.cwd, via: "onboarding" }, audit);
@@ -176,7 +177,7 @@ export function feedsStep(audit: AuditLogger, install: (ctx: StepContext) => Pro
     current: () => { const d = store.decision(); return d === "in" ? "installed" : d === "out" ? "declined" : null; },
     async run(ctx: StepContext): Promise<StepOutcome> {
       if (!ctx.interactive) return "later";
-      const choice = await ctx.ui.select(
+      const choice = await askSelect(ctx, 
         "Security feeds (optional): detection rules from public sources — credentials in commands (gitleaks), risky command shapes (Sigma), malicious URLs (URLhaus).\nAbout 4.5 MB downloaded, ~1.5 MB kept in ~/.blitz/feeds. Updated only when you ask.",
         ["Yes — install them now", "No — don't use security feeds", NOT_NOW],
       );

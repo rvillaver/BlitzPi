@@ -13,6 +13,7 @@ import path from "node:path";
 import os from "node:os";
 import { adoptGoodBehavior, isProjectSetUp } from "./adopt-goodbehavior";
 import { touchProject } from "./projects";
+import { askSelect } from "./ui-ask";
 
 function trustProject(cwd: string): void {
   try {
@@ -79,7 +80,7 @@ export function setupWorkspaceInit(pi: ExtensionAPI): void {
     }
 
     const hasFiles = fs.readdirSync(cwd).some((f) => !f.startsWith("."));
-    const choice = await ctx.ui.select(
+    const choice = await askSelect(ctx, 
       `Set up this folder as your BlitzPi project?\n  ${cwd}${hasFiles ? "\n  (it already contains files — they become your workspace)" : ""}`,
       ["Yes — trust & set up here", "No — exit"],
     );

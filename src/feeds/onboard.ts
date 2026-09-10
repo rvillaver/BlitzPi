@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AuditLogger } from "../audit";
 import { FeedStore, FEEDS, feedsDir, type Progress } from "./store";
+import { askSelect } from "../ui-ask";
 
 export const fmtBytes = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 export const progressText = (feed: string, received: number, total?: number) => `⬇ ${feed} ${fmtBytes(received)}${total ? ` / ${fmtBytes(total)} (${Math.min(100, Math.round((received / total) * 100))}%)` : ""}`;
@@ -44,7 +45,7 @@ export function setupFeedsOnboarding(pi: ExtensionAPI, audit: AuditLogger, store
     if (store.decision()) return; // decided, either way
     const marker = askedMarker(version ?? "unknown", store["dir" as keyof FeedStore] as unknown as string);
     if (fs.existsSync(marker)) return; // "not now" for this version
-    const choice = await ctx.ui.select(FEEDS_QUESTION, CHOICES);
+    const choice = await askSelect(ctx, FEEDS_QUESTION, CHOICES);
     if (!choice || choice.startsWith("Not now")) {
       try { fs.mkdirSync(path.dirname(marker), { recursive: true }); fs.writeFileSync(marker, new Date().toISOString() + "\n"); } catch { /* best effort */ }
       audit.log({ type: "feeds_onboarding", decision: "later", version });
