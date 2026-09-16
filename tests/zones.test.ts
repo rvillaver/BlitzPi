@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { classifyZone } from "../src/zones";
 import { decide } from "../src/permissions";
 
@@ -27,6 +30,38 @@ describe("zone classification", () => {
     expect(decide("write", "scratch")).toBe("silent");
     expect(z("/home/u/other-project/secret")).toBe("other");
     expect(z("/home/u/.ssh/id_rsa")).toBe("other");
+  });
+});
+
+// Needs a real filesystem: the escape is a symlink, and the fix is realpath resolution.
+describe("symlinks cannot smuggle a target out of the project", () => {
+  const project = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "zones-proj-")));
+  const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "zones-out-")));
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "zones-home-")));
+  const r = { project, install: path.join(outside, "install"), home, scratch: ["/nonexistent-scratch"] };
+
+  beforeAll(() => {
+    fs.writeFileSync(path.join(project, "real.txt"), "x");
+    fs.mkdirSync(path.join(home, ".ssh"), { recursive: true });
+    fs.symlinkSync(path.join(home, ".ssh"), path.join(project, "sshlink"));
+  });
+
+  test("a link inside the project pointing out of it is NOT project zone", () => {
+    // Before realpath resolution this returned "project" — the silent rung — so it was never asked about.
+    expect(classifyZone(path.join(project, "sshlink"), r)).not.toBe("project");
+    expect(classifyZone(path.join(project, "sshlink", "id_rsa"), r)).not.toBe("project");
+    expect(decide("read", classifyZone(path.join(project, "sshlink", "id_rsa"), r))).not.toBe("silent");
+  });
+
+  test("ordinary in-project paths still classify as project, created or not", () => {
+    expect(classifyZone(path.join(project, "real.txt"), r)).toBe("project");
+    expect(classifyZone(path.join(project, "does/not/exist/yet.txt"), r)).toBe("project");
+  });
+
+  test("I/O stream names are matched before resolution, so redirection is not a system touch", () => {
+    // /dev/stderr is a symlink to /proc/self/fd/2 on Linux; resolving it first made `2>/dev/stderr` system-zone.
+    expect(classifyZone("/dev/stderr", r)).toBe("plumbing");
+    expect(classifyZone("/dev/null", r)).toBe("plumbing");
   });
 });
 

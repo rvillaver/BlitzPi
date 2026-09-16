@@ -60,6 +60,25 @@ export function defaultScratchDirs(): string[] {
   return [...out];
 }
 
+/**
+ * Resolve symlinks, so a link inside the project cannot smuggle a target outside it. Without this, a symlink at
+ * `<project>/x` pointing at `~/.ssh` classified as `project` — the silent rung — and was never asked about.
+ *
+ * `realpathSync` throws on a path that does not exist yet (any file about to be created), so walk up to the
+ * nearest existing ancestor and re-join the remainder: canonicalize what exists, invent nothing for what doesn't.
+ * Nothing here is hardcoded — every prefix comes from the filesystem at call time.
+ */
+function canonical(p: typeof path.posix, abs: string): string {
+  let head = abs, tail = "";
+  for (;;) {
+    try { const real = fs.realpathSync(head); return tail ? p.join(real, tail) : real; } catch { /* not there */ }
+    const parent = p.dirname(head);
+    if (parent === head) return abs; // nothing along this path exists — fall back to the lexical form
+    tail = tail ? p.join(p.basename(head), tail) : p.basename(head);
+    head = parent;
+  }
+}
+
 export function classifyZone(target: string, roots: ZoneRoots): Zone {
   const p = P(roots);
   const home = roots.home || os.homedir();
@@ -71,11 +90,26 @@ export function classifyZone(target: string, roots: ZoneRoots): Zone {
   // Joining it to the project root would claim it is in-project — the permissive answer for the one case we
   // genuinely cannot classify (audit 15/16). Unknown resolves to `other`, the conservative zone.
   if (/[$`]/.test(t)) return "other";
-  const abs = p.isAbsolute(t) ? p.resolve(t) : p.resolve(roots.project, t);
-  const u = (root: string) => underIn(roots, abs, root);
+  // Canonicalization is skipped when classifying for a platform that isn't this one (the win32-on-Linux tests):
+  // there is no real filesystem behind those paths, so realpath would only ever fail on them.
+  const synthetic = (roots.platform ?? process.platform) !== process.platform;
+  const memo = new Map<string, string>();
+  const C = (s: string) => {
+    if (synthetic) return s;
+    let v = memo.get(s); if (v === undefined) { v = canonical(p, s); memo.set(s, v); }
+    return v;
+  };
+  const lexical = p.isAbsolute(t) ? p.resolve(t) : p.resolve(roots.project, t);
+  // Plumbing is matched on the LEXICAL path, before canonicalization. These are names for I/O streams, not places
+  // on disk: `/dev/stderr` is a symlink to `/proc/self/fd/2`, so resolving it first would reclassify every
+  // ordinary `2>/dev/stderr` redirection as a system-zone touch.
+  if (!win && (PLUMBING.has(lexical) || lexical.startsWith("/dev/fd/"))) return "plumbing";
+  if (win && /^\\\\\.\\(nul|con|prn)$/i.test(lexical)) return "plumbing";
 
-  if (!win && (PLUMBING.has(abs) || abs.startsWith("/dev/fd/"))) return "plumbing";
-  if (win && /^\\\\\.\\(nul|con|prn)$/i.test(abs)) return "plumbing";
+  const abs = C(lexical);
+  // Both sides are canonicalized: resolving only the target would misclassify in-project files whenever the
+  // project root itself sits under a symlink (macOS `/tmp` → `/private/tmp` is the everyday case).
+  const u = (root: string) => underIn(roots, abs, C(root));
 
   const gbDirs = [p.join(roots.project, ".blitz", "goodbehavior"), p.join(roots.project, ".pi", "skills")];
   if (gbDirs.some(u)) return "goodbehavior";
