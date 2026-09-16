@@ -34,6 +34,23 @@ describe("GB_SKILLS ships draft-profile-goodbehavior", () => {
     expect(fs.existsSync(shipped)).toBe(true);
   });
 
+  // GB_SKILLS, the shipped directories and package.json's `pi.skills` are three lists of the same thing, and
+  // nothing previously tied them together: a skill added to the package but missed in GB_SKILLS is invisible to
+  // retireProjectSkillCopies, so a project-local copy of it shadows the shipped one silently and forever.
+  test("every GB_SKILLS entry is shipped on disk and declared as a package skill", () => {
+    const declared: string[] = require(path.join(__dirname, "..", "package.json")).pi.skills;
+    for (const name of GB_SKILLS) {
+      expect(fs.existsSync(path.join(__dirname, "..", ".pi", "skills", name, "SKILL.md"))).toBe(true);
+      expect(declared).toContain(`./.pi/skills/${name}`);
+    }
+  });
+
+  test("every shipped -goodbehavior skill is listed in GB_SKILLS", () => {
+    const shipped = fs.readdirSync(path.join(__dirname, "..", ".pi", "skills"))
+      .filter((n) => n.endsWith("-goodbehavior"));
+    expect([...GB_SKILLS].sort()).toEqual(shipped.sort());
+  });
+
   test("adopting into a fresh project installs only the profile — skills sync separately, automatically", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-draftprofile-"));
     const r = adoptGoodBehavior(cwd);
@@ -43,11 +60,11 @@ describe("GB_SKILLS ships draft-profile-goodbehavior", () => {
   });
 });
 
-describe("syncSkills installs all 7 skills into THIS project, no adoption command needed", () => {
-  test("installs all 7, including draft-profile", () => {
+describe("syncSkills installs every GB_SKILLS entry into THIS project, no adoption command needed", () => {
+  test("installs all of them, including draft-profile", () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "blitz-syncskills-"));
     const r = syncSkills(cwd);
-    expect(r.installed.filter((f) => f.endsWith("SKILL.md"))).toHaveLength(7);
+    expect(r.installed.filter((f) => f.endsWith("SKILL.md"))).toHaveLength(GB_SKILLS.length);
     expect(fs.existsSync(path.join(cwd, ".pi", "skills", "draft-profile-goodbehavior", "SKILL.md"))).toBe(true);
   });
 

@@ -1,7 +1,7 @@
 /**
  * GoodBehavior delivery — both PER-PROJECT, both automatic:
  *
- *   <project>/.pi/skills/<skill>/SKILL.md             the 7 skills — synced every session, no adoption, no restart
+ *   <project>/.pi/skills/<skill>/SKILL.md             the GB_SKILLS set — synced every session, no adoption, no restart
  *   <project>/.blitz/goodbehavior/skills-manifest.json untouched-vs-edited tracking for the skill sync
  *
  *   <project>/.blitz/goodbehavior/profiles/<name>.md  the doctrine (injected into the system prompt) — deliberate,
@@ -27,6 +27,7 @@ export const GB_SKILLS = [
   "verify-goodbehavior",
   "learn-goodbehavior",
   "uatplan-goodbehavior",
+  "write-goodbehavior",
   "draft-profile-goodbehavior",
 ];
 /** Skills shipped by older versions; removed on unadopt/re-adopt if still untouched. */
@@ -36,6 +37,10 @@ const INSTALL_ROOT = path.join(__dirname, "..");
 export const shippedSkillsDir = () => path.join(INSTALL_ROOT, ".pi", "skills");
 export const shippedProfilesDir = () => path.join(INSTALL_ROOT, ".pi", "goodbehavior", "profiles");
 export const shippedDoctrinePath = () => path.join(INSTALL_ROOT, ".pi", "goodbehavior", "doctrine.md");
+export const shippedWriteDir = () => path.join(INSTALL_ROOT, ".pi", "goodbehavior", "write");
+/** write-goodbehavior's gate runs as a command, so unlike the profile it must live where the agent's shell can
+ *  reach it: bash is confined to the run dir, and the install tree is never bound into the sandbox. */
+export const WRITE_SCRIPTS = ["fingerprint.ts", "patterns.ts"];
 
 const sha = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 
@@ -92,6 +97,10 @@ const blitzVersion = () => `blitzpi ${require(path.join(INSTALL_ROOT, "package.j
 export function adoptGoodBehavior(cwd: string, profileName = "development"): AdoptResult {
   const shippedFile = path.join(shippedProfilesDir(), `${profileName}.md`);
   const pairs = fs.existsSync(shippedFile) ? [{ src: shippedFile, rel: path.join(".blitz", "goodbehavior", "profiles", `${profileName}.md`) }] : [];
+  for (const s of WRITE_SCRIPTS) {
+    const src = path.join(shippedWriteDir(), s);
+    if (fs.existsSync(src)) pairs.push({ src, rel: path.join(".blitz", "goodbehavior", "write", s) });
+  }
   const res = syncManagedFiles(pairs, cwd, manifestPath(cwd), blitzVersion());
 
   const memDir = path.join(cwd, ".blitz", "goodbehavior", "memory");
@@ -105,7 +114,7 @@ export function adoptGoodBehavior(cwd: string, profileName = "development"): Ado
 export function unadoptGoodBehavior(cwd: string, purgeMemory = false): string[] {
   const removed: string[] = [];
   const gb = path.join(cwd, ".blitz", "goodbehavior");
-  for (const sub of ["profiles", "manifest.json"]) {
+  for (const sub of ["profiles", "write", "manifest.json"]) {
     const p = path.join(gb, sub);
     if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); removed.push(path.join(".blitz", "goodbehavior", sub)); }
   }
