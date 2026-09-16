@@ -7,13 +7,14 @@
  */
 import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { stats } from "./security-status";
-import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
+import { createBashToolDefinition, createPowerShellToolDefinition } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
 import { dangerousShape, dehomeTarget, extractTargets, invokesContainerCli } from "./bash-guard";
+import { dangerousShapePowerShell, extractTargetsPowerShell } from "./powershell-guard";
 import { selectBackend, type SandboxBackend, type BackendPref, type Grant, toolTimeoutMs } from "./sandbox-backends";
 import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
@@ -66,20 +67,36 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
   };
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
-    if ((event as any).toolName !== "bash") return;
+    const toolName: string = (event as any).toolName;
+    if (toolName !== "bash" && toolName !== "powershell") return;
     const command: string = (event as any).input?.command ?? "";
 
-    const shape = dangerousShape(command);
+    // Which grammar will this command actually be read in? Pi's `powershell` tool is PowerShell by definition —
+    // it used to return early here, so shapes, zones, the gate and confinement never ran for it at all. The
+    // `bash` tool is POSIX everywhere except Windows, where the pinned backend hands it to powershell.exe
+    // (sandbox-backends.ts): there it must be read in BOTH grammars, and the union is what the gate sees.
+    // Reading a command in one grammar while another shell executes it is guarding that looks real and isn't.
+    const psGrammar = toolName === "powershell";
+    const bothGrammars = !psGrammar && process.platform === "win32";
+    const shape = psGrammar
+      ? dangerousShapePowerShell(command)
+      : dangerousShape(command) ?? (bothGrammars ? dangerousShapePowerShell(command) : null);
     // With a sandbox backend, HOME is pinned to the workspace: `~` targets are workspace paths and must classify
     // that way (file tools and backend-less runs keep real-home resolution).
     // The container daemon's socket is root-owned: reaching it is a privileged out-of-project WRITE, so it is added
     // as a target *before* the gate decides, like every other escape. It used to be appended to the grants after
     // `gate.resolve()` had already returned, where no rung of the ladder could see it (audit 17, G17-1/G17-4).
     const socket = !shape && invokesContainerCli(command) ? containerSocketPath() : null;
+    const posixTargets = shape || psGrammar ? [] : extractTargets(command);
+    const psTargets = !shape && (psGrammar || bothGrammars) ? extractTargetsPowerShell(command) : [];
     const targets = shape
       ? []
       : [
-          ...extractTargets(command).map((t) => (backend ? { ...t, path: dehomeTarget(t.path, runDir) } : t)),
+          ...posixTargets.map((t) => (backend ? { ...t, path: dehomeTarget(t.path, runDir) } : t)),
+          // Deliberately NOT dehomed. The backends pin HOME, so a POSIX `~` really is the workspace — but
+          // PowerShell reads `$env:USERPROFILE`, which nothing pins, so a profile path there is genuinely
+          // outside the workspace and must classify that way.
+          ...psTargets,
           ...(socket ? [{ path: socket, write: true }] : []),
         ];
     // Shell expansion hides paths from extraction: `cat "$SECRET"` yields no targets at all. A *hardened* backend
@@ -90,8 +107,8 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     const res = shape
       ? await gate.resolveDangerousCommand(command, shape, ctx)
       : opaque
-      ? await gate.resolve("read", "other", command, "bash command (unresolvable paths, unconfined backend)", ctx, command)
-      : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, "bash command", ctx, command); })();
+      ? await gate.resolve("read", "other", command, `${toolName} command (unresolvable paths, unconfined backend)`, ctx, command)
+      : await (async () => { const w = gate.worst(targets, command); return gate.resolve(w.action, w.zone, w.target, `${toolName} command`, ctx, command); })();
 
     if (!res.allow) { stats.blocked.bash++; return { block: true, reason: `[BLOCKED] ${res.reason} (${res.zone})` }; }
     // A dangerous SHAPE (sudo, download|shell, reverse shell) the user allowed runs unconfined — the backend cannot
@@ -101,10 +118,9 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
     runPlan.set(command, shape ? { confined: false, grants: [] } : { confined: true, grants });
   });
 
-  const def = createBashToolDefinition(runDir, {
-    exposeSessionEnvironment: true,
-    operations: {
-      exec: (command, _cwd, rawOptions) => {
+  /** Shared by both shell tools: same backend, same grants, same audit. The gate above decides; this runs. */
+  const execOperations = {
+      exec: (command: string, _cwd: string, rawOptions: any): Promise<{ exitCode: number | null }> => {
         const options = { ...rawOptions, timeout: toolTimeoutMs(rawOptions.timeout) }; // Pi sends seconds; backends take ms
         const plan = runPlan.get(command) ?? { confined: true, grants: [] };
         runPlan.delete(command);
@@ -124,14 +140,21 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         // unconfined: the user approved a dangerous command shape (or there is no backend). Run in the project cwd.
         audit.log({ type: "bash_exec", confined: false, command: redactCommand(command), ...bashFacts(command) });
         debug("bash (unconfined, approved) :", command);
-        const child = spawn("/bin/bash", ["-c", command], { cwd: runDir, env: { ...process.env, ...withCache(options.env) }, stdio: ["ignore", "pipe", "pipe"] });
+        // The shell must match the platform, the same way PinnedBackend picks one: there is no /bin/bash on
+        // Windows, so an approved dangerous shape there failed to spawn at all rather than running.
+        const isWin = process.platform === "win32";
+        const child = spawn(
+          isWin ? "powershell.exe" : "/bin/bash",
+          isWin ? ["-NoProfile", "-Command", command] : ["-c", command],
+          { cwd: runDir, env: { ...process.env, ...withCache(options.env) }, stdio: ["ignore", "pipe", "pipe"] },
+        );
         child.stdout.on("data", (d: Buffer) => options.onData(d));
         child.stderr.on("data", (d: Buffer) => options.onData(d));
         let timer: NodeJS.Timeout | undefined;
         if (options.timeout && options.timeout > 0) timer = setTimeout(() => child.kill("SIGKILL"), options.timeout);
         const onAbort = () => child.kill("SIGKILL");
         options.signal?.addEventListener("abort", onAbort, { once: true });
-        return new Promise((r) => {
+        return new Promise<{ exitCode: number | null }>((r) => {
           child.on("error", (e) => { options.onData(Buffer.from(`[bash] ${e.message}\n`)); r({ exitCode: 126 }); });
           child.on("close", (code) => {
             if (timer) clearTimeout(timer); options.signal?.removeEventListener("abort", onAbort);
@@ -140,9 +163,21 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
           });
         });
       },
-    },
-  });
-  pi.registerTool(def);
+  };
+
+  pi.registerTool(createBashToolDefinition(runDir, { exposeSessionEnvironment: true, operations: execOperations }));
+  // Pi registers a SEPARATE `powershell` tool, and without a replacement its commands run outside the backend
+  // entirely — unpinned cwd/HOME, no grants, no audit. Same gate, same exec path. The factory throws on
+  // non-Windows (getPowerShellConfig: "only available on Windows"), so it is only built there, and a throw is
+  // reported rather than taking the whole security layer down with it.
+  if (process.platform === "win32") {
+    try {
+      pi.registerTool(createPowerShellToolDefinition(runDir, { exposeSessionEnvironment: true, operations: execOperations } as any));
+      info("[Blitz:BashSandbox] powershell tool registered — same gate, same backend");
+    } catch (e) {
+      info(`[Blitz:BashSandbox] WARNING: powershell tool NOT sandboxed (${e instanceof Error ? e.message : String(e)}) — its commands are still gated by the tool_call hook, but run outside the backend`);
+    }
+  }
   // What the agent can actually reach inside the sandbox (P1). Fire-and-forget through the SAME backend the bash
   // tool uses, so the answer is the sandbox's PATH, not the host's — asking the host is how G3 got it wrong.
   // Never awaited here: the probe must not add to startup.
