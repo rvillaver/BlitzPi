@@ -2,7 +2,7 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
-## Unreleased
+## 1.2.126 — 2026-09-17
 
 - **Security: Windows shell commands now reach the permission gate at all.** Pi registers a `powershell` tool separately from `bash`, and BlitzPi's gate began by ignoring everything that was not `bash` — so on Windows that entire command surface ran with no shape detection, no zone classification, no permission prompt, no audit entry and no sandbox. There was a second half to it: the pinned backend, which is the only backend available on Windows, runs the *bash* tool's commands through `powershell.exe`, so those were being inspected as POSIX shell while a different shell executed them. A command could look guarded and not be. Both surfaces are now read in the grammar that will actually run them, the `powershell` tool is registered under the same gate and backend as `bash`, and on Windows a bash-tool command is read in both grammars so neither can hide a shape from the other.
 - **Windows command shapes are now recognised as the dangerous things they are.** `Start-Process -Verb RunAs` (the UAC elevation prompt, Windows' `sudo`), `Remove-Item -Recurse -Force` and cmd's `rd /s` aimed at a drive root, a user profile or a system directory, `Invoke-WebRequest | iex` (the `curl | sh` of Windows), `Net.Sockets.TCPClient` reverse shells, and `Format-Volume`. Drive-letter, forward-slash and Git Bash `/c/…` spellings of the same directory all resolve alike, so no spelling gets a different answer, and cmd switches like `/s` and `/f` are no longer mistaken for absolute paths — which is what let a command's real target go unexamined while the guard asked about a flag.
