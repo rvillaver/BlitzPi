@@ -156,8 +156,12 @@ class BwrapBackend implements SandboxBackend {
       "--setenv", "HOME", runDir,
       "--setenv", "PATH", sandboxPath(runtimeDirs, options.env),
       "/bin/bash", "-c", wrapForNamespace(command));
-    const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME }, stdio: ["ignore", "pipe", "pipe"] });
-    return pump(child, options);
+    // detached = setsid: the sandbox gets NO controlling terminal. Without it the command inherits ours, and
+    // anything that prompts through /dev/tty rather than stdin (sudo, ssh/git passphrases, gh auth, apt) opens the
+    // user's terminal directly: it eats their keystrokes and leaves termios in raw/no-echo, so the TUI's input line
+    // came back garbled. With no controlling tty the open fails (ENXIO) and the command reports it instead.
+    const child = spawn("bwrap", args, { env: { ...process.env, ...options.env, HOME: runDir, BLITZ_REAL_HOME: REAL_HOME }, stdio: ["ignore", "pipe", "pipe"], detached: true });
+    return pump(child, options, true);
   }
 }
 

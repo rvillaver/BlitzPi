@@ -146,13 +146,17 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
         const child = spawn(
           isWin ? "powershell.exe" : "/bin/bash",
           isWin ? ["-NoProfile", "-Command", command] : ["-c", command],
-          { cwd: runDir, env: { ...process.env, ...withCache(options.env) }, stdio: ["ignore", "pipe", "pipe"] },
+          // detached (setsid) for the same reason the backends use it: no controlling terminal, so an approved
+          // `sudo`/`ssh` cannot open /dev/tty behind the TUI, swallow the user's keystrokes and leave the terminal
+          // in raw mode. It now fails loudly ("no tty present") instead of garbling the prompt line.
+          { cwd: runDir, env: { ...process.env, ...withCache(options.env) }, stdio: ["ignore", "pipe", "pipe"], detached: !isWin },
         );
+        const killTree = () => { if (!isWin && child.pid) { try { process.kill(-child.pid, "SIGKILL"); } catch { /* gone */ } } try { child.kill("SIGKILL"); } catch { /* gone */ } };
         child.stdout.on("data", (d: Buffer) => options.onData(d));
         child.stderr.on("data", (d: Buffer) => options.onData(d));
         let timer: NodeJS.Timeout | undefined;
-        if (options.timeout && options.timeout > 0) timer = setTimeout(() => child.kill("SIGKILL"), options.timeout);
-        const onAbort = () => child.kill("SIGKILL");
+        if (options.timeout && options.timeout > 0) timer = setTimeout(killTree, options.timeout);
+        const onAbort = () => killTree();
         options.signal?.addEventListener("abort", onAbort, { once: true });
         return new Promise<{ exitCode: number | null }>((r) => {
           child.on("error", (e) => { options.onData(Buffer.from(`[bash] ${e.message}\n`)); r({ exitCode: 126 }); });
