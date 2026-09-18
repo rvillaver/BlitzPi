@@ -11,12 +11,17 @@
 import type { ExtensionAPI, ExtensionContext, ToolCallEvent } from "@earendil-works/pi-coding-agent";
 import { loadConfig, type BlitzConfig } from "../config";
 import { adoptGoodBehavior, isAdopted, isProfileChosen, isProjectSetUp, loadDoctrine, loadProfile, retireProjectSkillCopies, shippedProfilesDir, unadoptGoodBehavior } from "../adopt-goodbehavior";
-import { createDoneGate, DoneGate } from "./done-gate";
+import { createDoneGate, DoneGate, type ToolCall } from "./done-gate";
 import { stripInstallDocs } from "../prompt-hygiene";
 import { info } from "../log";
 import { askSelect } from "../ui-ask";
 
-export interface GoodBehaviorContext { doneGate: DoneGate; toolsCalled: string[] }
+export interface GoodBehaviorContext {
+  doneGate: DoneGate;
+  toolsCalled: ToolCall[];
+  /** The run in progress is the gate's own continuation — don't re-fire on it (the Stop hook's `stop_hook_active`). */
+  continuing?: boolean;
+}
 let gbContext: GoodBehaviorContext | null = null;
 
 /**
@@ -28,11 +33,12 @@ let gbContext: GoodBehaviorContext | null = null;
  */
 function buildGateFor(cwd: string, profileName: string): void {
   const gateCfg = (loadProfile(cwd, profileName)?.frontmatter?.done_gate ?? {}) as {
-    build_tools?: string[]; observe_tools?: string[]; verify_hint?: string;
+    build_tools?: string[]; observe_tools?: string[]; verify_hint?: string; mutate_tools?: string[];
   };
   gbContext = {
-    doneGate: createDoneGate(gateCfg.build_tools, gateCfg.observe_tools, gateCfg.verify_hint),
+    doneGate: createDoneGate(gateCfg.build_tools, gateCfg.observe_tools, gateCfg.verify_hint, gateCfg.mutate_tools),
     toolsCalled: gbContext?.toolsCalled ?? [],
+    continuing: gbContext?.continuing,
   };
 }
 
@@ -126,22 +132,32 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   });
 
   pi.on("tool_call", (event: ToolCallEvent) => {
-    gbContext?.toolsCalled.push((event as any).toolName || (event as any).tool || "unknown");
+    gbContext?.toolsCalled.push({ name: (event as any).toolName || (event as any).tool || "unknown", input: (event as any).input });
   });
+
+  // A human prompt starts a fresh turn: whatever the gate was continuing is over.
+  pi.on("input", () => { if (gbContext) gbContext.continuing = false; });
 
   pi.on("agent_end", (event: any, ctx: ExtensionContext) => {
     if (!gbContext) return;
-    const text = (event.messages ?? [])
+    // Judge the LAST thing the agent said, as the Stop hook does — not every message of the run joined together.
+    const texts = (event.messages ?? [])
       .filter((m: any) => m.role === "assistant")
-      .flatMap((m: any) => (Array.isArray(m.content) ? m.content : []))
-      .filter((c: any) => c?.type === "text")
-      .map((c: any) => c.text)
-      .join("\n");
-    const verdict = gbContext.doneGate.check(text, gbContext.toolsCalled);
-    // Show the feedback, not just the reason: the reason names the problem, the feedback names what to do about it
-    // in this profile's terms. Notifying with the reason alone left the actionable half unreachable.
-    if (verdict.blocked && ctx.hasUI) ctx.ui.notify(`GoodBehavior: ${verdict.feedback ?? verdict.reason ?? "completion claimed without verification this turn."}`, "warning");
+      .map((m: any) => (Array.isArray(m.content) ? m.content : []).filter((c: any) => c?.type === "text").map((c: any) => c.text).join(" "))
+      .filter((t: string) => t.trim());
+    const tools = gbContext.toolsCalled;
     gbContext.toolsCalled = [];
+    // One fire per turn: the continuation this gate queued must not be gated again, or a stubborn claim loops.
+    if (gbContext.continuing) { gbContext.continuing = false; return; }
+    const verdict = gbContext.doneGate.check(texts[texts.length - 1] ?? "", tools);
+    if (!verdict.blocked) return;
+    // The feedback goes to the MODEL, not only to a toast (FC-10): Pi runs a message queued from an agent_end handler
+    // as a continuation of the same run, so this works headless (`-p`, `--mode rpc`, the bridge) as well as in the TUI.
+    gbContext.continuing = true;
+    const feedback = verdict.feedback ?? verdict.reason ?? "completion claimed without verification this turn.";
+    info(`[Blitz:GoodBehavior] done-gate fired: ${verdict.reason}`);
+    if (ctx.hasUI) ctx.ui.notify(`GoodBehavior: ${verdict.reason}`, "warning");
+    pi.sendMessage({ customType: "goodbehavior-done-gate", content: feedback, display: true }, { deliverAs: "followUp", triggerTurn: true });
   });
 
   pi.registerCommand("adopt-goodbehavior", {

@@ -79,7 +79,9 @@ never read the doctrine can still tell what each section is for. Don't rename th
   A name that isn't registered never matches a real call, so the done-gate silently never sees "observed" happen —
   `webfetch` is the classic example of a tool that sounds right and does not exist.
   Prefer `bash` for running things, `read` for checking a local source or output, and `fetch_content`/`web_search`
-  for checking a claim against an online source. Leave navigation tools (`find`/`grep`/`ls` where present) out of
+  for checking a claim against an online source. `bash` belongs in **both** lists: it is how the work both builds
+  and checks, and the gate asks what was observed *after the last file change*, which it reads from
+  `done_gate.mutate_tools` (default `[edit, write]`) — only set that if this project changes files through another tool. Leave navigation tools (`find`/`grep`/`ls` where present) out of
   `observe_tools` — they fire nearly every turn, and counting them disarms the gate.
 - `done_gate.verify_hint` — one line, in this project's own words, telling a blocked turn what to actually go do
   ("run the CLI against a staged call and watch it block", "open the source and confirm it says that"). This is the

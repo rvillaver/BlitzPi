@@ -2,6 +2,11 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **The done-gate fires again, and the agent hears it.** BlitzPi's port of GoodBehavior's done-gate had lost the mechanism that made it work: it asked only whether *some* observing tool ran during the turn, and `bash` counts as both building and observing, so any shell call satisfied it, before or after the change. It now works the way GoodBehavior's own gate does. When the agent says a change is verified, something must have been observed **after the last file change**, not merely at some point in the turn. An honest "not done yet" or "unverified" always passes. Talking about the gate itself doesn't count as a claim, and neither does a "done" buried inside a long sentence. Doc-only edits don't need a run. The gate still never judges whether your evidence is good (your profile defines that, and you confirm it); it catches a claim with nothing behind it.
+- **The gate's pushback now reaches the model, not only a notice on screen,** and it works headless: `blitzpi -p`, `--mode rpc` and the chat bridge included. It fires once per turn, so an agent that repeats its claim is not caught in a loop. Profiles can name the tools that change files with `done_gate.mutate_tools` (default `edit`, `write`).
+
 ## 1.2.126 — 2026-09-17
 
 - **Security: Windows shell commands now reach the permission gate at all.** Pi registers a `powershell` tool separately from `bash`, and BlitzPi's gate began by ignoring everything that was not `bash` — so on Windows that entire command surface ran with no shape detection, no zone classification, no permission prompt, no audit entry and no sandbox. There was a second half to it: the pinned backend, which is the only backend available on Windows, runs the *bash* tool's commands through `powershell.exe`, so those were being inspected as POSIX shell while a different shell executed them. A command could look guarded and not be. Both surfaces are now read in the grammar that will actually run them, the `powershell` tool is registered under the same gate and backend as `bash`, and on Windows a bash-tool command is read in both grammars so neither can hide a shape from the other.
