@@ -28,6 +28,7 @@ import { defaultScratchDirs } from "./zones";
 import { info } from "./log";
 import { setupLoop } from "./loop";
 import { setupInitRecovery, step, type ModuleFailure } from "./init-recovery";
+import { installInterrupt } from "./interrupt";
 
 /**
  * Blitz Pi - Security-first coding agent
@@ -44,6 +45,11 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
   const core: { failed: string | null } = { failed: null };
   // Registered before anything else so its dialog is not queued behind another extension's blocking prompt.
   setupInitRecovery(pi, failures, core);
+  // Escape has to interrupt a turn that has already run a tool — Pi's own binding stops
+  // taking effect there, and ctrl+c twice is shutdown, not an interrupt. Registered outside
+  // the try below: an agent you cannot stop is a safety problem, so it must not be one of
+  // the things a failure elsewhere takes away.
+  installInterrupt(pi);
 
   try {
     const caller = initializeCaller();
