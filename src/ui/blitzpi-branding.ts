@@ -14,9 +14,22 @@ import { activeBackendName } from "../sandbox-bash";
 import { panel, summaryLine } from "../security-status";
 import { renderEvents, type EventKind } from "../session-events";
 import { buildReport, renderReport } from "../report";
-import { info } from "../log";
+import { HEADLESS, info } from "../log";
 import { ownSkillsLine } from "./own-skills";
 import { awaitCapabilities, capabilityLine } from "../sandbox-probe";
+
+/**
+ * Headless runs get ONE line, not the panel.
+ *
+ * `-p` and `--mode json|rpc` are read by a machine or a wrapper. Stdout is already kept clean
+ * (`info` writes to stderr there), but anything merging the streams — a pty, `2>&1`, most CI
+ * captures and most agent harnesses — got twenty-two lines and 2.4 KB of preamble in front of
+ * the first JSON object. The layers are still stated, and `/blitz-security` (or the audit
+ * trail) has the detail; what goes is the framing, the key hints and the skills line, none of
+ * which mean anything to a caller with no keyboard and no TUI.
+ */
+const headlineBanner = (config: BlitzConfig) =>
+  `[Blitz Pi] ${summaryLine(config, activeBackendName())}`;
 
 const banner = (config: BlitzConfig) => [
   "",
@@ -68,11 +81,12 @@ function lastAuditLines(auditPath: string, n: number): string[] {
 }
 
 export function setupBlitzPiBranding(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger): void {
-  info(banner(config)); // startup scrollback; the TUI header below carries the same summary
+  info(HEADLESS ? headlineBanner(config) : banner(config)); // startup scrollback; the TUI header below carries the same summary
   // The banner above is printed during extension setup — earlier than the in-sandbox probe can possibly answer
   // (it spawns a real backend process). Rather than hold the banner for it, report it as its own line when it
   // lands. `void` is deliberate: nothing on the startup path may await this.
-  void awaitCapabilities(2_000).then((c) => { if (c) info(capabilityLine() as string); });
+  // The toolchain line is a TUI nicety; a headless caller has the audit trail and /blitz-security.
+  if (!HEADLESS) void awaitCapabilities(2_000).then((c) => { if (c) info(capabilityLine() as string); });
   const KINDS: Record<string, EventKind | "all"> = { files: "file", file: "file", bash: "bash", governance: "governance", gov: "governance", profile: "profile", threats: "threat", threat: "threat", packages: "feed", feed: "feed", feeds: "feed", content: "content", all: "all" };
   pi.registerCommand("blitz-security", {
     description: "Security layers, modes and this session's decisions. Inspect: /blitz-security files | bash | governance | packages | content | all",

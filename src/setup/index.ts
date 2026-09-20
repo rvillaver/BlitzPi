@@ -18,7 +18,7 @@ import { installFeeds } from "../feeds/onboard";
 import { FeedStore } from "../feeds/store";
 import { RuntimeStore } from "../runtimes/store";
 import { PYTHON_VERSION } from "../runtimes/pinned";
-import { info } from "../log";
+import { info, note } from "../log";
 import { setConfigValue } from "../config-write";
 import { announceSession, dropSession } from "../bridge/announce";
 
@@ -159,5 +159,5 @@ export function setupFirstRunFlow(pi: ExtensionAPI, audit: AuditLogger): void {
     },
   });
 
-  info("[Blitz:Setup] first-run flow ready (blitzpi setup / /setup re-runs it)");
+  note("[Blitz:Setup] first-run flow ready (blitzpi setup / /setup re-runs it)");
 }

@@ -13,7 +13,7 @@ import { loadConfig, type BlitzConfig } from "../config";
 import { adoptGoodBehavior, isAdopted, isProfileChosen, isProjectSetUp, loadDoctrine, loadProfile, retireProjectSkillCopies, shippedProfilesDir, unadoptGoodBehavior } from "../adopt-goodbehavior";
 import { createDoneGate, DoneGate, type ToolCall } from "./done-gate";
 import { stripInstallDocs } from "../prompt-hygiene";
-import { info } from "../log";
+import { info, note } from "../log";
 import { askSelect } from "../ui-ask";
 
 export interface GoodBehaviorContext {
@@ -80,8 +80,8 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   if (isProjectSetUp(cwd)) {
     try {
       const r = retireProjectSkillCopies(cwd);
-      if (r.removed.length) info(`[Blitz:GoodBehavior] ${r.removed.length} project skill copies retired — GoodBehavior skills now ship with BlitzPi itself`);
-      if (r.kept.length) info(`[Blitz:GoodBehavior] kept your edited skill copies (they take precedence over the shipped ones): ${r.kept.join(", ")}`);
+      if (r.removed.length) note(`[Blitz:GoodBehavior] ${r.removed.length} project skill copies retired — GoodBehavior skills now ship with BlitzPi itself`);
+      if (r.kept.length) note(`[Blitz:GoodBehavior] kept your edited skill copies (they take precedence over the shipped ones): ${r.kept.join(", ")}`);
     } catch { /* best effort */ }
   }
   // `profileName` is the *currently resolved* profile, not a startup constant — before_agent_start re-resolves it
@@ -91,7 +91,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
   const adopted = isAdopted(cwd);
   const profile = adopted ? loadProfile(cwd, profileName) : null;
   const profilePath = adopted && profile ? ` → ${profile.path}` : "";
-  info(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"${profilePath}` : "not adopted in this project (/adopt-goodbehavior)"}`);
+  note(`[Blitz:GoodBehavior] ${adopted ? `adopted — profile "${profileName}"${profilePath}` : "not adopted in this project (/adopt-goodbehavior)"}`);
 
   // The generic shipped profile isn't written for this project. Nudge every interactive session until someone
   // (the agent, via draft-profile-goodbehavior, or a human by hand) points goodbehavior.profile somewhere else —
@@ -155,7 +155,7 @@ export function setupGoodBehavior(pi: ExtensionAPI, config: BlitzConfig): void {
     // as a continuation of the same run, so this works headless (`-p`, `--mode rpc`, the bridge) as well as in the TUI.
     gbContext.continuing = true;
     const feedback = verdict.feedback ?? verdict.reason ?? "completion claimed without verification this turn.";
-    info(`[Blitz:GoodBehavior] done-gate fired: ${verdict.reason}`);
+    note(`[Blitz:GoodBehavior] done-gate fired: ${verdict.reason}`);
     if (ctx.hasUI) ctx.ui.notify(`GoodBehavior: ${verdict.reason}`, "warning");
     pi.sendMessage({ customType: "goodbehavior-done-gate", content: feedback, display: true }, { deliverAs: "followUp", triggerTurn: true });
   });

@@ -20,7 +20,7 @@ import { grantsFor, type PermissionGate } from "./permission-gate";
 import { cacheEnv, cacheRoot } from "./toolchain-cache";
 import { ensureSandboxConfig, isBunInstall, parseAge, parseUntrusted, renderPolicy, summarizeAudit } from "./feeds/install-policy";
 import { homedir } from "node:os";
-import { debug, info } from "./log";
+import { debug, info, note } from "./log";
 import { bashFacts } from "./bash-facts";
 import { redactCommand } from "./feeds/secrets";
 import { startCapabilityProbe } from "./sandbox-probe";
@@ -41,7 +41,7 @@ let activeBackend: string | null = null;
 export const activeBackendName = () => activeBackend;
 
 export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, gate: PermissionGate): void {
-  if (!config.sandbox.enabled) { info("[Blitz:BashSandbox] disabled"); return; }
+  if (!config.sandbox.enabled) { note("[Blitz:BashSandbox] disabled"); return; }
   const runDir = resolve(config.sandbox.run_dir);
   const backend: SandboxBackend | null = selectBackend((config.sandbox.backend ?? "auto") as BackendPref);
   activeBackend = backend ? backend.name : null;
@@ -177,7 +177,7 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
   if (process.platform === "win32") {
     try {
       pi.registerTool(createPowerShellToolDefinition(runDir, { exposeSessionEnvironment: true, operations: execOperations } as any));
-      info("[Blitz:BashSandbox] powershell tool registered — same gate, same backend");
+      note("[Blitz:BashSandbox] powershell tool registered — same gate, same backend");
     } catch (e) {
       info(`[Blitz:BashSandbox] WARNING: powershell tool NOT sandboxed (${e instanceof Error ? e.message : String(e)}) — its commands are still gated by the tool_call hook, but run outside the backend`);
     }
@@ -188,5 +188,5 @@ export function setupSandboxedBash(pi: ExtensionAPI, config: BlitzConfig, audit:
   startCapabilityProbe(backend, runDir, withCache(undefined),
     backend ? (cmd, onData) => backend.exec(cmd, runDir, { env: withCache(undefined), onData, timeout: 10_000, grants: [...cacheGrant, ...policyGrant] } as any) : undefined);
 
-  info(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}${policyDir ? `; bun minimumReleaseAge ${policyAge}s` : "; bun install policy off"}`);
+  note(`[Blitz:BashSandbox] gate active; backend=${backend ? backend.name : "none"}${cache ? `; toolchain cache ${config.sandbox.cache} → ${cache}` : "; toolchain cache off"}${policyDir ? `; bun minimumReleaseAge ${policyAge}s` : "; bun install policy off"}`);
 }

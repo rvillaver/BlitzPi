@@ -7,7 +7,7 @@ import { stats } from "./security-status";
 import type { BlitzConfig } from "./config";
 import type { AuditLogger } from "./audit";
 import type { PermissionGate } from "./permission-gate";
-import { info } from "./log";
+import { info, note } from "./log";
 
 const FILE_TOOLS = new Set(["read", "write", "edit", "delete", "ls", "find", "grep"]);
 const WRITE_TOOLS = new Set(["write", "edit", "delete"]);
@@ -19,8 +19,8 @@ function targetPath(event: ToolCallEvent): string | null {
 }
 
 export function setupSandbox(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, gate: PermissionGate): void {
-  if (!config.sandbox.enabled) { info("[Blitz:Sandbox] disabled"); return; }
-  info("[Blitz:Sandbox] file tools gated by zones");
+  if (!config.sandbox.enabled) { note("[Blitz:Sandbox] disabled"); return; }
+  note("[Blitz:Sandbox] file tools gated by zones");
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;

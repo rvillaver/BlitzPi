@@ -11,7 +11,7 @@ import { stats } from "../security-status";
 import { parseInstalls } from "./packages";
 import { OsvClient, maliciousOf, type CheckResult } from "./osv";
 import { redactCommand } from "./secrets";
-import { info } from "../log";
+import { info, note } from "../log";
 import { askSelect, ASK_CEILING_MS } from "../ui-ask";
 
 export function describeBlock(r: CheckResult): string {
@@ -23,8 +23,8 @@ export function setupFeeds(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLo
   // `strict` asks before ANY install, even a clean one — independent of the OSV feed's own mode, so the hook
   // must stay registered even with `feeds.packages: off`.
   const askOnInstall = config.security_level === "strict";
-  if (mode === "off" && !askOnInstall) { info("[Blitz:Feeds] package feed off"); return; }
-  info(`[Blitz:Feeds] package feed (OSV) ${mode}${askOnInstall ? " · security level strict: asks before every install" : ""}`);
+  if (mode === "off" && !askOnInstall) { note("[Blitz:Feeds] package feed off"); return; }
+  note(`[Blitz:Feeds] package feed (OSV) ${mode}${askOnInstall ? " · security level strict: asks before every install" : ""}`);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;

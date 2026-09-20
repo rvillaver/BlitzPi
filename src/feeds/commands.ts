@@ -10,7 +10,7 @@ import { stats } from "../security-status";
 import { FeedStore, type CompiledRule } from "./store";
 import type { SigmaCond, SigmaMatcher } from "./adapters/sigma";
 import { redactCommand } from "./secrets";
-import { info } from "../log";
+import { info, note } from "../log";
 
 export interface CommandContext { commandLine: string; images: string[] }
 
@@ -58,9 +58,9 @@ export function scanCommand(command: string, rules: CompiledRule[]): CommandHit[
 
 export function setupCommandsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.commands;
-  if (mode === "off") { info("[Blitz:Feeds] commands feed off"); return; }
+  if (mode === "off") { note("[Blitz:Feeds] commands feed off"); return; }
   const initial = store.liveRules("commands");
-  info(initial ? `[Blitz:Feeds] commands feed (Sigma) ${mode}, ${initial.length} rules` : `[Blitz:Feeds] commands feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
+  note(initial ? `[Blitz:Feeds] commands feed (Sigma) ${mode}, ${initial.length} rules` : `[Blitz:Feeds] commands feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;

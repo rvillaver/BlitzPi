@@ -8,7 +8,7 @@ import type { BlitzConfig } from "../config";
 import type { AuditLogger } from "../audit";
 import { stats } from "../security-status";
 import { FeedStore, type CompiledRule } from "./store";
-import { info } from "../log";
+import { info, note } from "../log";
 
 export interface SecretHit { id: string; severity: CompiledRule["severity"]; description: string; sample: string }
 
@@ -63,10 +63,10 @@ export function redactCommand(text: string): string {
 
 export function setupSecretsFeed(pi: ExtensionAPI, config: BlitzConfig, audit: AuditLogger, store: FeedStore = new FeedStore()): void {
   const mode = config.feeds.secrets;
-  if (mode === "off") { info("[Blitz:Feeds] secrets feed off"); return; }
+  if (mode === "off") { note("[Blitz:Feeds] secrets feed off"); return; }
   const initial = store.liveRules("secrets");
   activeRules = initial;
-  info(initial ? `[Blitz:Feeds] secrets feed (gitleaks) ${mode}, ${initial.length} rules` : `[Blitz:Feeds] secrets feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
+  note(initial ? `[Blitz:Feeds] secrets feed (gitleaks) ${mode}, ${initial.length} rules` : `[Blitz:Feeds] secrets feed ${mode} — not installed yet (blitzpi feeds opt-in); activates as soon as it is`);
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     const tool = (event as any).toolName as string;

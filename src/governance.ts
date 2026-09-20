@@ -6,7 +6,7 @@ import { Caller, noteCaller } from "./caller";
 import { MockGovernanceAPI, GovernanceRequest, GovernanceResponse } from "./governance-api";
 import { checkThreatAPI, MockThreatAPI, ThreatCheckRequest } from "./threat-api";
 import { createGovernanceProvider, type ProviderConfig } from "./governance-providers/factory";
-import { debug, info } from "./log";
+import { debug, info, note } from "./log";
 
 const PROMPT_INJECTION_PATTERNS = [
   /ignore.*(?:previous\s+)?instructions?/i,
@@ -93,7 +93,7 @@ export function setupGovernance(
   blitzAuditLogger: AuditLogger,
   blitzCaller?: Caller
 ): void {
-  info("[Blitz:Governance] Setup");
+  note("[Blitz:Governance] Setup");
 
   // Initialize governance state
   runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -104,7 +104,7 @@ export function setupGovernance(
   config = blitzConfig;
 
   if (!config.governance.enabled) {
-    info("[Blitz:Governance] Disabled in config");
+    note("[Blitz:Governance] Disabled in config");
     return;
   }
 
@@ -120,7 +120,7 @@ export function setupGovernance(
   let governanceProvider: import("./governance-providers/index").GovernanceProvider;
   try {
     governanceProvider = createGovernanceProvider(providerConfig);
-    info(`[Blitz:Governance] Enabled. Provider: ${governanceProvider.name}`);
+    note(`[Blitz:Governance] Enabled. Provider: ${governanceProvider.name}`);
   } catch (error) {
     console.error(`[Blitz:Governance] Failed to initialize provider:`, error instanceof Error ? error.message : String(error));
     return;

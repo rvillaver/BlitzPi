@@ -11,7 +11,7 @@ import { load } from "js-yaml";
 import { minimatch } from "minimatch";
 import { BlitzConfig } from "./config";
 import { AuditLogger } from "./audit";
-import { debug, info } from "./log";
+import { debug, info, note } from "./log";
 
 // Profile schema
 export interface ProfileRule {
@@ -51,7 +51,7 @@ class ProfileMatcher {
 
   private loadProfiles(profilesDir: string): void {
     if (!fs.existsSync(profilesDir)) {
-      info(
+      note(
         `[Blitz:AccessProfiles] Profiles directory not found: ${profilesDir}`
       );
       return;
@@ -68,7 +68,7 @@ class ProfileMatcher {
 
         if (parsed.name && parsed.rules) {
           this.profiles.set(parsed.name, parsed);
-          info(
+          note(
             `[Blitz:AccessProfiles] Loaded profile: ${parsed.name} (${parsed.rules.length} rules)`
           );
         }
@@ -164,8 +164,8 @@ export function setupAccessProfiles(
   config: BlitzConfig,
   auditLogger: AuditLogger
 ): void {
-  info("[Blitz:AccessProfiles] Setup");
-  info("[Blitz:AccessProfiles] Integrating Blitz access profiles with Pi permission system");
+  note("[Blitz:AccessProfiles] Setup");
+  note("[Blitz:AccessProfiles] Integrating Blitz access profiles with Pi permission system");
 
   // Determine profile directories to check
   const profileDirs = [
@@ -211,7 +211,7 @@ export function setupAccessProfiles(
     debug(`AccessProfiles ALLOWED ${event.toolName}`);
   });
 
-  info(
+  note(
     `[Blitz:AccessProfiles] Listening on profile: ${config.profiles.default}`
   );
 }

@@ -25,7 +25,7 @@ import { setupQuestionTool } from "./tools/question";
 import { setupChannelPostTool } from "./tools/channel-post";
 import { setupBridgeCommands } from "./ui/bridge-commands";
 import { defaultScratchDirs } from "./zones";
-import { info } from "./log";
+import { info, note } from "./log";
 import { setupLoop } from "./loop";
 import { setupInitRecovery, step, type ModuleFailure } from "./init-recovery";
 import { installInterrupt } from "./interrupt";
@@ -35,7 +35,7 @@ import { installInterrupt } from "./interrupt";
  * This extension loads as part of the Blitz Pi unified product
  */
 export default async function blitz(pi: ExtensionAPI): Promise<void> {
-  info("[Blitz Pi] Initializing security layer...");
+  note("[Blitz Pi] Initializing security layer...");
 
   // Nothing below throws out of this function. Pi answers a throwing factory with `load.discard()` — every hook
   // this extension registered is dropped and the session continues — so for the extension whose job is
@@ -56,9 +56,9 @@ export default async function blitz(pi: ExtensionAPI): Promise<void> {
     const config = loadConfig();
     const auditLogger = setupAudit(caller, config);
 
-    info(`[Blitz Pi] Caller: ${caller.user} (${caller.install_type}) in ${caller.project_path}`);
-    info(`[Blitz Pi] Threat detection tier: ${config.threat_detection.tier}`);
-    info(`[Blitz Pi] Security level: ${config.security_level}`);
+    note(`[Blitz Pi] Caller: ${caller.user} (${caller.install_type}) in ${caller.project_path}`);
+    note(`[Blitz Pi] Threat detection tier: ${config.threat_detection.tier}`);
+    note(`[Blitz Pi] Security level: ${config.security_level}`);
 
     // Permission gate (zones + ladder). Project = launch folder; install = BlitzPi's own dir.
     const projectRoot = process.cwd();
