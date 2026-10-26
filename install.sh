@@ -27,7 +27,7 @@
 set -eu
 
 REPO="rvillaver/BlitzPi"
-BUN_VERSION="1.4.0"
+BUN_VERSION="1.4.4"
 MODE="install"; YES=0; WANT_VERSION=""; PURGE=0; REINSTALL=0; USE_VERSION=""; FEEDS=""
 KEEP="${BLITZPI_KEEP:-2}"; case "$KEEP" in ''|*[!0-9]*) KEEP=2 ;; esac; [ "$KEEP" -ge 1 ] || KEEP=1
 for a in "$@"; do

@@ -20,7 +20,7 @@ $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $REPO = "rvillaver/BlitzPi"
-$BUN_VERSION = "1.4.0"
+$BUN_VERSION = "1.4.4"
 $BUN_TARGET = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "windows-aarch64" } else { "windows-x64" }
 $KEEP = 2; if ($env:BLITZPI_KEEP -match '^\d+$') { $KEEP = [Math]::Max(1, [int]$env:BLITZPI_KEEP) }
 $APP = if ($env:BLITZPI_HOME) { $env:BLITZPI_HOME } else { Join-Path $env:LOCALAPPDATA "BlitzPi" }

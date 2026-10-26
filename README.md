@@ -56,7 +56,7 @@ blitzpi rollback    # switch back to the previous version — instant, offline (
 blitzpi use 1.2.0   # switch to any installed version; `blitzpi update --version v1.2.0` fetches one that isn't
 blitzpi uninstall   # removes the app directory + command; keeps your logins (~/.pi) and audit (~/.blitz)
 blitzpi uninstall --purge   # …and also removes ~/.blitz (audit trail, global config)
-blitzpi --version   # blitzpi x.y.z (pi 0.84.3, bun 1.4.0)
+blitzpi --version   # blitzpi x.y.z (pi 0.84.3, bun 1.4.4)
 blitzpi bun <args>  # run the private Bun this install ships — `blitzpi bun install`, `blitzpi bun run dev`
 blitzpi paths       # where everything lives (app dir, current version, the bundled bun, the command itself)
 ```

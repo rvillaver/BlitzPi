@@ -2,6 +2,10 @@
 
 Governance changes are called out explicitly in every release: what the runtime enforces, what it merely observes, and what changed for the agent.
 
+## Unreleased
+
+- **Security: the private Bun runtime is now 1.4.4,** up from 1.4.0, which was open to three HIGH advisories: an out-of-bounds write in the bundled brotli decoder (CVE-2026-111497), an HTTP/3 QPACK amplification that lets a remote peer exhaust memory and stall the CPU, and a bundled root store that still trusted the compromised eMudhra (emSign) intermediate CAs — a trusted-root problem, so it affects anything the runtime fetches over TLS. Both installers pin the runtime by version and download it themselves, so every install and update since 1.4.0 shipped the vulnerable build on every platform; the Windows pin is separate from the POSIX one and both are raised. An existing install replaces its runtime on the next `blitzpi update`, because the version it recorded no longer matches the pin.
+
 ## 1.2.127 — 2026-09-19
 
 - **Fixed: an interactive command in the agent's shell no longer steals your keyboard and leaves the prompt garbled.** The sandbox gave its commands no stdin, but it did hand them our *controlling terminal* — and a program that prompts through `/dev/tty` rather than stdin (`sudo`, an ssh or GPG passphrase, `gh auth login`, `apt`) opens that terminal directly. It read your keystrokes behind the TUI and put the terminal in raw, no-echo mode, which is what survived the command and garbled everything typed afterwards. Sandboxed commands now run in their own session with no controlling terminal, on the bwrap backend and on the unconfined path an approved dangerous shape takes (the pinned and Seatbelt backends already did). Such a prompt now fails plainly — `/dev/tty: No such device or address`, or sudo's "no tty present" — instead of quietly taking over the terminal.
