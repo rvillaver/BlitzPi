@@ -16,7 +16,19 @@ function probeUnderPty(pref: string): string | null {
   const runner = fs.existsSync(path.join(__dirname, "..", "node_modules", ".bin", "ts-node"))
     ? `node_modules/.bin/ts-node --compiler-options '{"module":"commonjs"}' ${probe} ${pref}`
     : `bun ${probe} ${pref}`;
-  const r = spawnSync("script", ["-qec", runner, "/dev/null"], { cwd: path.join(__dirname, ".."), encoding: "utf-8", timeout: 90_000 });
+  // `script` takes the command differently on each side: GNU reads it from `-c`, BSD/macOS takes it as
+  // positional words after the typescript file. `-c` on BSD is "illegal option" and the probe never runs,
+  // so the test used to report UNEXPECTED here rather than NO_TTY.
+  const args = process.platform === "linux"
+    ? ["-qec", runner, "/dev/null"]
+    : ["-qe", "/dev/null", "sh", "-c", runner];
+  // stdin is explicitly NOT inherited. BSD `script` runs tcgetattr on its own stdin, and jest hands a
+  // worker a socket, which fails with "tcgetattr/ioctl: Operation not supported on socket" before the
+  // probe runs at all. The child still gets its own pty either way — that is `script`'s whole job, and
+  // it is the tty the probe tries to steal.
+  const r = spawnSync("script", args, {
+    cwd: path.join(__dirname, ".."), encoding: "utf-8", timeout: 90_000, stdio: ["ignore", "pipe", "pipe"],
+  });
   const out = (r.stdout || "") + (r.stderr || "");
   if (/STOLE_TTY/.test(out)) return "STOLE_TTY";
   if (/NO_TTY/.test(out)) return "NO_TTY";

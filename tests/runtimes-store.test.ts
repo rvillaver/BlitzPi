@@ -38,9 +38,18 @@ function brokenRuntime(): Buffer {
 const sha = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
 const respond = (b: Buffer) => ({ ok: true, status: 200, body: null, headers: { get: () => null }, arrayBuffer: async () => b }) as any;
 
+/**
+ * The pin `install()` will actually consult: `store.ts` calls `pinnedPythonFor()` with no arguments, so
+ * it resolves for the HOST. These tests work by pointing a pin's `sha256` at the bytes they serve, and
+ * `pinnedPythonFor` returns a stable object per platform, so the mutation only lands if it is the host's
+ * pin. Hardcoding `("linux", "x64")` made all three tampering tests pass on a linux/x64 developer machine
+ * and fail everywhere else against the host pin's real checksum.
+ */
+const hostPin = () => pinnedPythonFor();
+
 /** Install `bytes`, pretending the pin expects `expect` (defaults to honest). */
 function storeWith(dir: string, bytes: Buffer, expectSha?: string) {
-  const pin = pinnedPythonFor("linux", "x64")!;
+  const pin = hostPin()!;
   const s = new RuntimeStore(dir, (async () => respond(bytes)) as any);
   // Point the pin's hash at whatever we're serving, unless the test wants a mismatch.
   (s as any).__pin = pin;
@@ -116,7 +125,7 @@ describe("runtime store", () => {
     const bytes = brokenRuntime();
     const s = new RuntimeStore(dir, (async () => respond(bytes)) as any);
     // Force the pin check to pass so we reach the extraction check.
-    const pin = pinnedPythonFor("linux", "x64")!;
+    const pin = hostPin()!;
     const original = pin.sha256;
     (pin as any).sha256 = sha(bytes);
     try {
@@ -129,7 +138,7 @@ describe("runtime store", () => {
 
   test("install → re-install with different content → rollback returns the previous interpreter", async () => {
     const dir = tmp();
-    const pin = pinnedPythonFor("linux", "x64")!;
+    const pin = hostPin()!;
     const original = pin.sha256;
     const v1 = fakeRuntime("VERSION-ONE");
     const v2 = fakeRuntime("VERSION-TWO");
@@ -156,7 +165,7 @@ describe("runtime store", () => {
 
   test("a failed install after a good one keeps the good one running", async () => {
     const dir = tmp();
-    const pin = pinnedPythonFor("linux", "x64")!;
+    const pin = hostPin()!;
     const original = pin.sha256;
     const good = fakeRuntime("GOOD");
     try {

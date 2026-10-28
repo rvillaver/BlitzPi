@@ -4,22 +4,32 @@ import path from "node:path";
 import { classifyZone } from "../src/zones";
 import { decide } from "../src/permissions";
 
-const roots = { project: "/home/u/app-stack", install: "/home/u/BlitzPi", home: "/home/u", scratch: ["/tmp", "/private/tmp"] };
+/**
+ * A synthetic home that exists on NO platform, deliberately.
+ *
+ * `classifyZone` canonicalizes both sides, so every ancestor of these paths that happens to exist is
+ * resolved. `/home` was the old root and is a real symlink to `/System/Volumes/Data/home` on macOS, so
+ * `/home/u/other-project` canonicalized into `/System/...` and classified `system` instead of `other`.
+ * That resolution is correct — it is the same place — so the root, not the classifier, is what moves:
+ * nothing along this path resolves, on any host, and `canonical()` returns it lexically unchanged.
+ */
+const HOME = "/zones-test-root/u";
+const roots = { project: `${HOME}/app-stack`, install: `${HOME}/BlitzPi`, home: HOME, scratch: ["/tmp", "/private/tmp"] };
 const z = (p: string) => classifyZone(p, roots);
 
 describe("zone classification", () => {
   test("project + subpaths", () => {
-    expect(z("/home/u/app-stack/src/main.ts")).toBe("project");
-    expect(z("/home/u/app-stack")).toBe("project");
+    expect(z(`${HOME}/app-stack/src/main.ts`)).toBe("project");
+    expect(z(`${HOME}/app-stack`)).toBe("project");
   });
   test("project-config vs goodbehavior", () => {
-    expect(z("/home/u/app-stack/.blitz/profiles/user.yaml")).toBe("project-config");
-    expect(z("/home/u/app-stack/.blitz/goodbehavior/memory/x.md")).toBe("goodbehavior");
-    expect(z("/home/u/app-stack/.pi/skills/audit-goodbehavior/SKILL.md")).toBe("goodbehavior");
+    expect(z(`${HOME}/app-stack/.blitz/profiles/user.yaml`)).toBe("project-config");
+    expect(z(`${HOME}/app-stack/.blitz/goodbehavior/memory/x.md`)).toBe("goodbehavior");
+    expect(z(`${HOME}/app-stack/.pi/skills/audit-goodbehavior/SKILL.md`)).toBe("goodbehavior");
   });
   test("install / global / system / plumbing / other", () => {
-    expect(z("/home/u/BlitzPi/src/index.ts")).toBe("install");
-    expect(z("/home/u/.blitz/audit/log.jsonl")).toBe("global");
+    expect(z(`${HOME}/BlitzPi/src/index.ts`)).toBe("install");
+    expect(z(`${HOME}/.blitz/audit/log.jsonl`)).toBe("global");
     expect(z("/etc/hosts")).toBe("system");
     expect(z("/usr/lib/x.so")).toBe("system");
     expect(z("/dev/null")).toBe("plumbing");
@@ -28,8 +38,8 @@ describe("zone classification", () => {
     expect(z("/private/tmp/x")).toBe("scratch");
     expect(decide("read", "scratch")).toBe("silent");
     expect(decide("write", "scratch")).toBe("silent");
-    expect(z("/home/u/other-project/secret")).toBe("other");
-    expect(z("/home/u/.ssh/id_rsa")).toBe("other");
+    expect(z(`${HOME}/other-project/secret`)).toBe("other");
+    expect(z(`${HOME}/.ssh/id_rsa`)).toBe("other");
   });
 });
 
