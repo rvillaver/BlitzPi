@@ -33,6 +33,10 @@ Thumbs.db
 # Blitz runtime
 runs/
 .blitz/audit/*.jsonl
+# Per-run / per-version state markers BlitzPi writes into whatever project it runs in. Running it in
+# its own repo is the ordinary dev loop (`bun run dev`), so these appear for everyone; everything in
+# `.blitz/` that belongs to the repo — the config, the profiles, the memory — is a non-dot path.
+.blitz/.*
 
 # Pi runtime
 .pi/audit/*.jsonl
