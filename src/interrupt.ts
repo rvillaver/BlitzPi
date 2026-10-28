@@ -16,6 +16,12 @@
  * every stream including post-tool ones, and `ctx.abort()` aborts the active run. So this
  * does not reimplement interrupting — it just makes sure the key reaches it.
  *
+ * **Verified end to end 2026-10-28**, driven under a real pty against a turn that had already
+ * run tools: the trace records `ESC seen, idle=false`, the transcript shows `Operation aborted`
+ * under `Ran 3 commands, read 5 files`, and output stopped dead — 9,231 bytes in the three
+ * seconds covering the abort and its render, then zero over the next six. That is the reported
+ * case, not an approximation of it: the keystroke had to survive a completed tool call to count.
+ *
  * `handleInput` sees raw bytes, below whatever is losing the key. We take escape **only when
  * the agent is busy**; every other case falls through to `super`, so clearing the editor,
  * leaving bash mode, dismissing a selector and double-escape all behave exactly as before.
